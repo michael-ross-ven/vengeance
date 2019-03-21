@@ -39,13 +39,13 @@ def tab_to_lev(tab, header_r=2, meta_r=1, first_c='B', clear_filter=True):
     if isinstance(tab, vengeance.excel_levity_cls):
         return tab
 
+    if isinstance(tab, str):
+        if tab.lower() == 'sheet1' or tab.lower() == 'empty sheet':
+            header_r = 1
+            meta_r   = 0
+            first_c = 'A'
+
     ws = vengeance.get_worksheet(wb, tab)
-
-    if tab.lower() == 'sheet1' or tab.lower() == 'empty sheet':
-        header_r = 1
-        meta_r   = 0
-        first_c = 'A'
-
     lev = vengeance.excel_levity_cls(ws,
                                      meta_r=meta_r,
                                      header_r=header_r,

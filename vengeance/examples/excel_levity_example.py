@@ -18,30 +18,34 @@ xlPink   = 9856255
 @veng.print_runtime
 def main():
     """
-    Working with Excel can be a bit tedious. It's extremely easy to build terrible
-    worksheets and there is no enforcement in data integrity -- anyone can
-    just slap in some data anywhere without any thought to good organization or control
+    Working with Excel can be tedious.
 
-    You'll spend A LOT of time in VBA constantly finding range boundaries in the sheets,
+    It's extremely easy to build terrible worksheets and there is no enforcement
+    in data integrity -- anyone can just slap in some data where ever they feel like.
+    Usually, this results in workbooks that are like a dirty laundry basket,
+    where dats is tossed together and draped over the edges
+
+    https://imgs.xkcd.com/comics/algorithms.png
+
+    In VBA, uou'll spend A LOT of time constantly finding range boundaries in the sheets,
     determining last row or last column before you can start working on the data.
-    It's also a big vulnerability to use Excel's arbitrary alpha column (A-Z)
-    references which lead to invalid references in the VBA code
-    whenever columns are shifted or reordered. Ideally, it would be nice to
-    attach column names to the rows you are iterating over, much more like
+    It's also a big vulnerability to use arbitrary alpha column (A-Z)
+    references which lead to invalid references in the VBA code whenever
+    columns are shifted or reordered. Ideally, it would be nice to
+    attach header names to the rows you are iterating over, much more like
     fields in a database table
 
-    However, Excel is the best software IN THE WORLD for flexible prototyping and
-    actually viewing the data you're working with (for medium sized datasets).
-    As long as you use each tab like a miniature database, Excel can actually be
-    quite powerful
+    Excel's flexibility is its greatest weakness, but also its greatest strength.
+    It's the best software in the world for fast prototyping and reviewing data,
+    it just shouldn't be used to build entire processes. For middle-sized data,
+    Excel can be phenominally powerful.
 
     Published site-packages like xlrd, xlwt, openpyxl will allow you to
-    access Excel files from python, but don't allow control over the actual
-    application, limiting your ability to call add-ins, recalculate cells,
-    and control existing infrastructure
+    read Excel files from python, but don't control the actual application,
+    limiting your ability to manage any existing infrastructure built on Excel
 
-    The excel_levity_cls is meant to "uplift" the Excel application and
-    make it feel as light as a feather.
+    The excel_levity_cls is meant to make Excel data feel as light as a feather
+    instead of like busting concrete
     """
 
     share.open_project_workbook(open_new_instance=True,
@@ -65,7 +69,7 @@ def main():
     # write_formulas()
 
     # modify_range_values(iter_method='slow')
-    # modify_range_values(iter_method='fast')
+    modify_range_values(iter_method='fast')
 
     # excel_object_model()
     # allow_focus()
@@ -222,6 +226,8 @@ def iterate_flux_rows():
         a = row.names
         a = row.values
 
+        a = row.view_as_array       # meant as a debugging tool in PyCharm
+
         if 'col_a' in lev.headers:
             a = row.col_a
             a = row['col_a']
@@ -358,12 +364,13 @@ def write_formulas():
 @veng.print_runtime
 def modify_range_values(iter_method='slow'):
     """
-    VBA-like
-    avoid lots of calls like ws.Range('...').Value
+    although calls like "ws.Range('...').Value" work fine in VBA,
+    this is painfully slow for win32com remote procedure calls
 
-    too much overhead from win32com remote procedure calls
+    value extraction into flux_cls can also be used for more complex transformations
     """
     lev = share.tab_to_lev('Sheet1')
+    # flux = share.tab_to_flux('Sheet1')
 
     if iter_method == 'slow':
         ws = lev.sheet
@@ -426,18 +433,22 @@ def allow_focus():
     """
     if excel_levity_cls.allow_focus = False, lev.activate() will have no effect
 
-    setting this value to False allows processes to run in the background without
-    disrupting the user
+    setting this value to False allows processes to run without disrupting the user
     """
+    print()
     activate_all_sheets()
+
+    print()
 
     veng.excel_levity_cls.allow_focus = True
     activate_all_sheets()
 
 
 def activate_all_sheets():
+    print('veng.excel_levity_cls.allow_focus = {}'.format(veng.excel_levity_cls.allow_focus))
+
     for ws in share.wb.Sheets:
-        print(ws.Name)
+        print("activate: '{}'".format(ws.Name))
         lev = share.tab_to_lev(ws, clear_filter=True)
         lev.activate()
 

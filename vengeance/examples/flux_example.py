@@ -9,6 +9,68 @@ from examples import excel_project_template as share
 
 @vengeance.print_runtime
 def main():
+    """
+    Managing tabular data shouldn't be complicated.
+
+    If values are stored in a matrix, it should't be any harder to iterate or modify
+    than a list. One enhancement, however, would be to have row values accessible
+    by column names instead of by integer indeces
+        eg,
+            for row in m:
+                row.header
+
+            for row in m:
+                row[37]
+
+    Two naive solutions for this are:
+        1) convert rows to a dictionaries
+           however, keeping per-instance dictionaries has a very high memory footprint,
+           as a duplicate has to be stored on every row, and they are more difficult
+           to access by index
+           eg,
+               [{'col_a': 1.0, 'col_b': 'b', 'col_c': 'c'},
+                {'col_a': 1.0, 'col_b': 'b', 'col_c': 'c'}]
+
+        2) convert rows to namedtuples
+           named tuples do not have per-instance dictionaries, so they are
+           lightweight and require no more memory than regular tuples,
+           but their values are read-only
+
+    Another possibility would be to store the values in column-major order,
+    like in a database. This has a further advantage in that all values
+    in the same column are usually of the same data type, allowing them to
+    be stored more efficiently
+    eg,
+        row-major order
+            [['coi_a', 'col_b', 'col_c'],
+             [1.0,     'b',    'c'],
+             [1.0,     'b',    'c'],
+             [1.0,     'b',    'c']]
+
+        column-major order
+             {'col_a': [1.0, 1.0, 1.0],
+              'col_a': ['b', 'b', 'b'],
+              'col_a': ['c', 'c', 'c']}
+
+    This is essentially what a pandas DataFrame is. The drawback to this
+    is a major conceptual overhead.
+    ***********************************************************************************
+    *   Intuitively, each row is some entity, each column is a property of that row   *
+    ***********************************************************************************
+        * the first thing everyone looks up for a DataFrame is "how to iterate rows",
+          the first thing the documentation says is "I hope you never have to use this"
+
+        * DataFrames have some great features, but also require specialized
+          syntax that can get very awkward and requires a lot of memorization
+
+    Another attempt is to:
+        * maintain row-major order
+        * named attributes on rows
+        * value mutability on rows
+        * maintain light memory footprint
+
+    This is the flux_cls
+    """
     flux = instantiate_flux()
 
     # restricted_header_names()
@@ -175,8 +237,6 @@ def flux_rows(flux):
     flux_2.insert_rows(0, flux_1)
     flux_2.append_rows(flux_1[10:15])
 
-    pass
-
 
 def iterate_primitive_rows(flux):
     """ iterate rows as a list of primitive values
@@ -225,15 +285,28 @@ def iterate_flux_rows(flux):
         * preferred over flux.flux_rows(i_1, i_2)
         * as full matrix, slice syntax
 
+    m = flux[::10]
+        * every 10th row
+
     m = list(flux.flux_rows())
         * as full matrix, includes header row
 
     m = list(flux)
         * as full matrix, excludes header row
-    """
 
-    # .bind() helps speed up attribute access, but lose renaming capabilities
-    # flux.bind()
+    offset comparisions can easily be achieved by:
+        rows = iter(flux)
+        row_prev = next(rows)
+
+        for row in rows:
+            if row_prev.col_a ... and row.col_a ...:
+
+            row_prev = row
+
+    flux.bind()
+        * speeds up attribute access on flux_row_cls, but this interferes with
+          header synchronization with parent flux_cls
+    """
 
     for row in flux:
         # see restricted_header_names()
@@ -246,7 +319,9 @@ def iterate_flux_rows(flux):
         a = row['col_a']
         a = row[0]
 
+    # slice, stride
     m = flux[5:-2]
+    m = flux[::10]
 
     # extract single column
     col = [row.col_b for row in flux]
@@ -295,7 +370,7 @@ def flux_mapping():
             * overwrites non-unique values
 
         .index_rows
-            * will append all rows as a list to its keys
+            * will append all rows as a list to its values
             * effectively, a groupby statement
     """
     m = [['name_a', 'name_b', 'val_a', 'val_b']]
@@ -327,7 +402,7 @@ def flux_mapping():
 def flux_subclass():
     """
     the flux_custom_cls.commands variable is intended to provide a high-level description
-    of the behaviors of this class, and making its state transformations explicit and discrete
+    of the behaviors of this class, and making its state transformations explicit and modular
 
     flux.execute_commands(profile_performance=True)
         output performance metrics for each command (requires line_profiler site-package)
@@ -373,24 +448,25 @@ def compare_against_pandas():
         performance:
             * pandas DataFrames are much more optimized for speed and memory efficiency
 
-
     flux_cls Pros:
         built on pure-python lists:
             * Python's built-in list data structure is fantastic, and is much
-              more hassle-free than numpy.ndarrays or pandas.Series
+              less of a hassle than numpy.ndarrays or pandas.Series
 
             * Python's built-in list has no major inefficieny (such as appending rows to DataFrames)
 
+            * although slower than pandas, iteration of flux_cls is every bit as fast as
+              iteration over any native python list
+
         clarity:
             * row-major iteration coincides with the intuitive organization of the data
-              (each row is a separate entry, each column is a property of that row)
 
             * allows for much clearer syntax; the optimization in the DataFrame
               can lead developers to use difficult to read transformations, like this:
-              df['c'] = df.apply(
-                  lambda row: row['a']*row['b'] if np.isnan(row['c']) else row['c'],
-                  axis=1
-              )
+                  df['c'] = df.apply(
+                      lambda row: row['a']*row['b'] if np.isnan(row['c']) else row['c'],
+                      axis=1
+                  )
     """
     import timeit
     import pandas

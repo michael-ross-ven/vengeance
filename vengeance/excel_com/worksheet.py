@@ -23,7 +23,7 @@ def get_worksheet(wb, tab_name,
                   clear_filter=False,
                   activate=False):
 
-    if tab_name.__class__.__name__ == '_Worksheet':
+    if tab_name.__class__.__name__ in {'CDispatch', '_Worksheet'}:
         return tab_name
 
     if wb is None:
