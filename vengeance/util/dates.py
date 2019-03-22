@@ -1,21 +1,20 @@
 
 import re
+from collections import Iterable
+
 from functools import lru_cache
 
 from datetime import date
 from datetime import datetime
 from datetime import timedelta
 
-from collections import Iterable
+from dateutil.parser import parse as dateutil_parse
 
 
 def to_datetime(v):
     """ convert variety of date representations into a datetime object
     :param v:
         an iterable, excel serial date, datetime, or string
-
-    hmmmmmm, is this faster?
-    from dateutil.parser import parse
     """
 
     if isinstance(v, datetime):
@@ -84,21 +83,38 @@ def __parse_excel_serial(f):
 
 @lru_cache(maxsize=2**13)
 def __parse_string(s):
+    """
+    time_fragment_re
+        for cases like: '2017/01/01 00:00:00 000'
+        these extra digits after the '00:00:00' value will break most parsers
+        and should be removed
+        eg:
+            ' 000' = time_fragment_re.search('2017/01/01 00:00:00 000')
+    """
+    time_fragment_re = re.compile(r'''
+        [\s][\d]{3,}$
+    ''', re.X | re.I)
+
     s = s.strip()
+    s = time_fragment_re.sub('', s)
 
     d_ret = __parse_string_strptime(s)
     if d_ret is None:
-        d_ret = __parse_string_pandas(s)
+        d_ret = __parse_string_dateutil(s)
 
     return d_ret
 
 
 def __parse_string_strptime(s):
+    # has hh:mm value, strptime not set up to handle timestamps
     if ':' in s:
-        # has hh:mm value, strptime has no chance at this
         return None
 
-    common_formats = ('%Y-%m-%d', '%Y%m%d', '%m/%d/%Y')
+    common_formats = ('%m/%d/%Y',       # 01/01/2001
+                      '%Y-%m-%d',       # 2000-01-01
+                      '%Y-%b-%d',       # 2000-jan-01
+                      '%d-%b-%Y',       # 01-jan-2000
+                      '%Y%m%d')         # 20000101
 
     for d_fmt in common_formats:
         try:
@@ -109,33 +125,11 @@ def __parse_string_strptime(s):
     return None
 
 
-def __parse_string_pandas(s):
-    """ let pandas library do the heavy lifting for parsing date strings
-
-    time_fragment_re
-        datetimes sometimes come formatted like '2017/01/01 00:00:00 000'
-        which has an extra ' 000' fragment after the hh:mm:ss value
-        these extra digits will break the pandas parser and should be removed
-        eg:
-            ' 000' = time_fragment_re.search('2017/01/01 00:00:00 000')
-    """
-    from pandas import to_datetime as pandas_to_datetime                # an expensive import (~3s)
-    from pandas import NaT
-    pandas_non_date = NaT.__class__
-
-    # for cases like: '2017/01/01 00:00:00 000'
-    time_fragment_re = re.compile(r'''
-        [\s][\d]{3,}$
-    ''', re.X | re.I)
-
-    s = time_fragment_re.sub('', s)
-
-    d_ret = pandas_to_datetime(s)
-    d_ret = d_ret.to_pydatetime()
-    if isinstance(d_ret, pandas_non_date):
-        raise ValueError("invalid date, could not parse: '{}'".format(s))
-
-    return d_ret
+def __parse_string_dateutil(s):
+    try:
+        return dateutil_parse(s)
+    except ValueError:
+        return None
 
 
 def __date_to_datetime(date_t):

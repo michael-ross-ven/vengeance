@@ -1,23 +1,5 @@
 
-from time import sleep
-
-import vengeance as veng
-from examples import excel_project_template as share
-
-xlPasteColumnWidths = 8
-
-xlCalculationManual    = -4135
-xlCalculationAutomatic = -4105
-
-xlNone   = -4142
-xlYellow = 65535
-xlBlue   = 15773696
-xlPink   = 9856255
-
-
-@veng.print_runtime
-def main():
-    """
+"""
     Working with Excel can be tedious.
 
     It's extremely easy to build terrible worksheets and there is no enforcement
@@ -48,6 +30,25 @@ def main():
     instead of like busting concrete
     """
 
+
+from time import sleep
+
+import vengeance as veng
+from examples import excel_project_template as share
+
+xlPasteColumnWidths = 8
+
+xlCalculationManual    = -4135
+xlCalculationAutomatic = -4105
+
+xlNone   = -4142
+xlYellow = 65535
+xlBlue   = 15773696
+xlPink   = 9856255
+
+
+@veng.print_runtime
+def main():
     share.open_project_workbook(open_new_instance=True,
                                 read_only=True,
                                 update_links=True)

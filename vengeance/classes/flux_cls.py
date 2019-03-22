@@ -70,7 +70,11 @@ class flux_cls:
 
     def execute_commands(self, commands, profile_performance=False):
         if profile_performance:
-            from line_profiler import LineProfiler
+            try:
+                from line_profiler import LineProfiler
+            except ImportError as e:
+                raise ImportError('u need to install the line_profiler package') from e
+
             profiler = LineProfiler()
         else:
             profiler = None

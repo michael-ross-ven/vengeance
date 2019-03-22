@@ -7,11 +7,12 @@ from setuptools import setup
 from textwrap import dedent
 
 
-__version__  = '1.0.1'
+__version__  = '1.0.3'
+__release__ = '$release 2'
+
 dependencies = ('comtypes',
                 'pypiwin32',
-                'line_profiler',
-                'pandas',
+                'python-dateutil',
                 'pyodbc')
 
 
@@ -25,11 +26,13 @@ def write_version_file():
     f_dir = os.path.split(f_dir)[0]
 
     with open(f_dir + '\\vengeance\\version.py', 'w') as f:
-        s = f'''
+        s = '''
             # generated from setup.py
-            __version__  = '{__version__}'
-            dependencies = {repr(dependencies)}
-        '''
+            __version__ = '{}'
+            __release__ = '{}'
+
+            dependencies = {}
+        '''.format(__version__, __release__, repr(dependencies))
         f.write(dedent(s))
 
 
@@ -45,13 +48,12 @@ if __name__ == '__main__':
           author_email='michael.ross.uncc@gmail.com',
           license='MIT',
           install_requires=dependencies,
-          # packages=('vengeance',),
-          packages=setuptools.find_packages(),
+          packages=('vengeance',),
+          # packages=setuptools.find_packages(),
           classifiers=[
               "Programming Language :: Python :: 3",
               "License :: OSI Approved :: MIT License",
               "Operating System :: Microsoft :: Windows"
-          ],
-          entry_points={}
+          ]
 
           )

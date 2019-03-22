@@ -1,4 +1,67 @@
 
+"""
+Managing tabular data shouldn't be complicated.
+
+If values are stored in a matrix, it should't be any harder to iterate or modify
+than a list. One enhancement, however, would be to have row values accessible
+by column names instead of by integer indeces
+    eg,
+        for row in m:
+            row.header
+
+        for row in m:
+            row[37]
+
+Two naive solutions for this are:
+    1) convert rows to a dictionaries
+       however, keeping per-instance dictionaries has a very high memory footprint,
+       as a duplicate has to be stored on every row, and they are more difficult
+       to access by index
+       eg,
+           [{'col_a': 1.0, 'col_b': 'b', 'col_c': 'c'},
+            {'col_a': 1.0, 'col_b': 'b', 'col_c': 'c'}]
+
+    2) convert rows to namedtuples
+       named tuples do not have per-instance dictionaries, so they are
+       lightweight and require no more memory than regular tuples,
+       but their values are read-only
+
+Another possibility would be to store the values in column-major order,
+like in a database. This has a further advantage in that all values
+in the same column are usually of the same data type, allowing them to
+be stored more efficiently
+eg,
+    row-major order
+        [['coi_a', 'col_b', 'col_c'],
+         [1.0,     'b',    'c'],
+         [1.0,     'b',    'c'],
+         [1.0,     'b',    'c']]
+
+    column-major order
+         {'col_a': [1.0, 1.0, 1.0],
+          'col_a': ['b', 'b', 'b'],
+          'col_a': ['c', 'c', 'c']}
+
+This is essentially what a pandas DataFrame is. The drawback to this
+is a major conceptual overhead.
+***********************************************************************************
+*   Intuitively, each row is some entity, each column is a property of that row   *
+***********************************************************************************
+    * the first thing everyone looks up for a DataFrame is "how to iterate rows",
+      the first thing the documentation says is "I hope you never have to use this"
+
+    * DataFrames have some great features, but also require specialized
+      syntax that can get very awkward and requires a lot of memorization
+
+Another attempt is to:
+    * maintain row-major order
+    * named attributes on rows
+    * value mutability on rows
+    * maintain light memory footprint
+
+This is the flux_cls
+"""
+
 from string import ascii_lowercase as ascii_s
 from random import choice
 
@@ -9,68 +72,6 @@ from examples import excel_project_template as share
 
 @vengeance.print_runtime
 def main():
-    """
-    Managing tabular data shouldn't be complicated.
-
-    If values are stored in a matrix, it should't be any harder to iterate or modify
-    than a list. One enhancement, however, would be to have row values accessible
-    by column names instead of by integer indeces
-        eg,
-            for row in m:
-                row.header
-
-            for row in m:
-                row[37]
-
-    Two naive solutions for this are:
-        1) convert rows to a dictionaries
-           however, keeping per-instance dictionaries has a very high memory footprint,
-           as a duplicate has to be stored on every row, and they are more difficult
-           to access by index
-           eg,
-               [{'col_a': 1.0, 'col_b': 'b', 'col_c': 'c'},
-                {'col_a': 1.0, 'col_b': 'b', 'col_c': 'c'}]
-
-        2) convert rows to namedtuples
-           named tuples do not have per-instance dictionaries, so they are
-           lightweight and require no more memory than regular tuples,
-           but their values are read-only
-
-    Another possibility would be to store the values in column-major order,
-    like in a database. This has a further advantage in that all values
-    in the same column are usually of the same data type, allowing them to
-    be stored more efficiently
-    eg,
-        row-major order
-            [['coi_a', 'col_b', 'col_c'],
-             [1.0,     'b',    'c'],
-             [1.0,     'b',    'c'],
-             [1.0,     'b',    'c']]
-
-        column-major order
-             {'col_a': [1.0, 1.0, 1.0],
-              'col_a': ['b', 'b', 'b'],
-              'col_a': ['c', 'c', 'c']}
-
-    This is essentially what a pandas DataFrame is. The drawback to this
-    is a major conceptual overhead.
-    ***********************************************************************************
-    *   Intuitively, each row is some entity, each column is a property of that row   *
-    ***********************************************************************************
-        * the first thing everyone looks up for a DataFrame is "how to iterate rows",
-          the first thing the documentation says is "I hope you never have to use this"
-
-        * DataFrames have some great features, but also require specialized
-          syntax that can get very awkward and requires a lot of memorization
-
-    Another attempt is to:
-        * maintain row-major order
-        * named attributes on rows
-        * value mutability on rows
-        * maintain light memory footprint
-
-    This is the flux_cls
-    """
     flux = instantiate_flux()
 
     # restricted_header_names()
@@ -81,8 +82,8 @@ def main():
     # read_from_excel()
     # write_to_excel(flux)
 
-    # flux_columns(flux)
-    # flux_rows(flux)
+    # modify_columns(flux)
+    # modify_rows(flux)
 
     iterate_primitive_rows(flux)
     iterate_flux_rows(flux)
@@ -180,7 +181,7 @@ def write_to_excel(flux):
     share.write_to_tab('Sheet2', flux)
 
 
-def flux_columns(flux):
+def modify_columns(flux):
     """
     the flux_cls does not allow for addition / insertion an entire vector of columns yet
     instead, a call to flux.append_columns(header) must be followed by flux[header] = column
@@ -217,7 +218,7 @@ def flux_columns(flux):
     col = flux['col_b']
 
 
-def flux_rows(flux):
+def modify_rows(flux):
     flux_1 = flux.copy()
     flux_2 = flux.copy()
 
@@ -338,7 +339,6 @@ def iterate_flux_rows(flux):
 
 
 def flux_sort_filter(flux):
-
     # filter_function
     def starts_with_a(_row):
         return (_row.col_a.startswith('a')
@@ -458,6 +458,10 @@ def compare_against_pandas():
             * although slower than pandas, iteration of flux_cls is every bit as fast as
               iteration over any native python list
 
+            * if you ever HAVE to iterate rows in a DataFrame, the flux_cls can be
+              up to 70x to 7,000x faster depending on whether you use .iterrows
+              or .itertuples
+
         clarity:
             * row-major iteration coincides with the intuitive organization of the data
 
@@ -479,7 +483,7 @@ def compare_against_pandas():
         nonlocal flux
 
         m = [['col_a', 'col_b', 'col_c']]
-        for i in range(100000):
+        for i in range(10000):
             if i % 10 == 0:
                 m.append([None, 'fill', 'missing'])
             else:
@@ -493,17 +497,23 @@ def compare_against_pandas():
     def as_dataframe():
         nonlocal df
 
-        def fill(row):
-            if row[0] is None:
-                return ' '.join((row[1], row[2]))
+        def fill(_row):
+            if _row[0] is None:
+                return ' '.join((_row[1], _row[2]))
+
+        for i, row in df.iterrows():
+            pass
+
+        # for row in df.itertuples():
+        #     pass
 
         # df['col_a'] = 1
         # df['col_a'] = df['col_b'] + df['col_c']
-        df['col_a'] = df.apply(fill)
+        # df['col_a'] = df.apply(fill)
 
         # a = df[df['col_a'].notnull() & (df['col_b'] == 'blah')]
 
-        # df_2 = pandas.DataFrame([[1, 2, 3]] * 500)
+        # df_2 = pandas.DataFrame([[1, 2, 3]] * 5000)
         # df.append(df_2)
 
     def as_flux():
@@ -513,13 +523,16 @@ def compare_against_pandas():
             return _row.col_a is not None and _row.col_b == 'blah'
 
         for row in flux:
+            pass
+
             # row.col_a = 1
             # row.col_a = row.col_b + row.col_c
-            if row.col_a is None:
-                row.col_a = ' '.join((row.col_b, row.col_c))
+            # if row.col_a is None:
+            #     row.col_a = ' '.join((row.col_b, row.col_c))
 
         # a = flux.filtered(f)
-        # flux.append_rows([[1, 2, 3]] * 500)
+
+        # flux.append_rows([[1, 2, 3]] * 5000)
 
     init()
 
