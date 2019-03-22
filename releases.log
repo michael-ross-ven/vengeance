@@ -13,4 +13,7 @@ $release 2
 
 	updated setup.py with packages=setuptools.find_packages()
 
+	fixed flux_row_cls.bind()
+
+
 <end />
