@@ -7,7 +7,7 @@ from setuptools import setup
 from textwrap import dedent
 
 
-__version__  = '1.0.6'
+__version__  = '1.0.7'
 __release__ = '$release 2'
 
 dependencies = ('comtypes',

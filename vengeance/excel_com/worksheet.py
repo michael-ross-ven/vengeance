@@ -74,9 +74,6 @@ def activate_sheet(ws):
 
 
 def write_to_excel_range(v, excel_range):
-    if is_vengeance_class(v):
-        v = v.rows()
-
     m = force_two_dimen(v)
     m = __excel_friendly_matrix(m)
 
