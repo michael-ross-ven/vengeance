@@ -17,8 +17,7 @@ def col_letter(col_int):
         __assert_valid_column_letter(col_int)
         return col_int
 
-    if col_int > max_cols:
-        raise ValueError('number: {:,} exceeds the maximum number of columns in excel'.format(col_int))
+    __assert_valid_column_number(col_int)
 
     col_str = ''
     while col_int > 0:
@@ -31,11 +30,13 @@ def col_letter(col_int):
 
 def col_number(col_str):
     """ convert column letters to int representation """
-    if isinstance(col_str, (float, int)):
-        return int(col_str)
-
     if col_str == '':
         return 0
+
+    if isinstance(col_str, (float, int)):
+        col_int = int(col_str)
+        __assert_valid_column_number(col_int)
+        return col_int
 
     __assert_valid_column_letter(col_str)
 
@@ -47,10 +48,17 @@ def col_number(col_str):
         c = ord(c) - 64
         col_int += c * 26**p
 
+    __assert_valid_column_number(col_int)
+
     return col_int
 
 
 def __assert_valid_column_letter(col_str):
     if not col_re.match(col_str):
         raise ValueError("invalid excel column: '{}'".format(col_str))
+
+
+def __assert_valid_column_number(col_int):
+    if col_int > max_cols:
+        raise ValueError("column number ({:,}) exceeds Excel's maximum column limit".format(col_int))
 

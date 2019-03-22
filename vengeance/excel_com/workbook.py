@@ -54,6 +54,11 @@ def open_workbook(path,
 
         wb = __workbook_from_excel_app(excel_app, path, update_links, read_only)
 
+    elif excel_instance is not None:
+        if wb.Application != excel_instance:
+            vengeance_message("'{}' already open in another Excel instance".format(wb.Name))
+            sleep(3)
+
     if wb.ReadOnly is False and read_only:
         vengeance_message("'{}' is NOT opened read-only".format(wb.Name))
         sleep(3)

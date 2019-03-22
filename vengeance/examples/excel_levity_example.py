@@ -28,7 +28,7 @@
 
     The excel_levity_cls is meant to make Excel data feel as light as a feather
     instead of like busting concrete
-    """
+"""
 
 
 from time import sleep

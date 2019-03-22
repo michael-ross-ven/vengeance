@@ -11,4 +11,6 @@ $release 2
 	removed line_profiler from dependencies
 	added python-dateutil to dependencies (__parse_string_dateutil)
 
+	updated setup.py with packages=setuptools.find_packages()
+
 <end />

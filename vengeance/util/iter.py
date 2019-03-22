@@ -22,12 +22,35 @@ def reduce_extra_dimen(v, minimum=0):
 
 
 def force_two_dimen(v):
-    v = generator_to_list(v)
+    v  = generator_to_list(v)
+    nd = num_dimen(v)
+
+    if nd > 2:
+        raise ValueError('can not reduce from {} dimensions'.format(nd))
 
     for _ in range(2 - num_dimen(v)):
         v = [generator_to_list(v)]
 
     return v
+
+
+# def force_two_dimen(v):
+#     """
+#     should one dimensional list be transposed?
+#     or simply wrapped in outer list?
+#     """
+#     v  = generator_to_list(v)
+#     nd = num_dimen(v)
+#
+#     if nd > 2:
+#         raise ValueError('can not reduce to 2 dimensions from {} dimensions'.format(nd))
+#
+#     if nd == 0:
+#         v = [[v]]
+#     elif nd == 1:
+#         v = transpose(v)
+#
+#     return v
 
 
 def num_dimen(v):
@@ -105,10 +128,8 @@ def transpose(m):
 def append_matrices(direction, *matrices, has_header=True):
     """
     eg direction:
-        'vertical'
-        'rows'
-        'horizontal'
-        'columns'
+        'vertical',   'rows'
+        'horizontal', 'columns'
     """
     # append vertically
     if direction.startswith('v') or direction.startswith('row'):
@@ -319,10 +340,24 @@ class OrderedDefaultDict(OrderedDict):
 
         return value
 
+    def defaultdict(self):
+        return defaultdict(self.default_factory, self.items())
+
+    def ordereddict(self):
+        return OrderedDict(self)
+
     def count_values(self):
         d = OrderedDict()
         for k, v in self.items():
             d[k] = len(v)
 
         return d
+
+    def reduce_extra_dimen(self, minimum=0):
+        """  """
+        for k, v in self.items():
+            self[k] = reduce_extra_dimen(v, minimum)
+
+            # if isinstance(v, list) and len(v) == 1:
+            #     self[k] = v[0]
 

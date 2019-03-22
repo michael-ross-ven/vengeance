@@ -7,7 +7,7 @@ from setuptools import setup
 from textwrap import dedent
 
 
-__version__  = '1.0.3'
+__version__  = '1.0.4'
 __release__ = '$release 2'
 
 dependencies = ('comtypes',
@@ -33,6 +33,7 @@ def write_version_file():
 
             dependencies = {}
         '''.format(__version__, __release__, repr(dependencies))
+        
         f.write(dedent(s))
 
 
@@ -43,13 +44,13 @@ if __name__ == '__main__':
           version=__version__,
           description='Data library focusing on pure python data structures and Excel interaction',
           long_description=long_description,
-          url='https://github.excel_com/michael-ross-ven/vengeance',
+          url='https://github.com/michael-ross-ven/vengeance',
           author='Michael Ross',
           author_email='michael.ross.uncc@gmail.com',
           license='MIT',
           install_requires=dependencies,
-          packages=('vengeance',),
-          # packages=setuptools.find_packages(),
+          # packages=('vengeance',),
+          packages=setuptools.find_packages(),
           classifiers=[
               "Programming Language :: Python :: 3",
               "License :: OSI Approved :: MIT License",

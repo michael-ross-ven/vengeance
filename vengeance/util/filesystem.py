@@ -98,7 +98,7 @@ def clear_dir(f_dir, allow_not_exist=False):
 
 
 def copy_dir(s_dir, d_dir, exclude_dirs=None):
-    exclude_dirs = exclude_dirs or {}
+    exclude_dirs = exclude_dirs or set()
 
     for file_content in os.listdir(s_dir):
         if file_content in exclude_dirs:

@@ -13,6 +13,7 @@ from .. util.iter import is_vengeance_class
 from .. excel_com.excel_address import col_letter
 from .. excel_com.excel_address import col_number
 from .. excel_com.excel_address import max_str_len
+from .. excel_com.excel_address import max_cols
 
 from .workbook import app_to_foreground
 from .excel_constants import *
@@ -119,6 +120,7 @@ def __excel_friendly_matrix(m):
     convert objects and datetime.dates in matrix so they can be written to an excel range
     truncate any strings that are too large
     """
+
     def is_primitive():
         return not hasattr(v, '__dict__')
 
@@ -129,6 +131,11 @@ def __excel_friendly_matrix(m):
                               .format(v[:10], v[-10:]))
 
         return too_long
+
+    if len(m[0]) > max_cols:
+        raise ValueError("number of matrix columns ({:,}) exceeds Excel's column limit\n"
+                         "(did you mean to transpose this matrix?)"
+                         .format(len(m[0])))
 
     em = []
     for row in m:
