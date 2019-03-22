@@ -51,8 +51,6 @@ class flux_row_cls:
         """
         self.__dict__.update(zip(self.names, self.values))
 
-        return self
-
     def dict(self):
         return OrderedDict(zip(self.names, self.values))
 
