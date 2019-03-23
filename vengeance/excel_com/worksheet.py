@@ -55,11 +55,15 @@ def get_worksheet(wb, tab_name,
     return ws
 
 
-def clear_worksheet_filter(ws):
+def is_filtered(ws):
     if ws.AutoFilter is not None:
-        if ws.AutoFilter.FilterMode is True:
-            # noinspection PyProtectedMember
-            ws._AutoFilter.ShowAllData()
+        return ws.AutoFilter.FilterMode
+
+
+def clear_worksheet_filter(ws):
+    if is_filtered(ws):
+        # noinspection PyProtectedMember
+        ws._AutoFilter.ShowAllData()
 
 
 def is_range_empty(excel_range):

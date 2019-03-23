@@ -35,7 +35,7 @@ def close_project_workbook(save=True):
     wb = None
 
 
-def tab_to_lev(tab, header_r=2, meta_r=1, first_c='B', clear_filter=True):
+def tab_to_lev(tab, header_r=2, meta_r=1, first_c='B'):
     if isinstance(tab, vengeance.excel_levity_cls):
         return tab
 
@@ -50,8 +50,6 @@ def tab_to_lev(tab, header_r=2, meta_r=1, first_c='B', clear_filter=True):
                                      meta_r=meta_r,
                                      header_r=header_r,
                                      first_c=first_c)
-    if clear_filter:
-        lev.clear_filter()
 
     return lev
 
@@ -72,12 +70,12 @@ def lev_subsection(tab_name, c_1, c_2, header_r=2, meta_r=1):
                                       last_c=c_2)
 
 
-def tab_to_flux(tab_name, header_r=2, meta_r=1, first_c='B'):
-    lev = tab_to_lev(tab_name,
-                     header_r,
-                     meta_r,
-                     first_c)
+def tab_to_flux(tab_name,
+                header_r=2,
+                meta_r=1,
+                first_c='B'):
 
+    lev = tab_to_lev(tab_name, header_r, meta_r, first_c)
     return vengeance.flux_cls(lev)
 
 
@@ -88,6 +86,8 @@ def write_to_tab(tab_name, m, r_1='*h', c_1=None, c_2=None):
         lev = tab_to_lev(tab_name)
 
     lev.activate()
+    lev.clear_filter()
+
     if r_1 != '*a':
         lev.clear('*f {}:*l *l'.format(r_1))
 

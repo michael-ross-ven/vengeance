@@ -14,6 +14,7 @@ from .. excel_com.worksheet import first_row
 from .. excel_com.worksheet import last_row
 from .. excel_com.worksheet import gen_range_rows
 from .. excel_com.worksheet import clear_worksheet_filter
+from .. excel_com.worksheet import is_filtered
 from .. excel_com.worksheet import write_to_excel_range
 from .. excel_com.worksheet import is_range_empty
 from .. excel_com.worksheet import parse_range
@@ -66,6 +67,7 @@ class excel_levity_cls:
 
         self.is_empty = False
 
+        clear_worksheet_filter(ws)
         self.set_range_boundaries(index_meta=True, index_header=True)
 
     @property
@@ -112,13 +114,28 @@ class excel_levity_cls:
             activate_sheet(self.sheet)
 
     def clear_filter(self):
+        if not self.has_filter:
+            return
+
+        was_filtered = bool(self.sheet.AutoFilter.FilterMode)
         clear_worksheet_filter(self.sheet)
+
+        # print('clear_filter ', was_filtered)
+
+        if was_filtered:
+            self.set_range_boundaries()
 
     def remove_filter(self):
         if not self.has_filter:
             return
 
+        was_filtered = is_filtered(self.sheet)
         self.sheet.AutoFilterMode = False
+
+        # print('remove_filter ', was_filtered)
+
+        if was_filtered:
+            self.set_range_boundaries()
 
     def reapply_filter(self, c_1='*f', c_2='*l'):
         if self.header_r > 0:
@@ -153,9 +170,6 @@ class excel_levity_cls:
             index_meta   = (r_1 <= self.meta_r)
             index_header = (r_1 <= self.header_r)
             self.set_range_boundaries(index_meta, index_header)
-
-            if index_meta or index_header:
-                self.reapply_filter()
 
         if clear_colors:
             excel_range.Interior.Color = xl_clear
@@ -354,6 +368,9 @@ class excel_levity_cls:
         index_meta   = (r <= self.meta_r)
         index_header = (r <= self.header_r)
         self.set_range_boundaries(index_meta, index_header)
+
+        if index_meta or index_header:
+            self.reapply_filter()
 
     def __iter__(self):
         for row in self.flux_rows('*f'):
