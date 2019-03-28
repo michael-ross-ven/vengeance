@@ -4,16 +4,23 @@ $release 1
 	published to pypi.org
 
 
+
 2019-03-22
 $release 2
 	correction to filesystem.copy_dir
 	removed pandas from dependencies (__parse_string_pandas)
 	removed line_profiler from dependencies
 	added python-dateutil to dependencies (__parse_string_dateutil)
-
 	updated setup.py with packages=setuptools.find_packages()
 
-	fixed flux_row_cls.bind()
+
+
+2019-03-28
+$release 3
+	added flux_cls.unbind()
+	added flux_row_cls.unbind()
+	modified util.iter methods for recursive conversion
+
 
 
 <end />
