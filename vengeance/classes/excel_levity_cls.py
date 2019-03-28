@@ -341,13 +341,10 @@ class excel_levity_cls:
         else:
             headers = self.__index_headers('*f')
 
-        if 'values' in headers:
-            raise NameError("'values' must not be in header row {}\n(causes conflict with flux_row_cls property)"
-                            .format(headers.keys()))
-
-        if 'names' in headers:
-            raise NameError("'names' must not be in header row {}\n(causes conflict with flux_row_cls property)"
-                            .format(headers.keys()))
+        reserved = headers.keys() & lev_row_cls.class_names
+        if reserved:
+            raise NameError("reserved name(s) {} found in header row {}"
+                            .format(list(reserved), list(headers.keys())))
 
         r_1 = excel_range.Row
         c_1, c_2 = self.first_c, self.last_c

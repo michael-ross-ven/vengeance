@@ -5,10 +5,9 @@ from pythoncom import com_error
 from datetime import date
 from datetime import datetime
 
+from .. util.iter import modify_iteration_depth
 from .. util.text import vengeance_message
-from .. util.iter import force_two_dimen
 from .. util.iter import is_iterable
-from .. util.iter import is_vengeance_class
 
 from .. excel_com.excel_address import col_letter
 from .. excel_com.excel_address import col_number
@@ -78,7 +77,7 @@ def activate_sheet(ws):
 
 
 def write_to_excel_range(v, excel_range):
-    m = force_two_dimen(v)
+    m = modify_iteration_depth(v, 2)
     m = __excel_friendly_matrix(m)
 
     a = excel_range.Address
@@ -96,7 +95,8 @@ def gen_range_rows(excel_range):
 
 
 def __convert_excel_errors(excel_range):
-    m = force_two_dimen(excel_range.Value2)
+    m = excel_range.Value2
+    m = modify_iteration_depth(m, 2)
     m = [list(row) for row in m]
 
     try:
@@ -117,10 +117,15 @@ def __convert_excel_errors(excel_range):
 
 
 def __excel_friendly_matrix(m):
+    """ modify matrix values so they can be written to an excel range without error
+        repr() any objects
+        convert datetime.date values to datetime.datetime
+        truncate any strings that are too large
     """
-    convert objects and datetime.dates in matrix so they can be written to an excel range
-    truncate any strings that are too large
-    """
+    if len(m[0]) > max_cols:
+        raise ValueError("number of matrix columns ({:,}) exceeds Excel's column limit\n"
+                         "(did you mean to transpose this matrix?)"
+                         .format(len(m[0])))
 
     def is_primitive():
         return not hasattr(v, '__dict__')
@@ -132,11 +137,6 @@ def __excel_friendly_matrix(m):
                               .format(v[:10], v[-10:]))
 
         return too_long
-
-    if len(m[0]) > max_cols:
-        raise ValueError("number of matrix columns ({:,}) exceeds Excel's column limit\n"
-                         "(did you mean to transpose this matrix?)"
-                         .format(len(m[0])))
 
     em = []
     for row in m:

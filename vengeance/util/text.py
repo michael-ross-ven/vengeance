@@ -54,10 +54,7 @@ def format_ms(ms):
     return f_ms
 
 
-def repr_iter(seq, concat=', ',
-              quotes=False,
-              nl=False,
-              wrap=None):
+def repr_iter(seq, concat=', ', quotes=False, nl=False, wrap=None):
     """ provide more flexibility beyond built-in repr() for iterables """
 
     def repr_nested(v):

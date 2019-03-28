@@ -7,12 +7,13 @@ from collections import namedtuple
 
 from .. util.iter import OrderedDefaultDict
 
-from .. util.iter import force_two_dimen
-from .. util.iter import num_dimen
-from .. util.iter import reduce_extra_dimen
+from .. util.iter import generator_to_list
+from .. util.iter import assert_depth
+from .. util.iter import iteration_depth
+from .. util.iter import modify_iteration_depth
 from .. util.iter import transpose
 from .. util.iter import index_sequence
-from .. util.iter import make_iterable
+from .. util.iter import depth_one
 from .. util.iter import ordered_unique
 from .. util.iter import is_vengeance_class
 
@@ -29,6 +30,9 @@ from . flux_row_cls import flux_row_cls
 class flux_cls:
 
     def __init__(self, matrix):
+        if is_vengeance_class(matrix):
+            matrix = matrix.rows()
+
         self.headers = OrderedDict()
 
         self._num_cols = None
@@ -70,11 +74,7 @@ class flux_cls:
 
     def execute_commands(self, commands, profile_performance=False):
         if profile_performance:
-            try:
-                from line_profiler import LineProfiler
-            except ImportError as e:
-                raise ImportError('u need to install the line_profiler package') from e
-
+            from line_profiler import LineProfiler
             profiler = LineProfiler()
         else:
             profiler = None
@@ -110,7 +110,8 @@ class flux_cls:
                 num_args = 0
 
             method = getattr(self, name)
-            row_o  = flux_row_cls(command_names, [name, method, args, num_args])
+
+            row_o = flux_row_cls(command_names, [name, method, args, num_args])
             row_o.bind()
 
             parsed.append(row_o)
@@ -134,7 +135,7 @@ class flux_cls:
         columns = transpose([row.values for row in self._matrix[1:]])
 
         m = []
-        for header in reduce_extra_dimen(headers, 1):
+        for header in modify_iteration_depth(headers, 1):
             header = self.__process_header(header)
 
             if header not in self.headers:
@@ -197,8 +198,8 @@ class flux_cls:
              ('*f',       'header_a'),      insert column at index 0
              ('header_a', 'header_b')]      insert column before 'header_b'
         """
-        inserted = reduce_extra_dimen(inserted)
-        nd = num_dimen(inserted)
+        inserted = modify_iteration_depth(inserted)
+        nd = iteration_depth(inserted)
 
         if nd == 0:
             inserted = [(0, inserted)]
@@ -237,18 +238,18 @@ class flux_cls:
 
         self.reapply_header_names(headers)
 
-    def append_columns(self, *header_names):
-        header_names = reduce_extra_dimen(header_names, minimum=1)
-        self._matrix[0].values.extend(header_names)
+    def append_columns(self, *names):
+        names = modify_iteration_depth(names, depth=1)
+        self._matrix[0].values.extend(names)
 
-        for header in header_names:
+        for header in names:
             self.headers[header] = len(self.headers)
             for row in self:
                 row.values.append(None)
 
-    def delete_columns(self, *header_names):
-        header_names = reduce_extra_dimen(header_names, minimum=1)
-        indeces = [self.headers[h] for h in header_names]
+    def delete_columns(self, *names):
+        names = modify_iteration_depth(names, depth=1)
+        indeces = [self.headers[h] for h in names]
 
         for c in sorted(indeces, reverse=True):
             for row in self._matrix:
@@ -263,7 +264,8 @@ class flux_cls:
             else:
                 rows = list(rows.rows())[1:]
 
-        rows = force_two_dimen(rows)
+        rows = generator_to_list(rows)
+        assert_depth(rows, 2)
 
         if i == 0:
             self.reapply_header_names(rows[0])
@@ -285,7 +287,8 @@ class flux_cls:
         if is_vengeance_class(rows):
             rows = list(rows.rows())[1:]
 
-        rows = force_two_dimen(rows)
+        rows = generator_to_list(rows)
+        assert_depth(rows, 2)
 
         if len(self._matrix) == 0:
             self.headers = index_sequence(str(v) for v in rows[0])
@@ -303,9 +306,11 @@ class flux_cls:
         num_cols = self.num_cols
 
         for row in self:
-            num_missing_c = num_cols - len(row)
+            values = row.values
+            num_missing_c = num_cols - len(values)
+
             if num_missing_c > 0:
-                row.values.extend([None] * num_missing_c)
+                values.extend([None] * num_missing_c)
 
     def sort(self, *f, **kwargs):
         """ in-place
@@ -408,8 +413,15 @@ class flux_cls:
         return [nt_cls(*row.values) for row in self]
 
     def bind(self):
-        """ speed up attribute access by binding values directly to row.__dict__ """
+        """ speed up attribute access by binding values directly to flux_row_cls.__dict__
+        (only use this if you know the side-effects)
+        """
         [row.bind() for row in self._matrix]
+
+    def unbind(self):
+        """ return dynamic flux_row_cls.values from flux_row_cls.__dict__ """
+        instance_names = tuple(self.headers.keys())
+        [row.unbind(instance_names) for row in self._matrix]
 
     def to_json(self, path=None):
         j = [row.dict() for row in self]
@@ -462,18 +474,12 @@ class flux_cls:
         return iter(islice(self._matrix, r_1, r_2 + 1))
 
     def __to_flux_rows(self, m):
-        if is_vengeance_class(m):
-            m = m.rows()
+        m = generator_to_list(m)
+        assert_depth(m, 2)
 
-        m = force_two_dimen(m)
-
-        if 'values' in m[0]:
-            raise NameError("'values' must not be in header row {}\n(causes conflict with flux_row_cls property)"
-                            .format(m[0]))
-
-        if 'names' in m[0]:
-            raise NameError("'names' must not be in header row {}\n(causes conflict with flux_row_cls property)"
-                            .format(m[0]))
+        reserved = set(m[0]) & flux_row_cls.class_names
+        if reserved:
+            raise NameError("reserved name(s) {} found in header row {}".format(list(reserved), m[0]))
 
         self.headers = index_sequence(str(v) for v in m[0])
         self._matrix = []
@@ -502,7 +508,7 @@ class flux_cls:
         def row_value(row):
             return row.values[i]
 
-        f = reduce_extra_dimen(f)
+        f = modify_iteration_depth(f, depth=0)
         self.__validate_row_accessor(f)
 
         if callable(f):
@@ -522,7 +528,7 @@ class flux_cls:
 
     def __validate_row_accessor(self, f):
         if isinstance(f, (str, list, tuple)):
-            invalid = [h for h in make_iterable(f) if h not in self.headers]
+            invalid = [h for h in depth_one(f) if h not in self.headers]
             if invalid:
                 raise KeyError("invalid column reference: {}".format(repr_iter(invalid)))
 
@@ -588,10 +594,10 @@ class flux_cls:
 
     def __setitem__(self, ref, column):
         if ref not in self.headers:
-            raise ValueError("column '{}' not in headers".format(ref))
+            raise KeyError("column '{}' not in headers".format(ref))
 
-        column = reduce_extra_dimen(column, 1)
-        nd = num_dimen(column)
+        column = modify_iteration_depth(column, 1)
+        nd = iteration_depth(column)
 
         if nd == 0:
             column = [column]

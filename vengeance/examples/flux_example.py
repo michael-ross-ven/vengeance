@@ -10,7 +10,8 @@
                 row.header
 
             for row in m:
-                row[17]
+                row[17]         # did i count those columns correctly?
+
 
     Two naive solutions for this are:
         1) convert rows to a dictionaries
@@ -124,33 +125,16 @@ def restricted_header_names():
         row.names
         row.values
     """
+    from vengeance.classes.flux_row_cls import flux_row_cls
+    print('headers cannot be named: {}\n'.format(flux_row_cls.class_names))
+
     try:
-        m = ['names', 'col_a']
-        flux = flux_cls(m)
+        m = [['values', 'other_col', 'other_col']]
+        flux_cls(m)
     except NameError as e:
         print(e)
 
     print()
-
-    try:
-        m = ['values', 'col_a']
-        flux = flux_cls(m)
-    except NameError as e:
-        print(e)
-
-    m = [['names_', 'values_', 'col_a'],
-         ['a', 'b', 'c']]
-    flux = flux_cls(m)
-
-    row = flux[1]
-    print(row)
-    a = row.names       # all flux_row column names
-    b = row.names_      # value in column named "names_"
-    c = row.col_a       # value in column named "col_a"
-
-    a = row.values      # all flux_row values
-    b = row.values_     # value in column named "values_"
-    c = row.col_a       # value in column named "col_a"
 
 
 def read_from_file():
@@ -183,24 +167,28 @@ def write_to_excel(flux):
 
 def modify_columns(flux):
     """
-    the flux_cls does not allow for addition / insertion an entire vector of columns yet
-    instead, a call to flux.append_columns(header) must be followed by flux[header] = column
+    currently, these methods only modify header names, and the rest of the column
+    is initialized to None
+    columns must be assigned new values separately
     """
     flux = flux.copy(deep=True)
+
+    del flux[3].values[2]
+    del flux[4].values[2]
+    del flux[5].values[2]
+
+    if flux.is_jagged:
+        flux.fill_jagged_columns()
 
     flux.rename_columns({'col_a': 'renamed_a',
                          'col_b': 'renamed_b'})
 
+    # new column values are initialized to None (see docstring)
     flux.insert_columns((0,          'insert_c'),
                         ('insert_c', 'insert_b'),
                         ('insert_b', 'insert_a'),
                         ('col_c',    'insert_d'))
-
     flux.append_columns('append_a', 'append_b', 'append_c')
-
-    # new column values are initialized to None (see docstring)
-    col = flux['insert_a']
-    col = flux['append_a']
 
     flux.delete_columns('insert_a', 'insert_b', 'insert_c', 'insert_d')
     flux.rename_columns({'renamed_a': 'col_a',
@@ -209,13 +197,13 @@ def modify_columns(flux):
     # encapsulate insertion, deletion and rename within single function
     flux.matrix_by_headers('col_c',
                            '(insert_a)',
-                           {'col_a': 'renamed_a'})
-
-    flux.fill_jagged_columns()
+                           {'col_a': 'renamed_a'},
+                           '(insert_b)',
+                           '(insert_c)')
 
     # column assignment / retrieval
-    flux['col_a'] = [None] * flux.num_rows
-    col = flux['col_b']
+    flux['renamed_a'] = [None] * flux.num_rows
+    col = flux['renamed_a']
 
 
 def modify_rows(flux):
@@ -303,10 +291,6 @@ def iterate_flux_rows(flux):
             if row_prev.col_a ... and row.col_a ...:
 
             row_prev = row
-
-    flux.bind()
-        * speeds up attribute access on flux_row_cls, but this interferes with
-          header synchronization with parent flux_cls
     """
 
     for row in flux:
@@ -347,7 +331,7 @@ def flux_sort_filter(flux):
 
     flux = flux.copy()
 
-    # modifications as new flux_cls
+    # modifications return as new flux_cls
     flux_2 = flux.sorted('col_a', 'col_b', 'col_c',
                          reverse=[True, True, True])
     flux_2 = flux.filtered(starts_with_a)
@@ -492,7 +476,6 @@ def compare_against_pandas():
         df = pandas.DataFrame(m[1:], columns=m[0])
 
         flux = flux_cls(m)
-        flux.bind()
 
     def as_dataframe():
         nonlocal df

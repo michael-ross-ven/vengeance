@@ -8,8 +8,10 @@ import shutil
 from glob import glob
 from datetime import datetime
 
-from .iter import force_two_dimen
-from .text import p_json_dumps
+from . iter import generator_to_list
+from . iter import assert_depth
+
+from . text import p_json_dumps
 
 
 def read_file(path):
@@ -50,7 +52,9 @@ def write_file(path, data, mode='w'):
     extn = file_extension(path)
 
     if extn == '.csv':
-        data = force_two_dimen(data)
+        data = generator_to_list(data)
+        assert_depth(data, 2)
+
         with open(path, mode) as f:
             csv.writer(f, lineterminator='\n').writerows(data)
 

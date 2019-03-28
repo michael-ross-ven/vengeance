@@ -9,6 +9,10 @@ from .. util.text import repr_iter
 
 class flux_row_cls:
 
+    class_names = {'_headers',
+                   'is_bound',
+                   'values'}
+
     def __init__(self, headers, values):
         """ basically, a mutable namedtuple
 
@@ -29,6 +33,7 @@ class flux_row_cls:
         # cannot call attributes directly in __init__ as this invokes __setattr__ lookup too early
         self.__dict__['_headers'] = headers
         self.__dict__['values']   = values
+        self.__dict__['is_bound'] = False
 
     @property
     def names(self):
@@ -45,18 +50,36 @@ class flux_row_cls:
         import numpy
         return numpy.transpose([self.names, self.values])
 
-    def bind(self):
-        """ bind headers / values directly to object, avoiding need for subsequent __getattr__ lookups
-        ooooooooooh this is dangerous to flux_cls tho
-        """
-        self.__dict__.update(zip(self.names, self.values))
-
     def dict(self):
         return OrderedDict(zip(self.names, self.values))
 
     def namedtuples(self):
         nt_cls = namedtuple('flux_row_nt', self.names)
         return nt_cls(*self.values)
+
+    def bind(self):
+        """ bind headers / values directly to instance, avoiding need for subsequent __getattr__ lookups
+        (only use this if you know the side-effects)
+        """
+        self.__dict__.update(zip(self.names, self.values))
+
+        self.__dict__['values']   = '(values bound to __dict__)'
+        self.__dict__['is_bound'] = True
+
+    def unbind(self, instance_names=None):
+        """ ehhh, this could still require some work if headers have been substantially modified ... """
+        if not self.__dict__['is_bound']:
+            return
+
+        if instance_names is None:
+            instance_names = self.__dict__.keys() - self.class_names
+
+        values = self.__dict__['values'] = []
+        for k in instance_names:
+            v = self.__dict__.pop(k)
+            values.append(v)
+
+        self.__dict__['is_bound'] = False
 
     def __getattr__(self, name):
         """  eg:
@@ -126,10 +149,15 @@ class flux_row_cls:
         return iter(self.values)
 
     def __repr__(self):
-        return '<flux_row> ' + repr(self.values)
+        return 'flux_row: ' + repr(self.values)
 
 
 class lev_row_cls(flux_row_cls):
+
+    class_names = {'_headers',
+                   'is_bound',
+                   'values',
+                   'address'}
 
     def __init__(self, headers, values, address):
         super().__init__(headers, values)

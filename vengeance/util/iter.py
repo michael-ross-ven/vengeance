@@ -1,59 +1,50 @@
 
 import copy
 
+from types import GeneratorType
+
 from collections import OrderedDict
 from collections import defaultdict
 from collections import Iterable
-from types import GeneratorType
 
 
-def reduce_extra_dimen(v, minimum=0):
-    """ removes items from iterable containers if they only have a single item """
-    nd = num_dimen(v)
-
-    i = 0 + minimum
-    while i < nd:
-        if is_subscriptable(v) and len(v) == 1:
-            v = v[0]
-
-        i += 1
-
-    return v
-
-
-def force_two_dimen(v):
+def modify_iteration_depth(v, depth=0):
     v  = generator_to_list(v)
-    nd = num_dimen(v)
+    nd = iteration_depth(v)
 
-    if nd > 2:
-        raise ValueError('can not reduce from {} dimensions'.format(nd))
+    if nd > depth:
+        for _ in range(nd - depth + 1):
+            if len(v) == 1 and is_subscriptable(v):
+                v = list(v)
+                v = v[0]
 
-    for _ in range(2 - num_dimen(v)):
-        v = [generator_to_list(v)]
+    elif nd < depth:
+        for _ in range(depth - nd):
+            v = [v]
 
     return v
 
 
 # def force_two_dimen(v):
-#     """
-#     should one dimensional list be transposed?
-#     or simply wrapped in outer list?
-#     """
 #     v  = generator_to_list(v)
 #     nd = num_dimen(v)
 #
 #     if nd > 2:
-#         raise ValueError('can not reduce to 2 dimensions from {} dimensions'.format(nd))
+#         raise IndexError('parameter cannot be reduced to two dimensions')
 #
-#     if nd == 0:
-#         v = [[v]]
-#     elif nd == 1:
-#         v = transpose(v)
+#     for _ in range(2 - nd):
+#         v = [v]
 #
 #     return v
 
 
-def num_dimen(v):
+def assert_depth(v, depth):
+    nd = iteration_depth(v)
+    if nd != depth:
+        raise IndexError('invalid iteration depth, must be of depth {}'.format(depth))
+
+
+def iteration_depth(v):
     """ determine iteration-depth (number of dimensions)
     eg:
         0 = num_dimen('a')
@@ -65,13 +56,40 @@ def num_dimen(v):
     if not is_iterable(v):
         return 0
 
+    if isinstance(v, GeneratorType):
+        v = list(v)
+
     if not is_subscriptable(v):
         return 1
 
     if len(v) == 0:
         return 1
 
-    return 1 + num_dimen(v[0])
+    return 1 + iteration_depth(v[0])
+
+
+def depth_one(v):
+    """
+    standardize values from iteration of certain datatypes
+    so that the same iteration syntax can be used for multiple datatypes
+
+    eg:
+        for v in depth_one('abc'):
+            v = 'abc'
+
+        for v in depth_one(['abc']):
+            b = 'abc'
+
+        for v in depth_one({'a': 0, 'b': 1, 'c': 2}):
+            v = (a, 0)
+    """
+    if isinstance(v, (list, tuple, GeneratorType)):
+        return v
+
+    if isinstance(v, dict):
+        return v.items()
+
+    return [v]
 
 
 def is_iterable(v):
@@ -90,12 +108,18 @@ def is_subscriptable(v):
     return isinstance(v, (list, tuple))
 
 
-def generator_to_list(v):
+def generator_to_list(v, recurse=True):
     if is_vengeance_class(v):
         v = v.rows()
 
     if isinstance(v, GeneratorType):
         v = list(v)
+
+    if recurse:
+        for _ in range(1, iteration_depth(v)):
+            v = list(v)
+            for i, _v_ in enumerate(v):
+                v[i] = generator_to_list(_v_)
 
     return v
 
@@ -111,7 +135,7 @@ def is_vengeance_class(o):
 def transpose(m):
     m = generator_to_list(m)
 
-    if num_dimen(m) == 1:
+    if iteration_depth(m) == 1:
         num_r = 1
         num_c = len(m)
         t = [[m[r] for _ in range(num_r)]
@@ -126,17 +150,12 @@ def transpose(m):
 
 
 def append_matrices(direction, *matrices, has_header=True):
-    """
-    eg direction:
-        'vertical',   'rows'
-        'horizontal', 'columns'
-    """
-    # append vertically
-    if direction.startswith('v') or direction.startswith('row'):
+    d = direction
+
+    if d.startswith('v') or d.startswith('row'):
         return append_rows(*matrices, has_header=has_header)
 
-    # append horizontally
-    if direction.startswith('h') or direction.startswith('col'):
+    if d.startswith('h') or d.startswith('col'):
         return append_columns(*matrices)
 
     raise ValueError("invalid direction: '{}'".format(direction))
@@ -145,13 +164,12 @@ def append_matrices(direction, *matrices, has_header=True):
 def append_rows(*matrices, has_header=True):
 
     def append(m_1, m_2):
-        m_1 = force_two_dimen(m_1)
-        m_2 = force_two_dimen(m_2)
+        m_1 = generator_to_list(m_1)
+        m_2 = generator_to_list(m_2)
 
         if len(m_1[0]) != len(m_2[0]):
             raise IndexError('vertical append requires matrices to have equal number of columns')
 
-        # if either matrix is empty, return the other
         if is_empty(m_1):
             return m_2
 
@@ -176,13 +194,12 @@ def append_rows(*matrices, has_header=True):
 def append_columns(*matrices):
 
     def append(m_1, m_2):
-        m_1 = force_two_dimen(m_1)
-        m_2 = force_two_dimen(m_2)
+        m_1 = generator_to_list(m_1)
+        m_2 = generator_to_list(m_2)
 
         if len(m_1) != len(m_2):
             raise IndexError('horizontal append requires matrices to have equal number of rows')
 
-        # if either matrix is empty, return the other
         if is_empty(m_1):
             return m_2
 
@@ -210,38 +227,11 @@ def is_empty(v):
         False = is_empty( [[None]] )
         False = is_empty( [[], [], []] )
     """
-    m = force_two_dimen(v)
+    m = generator_to_list(v)
     num_rows = len(m)
     num_cols = len(m[0])
 
     return (num_rows == 1) and (num_cols == 0)
-
-
-def make_iterable(v):
-    """
-    standardize values from iteration of certain datatypes
-    so that the same iteration syntax can be used for multiple datatypes
-
-    eg:
-        for v in standard_iter(['abc']):
-            b = 'abc'
-
-        for v in standard_iter('abc'):
-            v = 'abc'
-
-        for v in standard_iter({'a': 0, 'b': 1, 'c': 2}):
-            v = (a, 0)
-    """
-    if isinstance(v, (list, tuple, GeneratorType)):
-        return v
-
-    if isinstance(v, dict):
-        return v.items()
-
-    if callable(v):
-        v = v()
-
-    return [v]
 
 
 def index_sequence(seq, start=0):
@@ -253,7 +243,7 @@ def index_sequence(seq, start=0):
             v = 'None'
 
         if v in non_unique:
-            v = '{}({})'.format(v, non_unique[v] + 1)
+            v = '{}_non_unique_{}'.format(v, non_unique[v] + 1)
 
         items.append((v, i))
         non_unique[v] += 1
@@ -288,7 +278,7 @@ def invert_mapping(d, inversion=None):
         if inversion:
             _k_ = inversion(_k_)
 
-        for _k_ in make_iterable(v):
+        for _k_ in depth_one(v):
             inverted[_k_].append(_v_)
 
     inverted = OrderedDict(inverted)
@@ -300,9 +290,8 @@ def invert_mapping(d, inversion=None):
 
 
 class OrderedDefaultDict(OrderedDict):
-
     def __init__(self, default_factory=None, *a, **kw):
-        if (default_factory is not None) and (not callable(default_factory)):
+        if (default_factory is not None) and (callable(default_factory) is False):
             raise TypeError('first argument must be callable')
 
         self.default_factory = default_factory
@@ -353,11 +342,8 @@ class OrderedDefaultDict(OrderedDict):
 
         return d
 
-    def reduce_extra_dimen(self, minimum=0):
-        """  """
+    def modify_iteration_depth(self, minimum=0):
         for k, v in self.items():
-            self[k] = reduce_extra_dimen(v, minimum)
+            self[k] = modify_iteration_depth(v, minimum)
 
-            # if isinstance(v, list) and len(v) == 1:
-            #     self[k] = v[0]
 

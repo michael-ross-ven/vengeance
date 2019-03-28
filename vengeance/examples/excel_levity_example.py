@@ -2,32 +2,27 @@
 """
     Working with Excel can be tedious.
 
+    Published packages like xlrd, xlwt, openpyxl will allow you to
+    read Excel files, but don't grant control over the Excel application itself,
+    limiting many important abilities (recalculating values, calling add-ins, etc)
+
     It's extremely easy to build terrible worksheets and there is no enforcement
-    in data integrity -- anyone can just slap in some data where ever they feel like.
+    in data organization / integrity -- anyone can just slap in some data where ever they feel like.
     Usually, this results in workbooks that are like a dirty laundry basket,
-    where dats is tossed together and draped over the edges
+    where dats is all carelessly tossed together
 
     https://imgs.xkcd.com/comics/algorithms.png
 
-    In VBA, uou'll spend A LOT of time constantly finding range boundaries in the sheets,
-    determining last row or last column before you can start working on the data.
-    It's also a big vulnerability to use arbitrary alpha column (A-Z)
-    references which lead to invalid references in the VBA code whenever
-    columns are shifted or reordered. Ideally, it would be nice to
-    attach header names to the rows you are iterating over, much more like
+    In VBA, you'll spend a lot of time constantly finding range boundaries in the sheets,
+    determining last row or last column in order to do anything useful.
+    It's also dubious in your VBA code to reference data by the arbitrary
+    alphanumerical addresses (eg, ws.Range("A3").value), instead of more meaningful
+    header names, leaving you vulnerable whenever columns in the sheet are shifted or reordered.
+    Ideally, it would be nice to work with Excel's data much more like
     fields in a database table
 
-    Excel's flexibility is its greatest weakness, but also its greatest strength.
-    It's the best software in the world for fast prototyping and reviewing data,
-    it just shouldn't be used to build entire processes. For middle-sized data,
-    Excel can be phenominally powerful.
-
-    Published site-packages like xlrd, xlwt, openpyxl will allow you to
-    read Excel files from python, but don't control the actual application,
-    limiting your ability to manage any existing infrastructure built on Excel
-
     The excel_levity_cls is meant to make Excel data feel as light as a feather
-    instead of like busting concrete
+    instead of like the data is embedded in concrete
 """
 
 
@@ -70,7 +65,7 @@ def main():
     # write_formulas()
 
     # modify_range_values(iter_method='slow')
-    modify_range_values(iter_method='fast')
+    # modify_range_values(iter_method='fast')
 
     # excel_object_model()
     # allow_focus()
@@ -397,6 +392,7 @@ def excel_object_model():
     from vengeance.excel_com.worksheet import activate_sheet
     from vengeance.excel_com.worksheet import clear_worksheet_filter
 
+    share.wb.Activate()
     ws = veng.get_worksheet(share.wb, 'object model')
     activate_sheet(ws)
     ws.Range('B2:D10').Interior.Color = xlNone
@@ -440,7 +436,6 @@ def allow_focus():
     activate_all_sheets()
 
     print()
-
     veng.excel_levity_cls.allow_focus = True
     activate_all_sheets()
 
@@ -449,8 +444,8 @@ def activate_all_sheets():
     print('veng.excel_levity_cls.allow_focus = {}'.format(veng.excel_levity_cls.allow_focus))
 
     for ws in share.wb.Sheets:
-        print("activate: '{}'".format(ws.Name))
-        lev = share.tab_to_lev(ws, clear_filter=True)
+        print("activate sheet: '{}'".format(ws.Name))
+        lev = share.tab_to_lev(ws)
         lev.activate()
 
         sleep(0.25)
