@@ -443,14 +443,16 @@ def compare_against_pandas():
               iteration over any native python list
 
             * if you ever HAVE to iterate rows in a DataFrame, the flux_cls can be
-              up to 70x to 7,000x faster depending on whether you use .iterrows
+              70x to 7,000x faster depending on whether you use .iterrows
               or .itertuples
 
         clarity:
             * row-major iteration coincides with the intuitive organization of the data
 
-            * allows for much clearer syntax; the optimization in the DataFrame
-              can lead developers to use difficult to read transformations, like this:
+            * allows for much clearer syntax; the optimizations in the DataFrame
+              come at the cost of readability. The use of lambda functions, espcially,
+              contribute to overly complicated syntax, like this:
+
                   df['c'] = df.apply(
                       lambda row: row['a']*row['b'] if np.isnan(row['c']) else row['c'],
                       axis=1
@@ -525,10 +527,10 @@ def compare_against_pandas():
     t_1 = timeit.timeit(as_dataframe, number=10)
     t_2 = timeit.timeit(as_flux, number=10)
     print('as_dataframe: {:.4f}'.format(t_1))
-    print('as_flux:      {:.4f}'.format(t_2))
+    print('as_flux_cls:  {:.4f}'.format(t_2))
 
     if t_2 < t_1:
-        print('flux faster by: {:,.2f}x'.format(t_1 / t_2))
+        print('flux_cls faster by: {:,.2f}x'.format(t_1 / t_2))
     else:
         print('dataframe faster by: {:,.2f}x'.format(t_2 / t_1))
 

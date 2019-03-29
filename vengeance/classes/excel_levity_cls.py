@@ -67,7 +67,7 @@ class excel_levity_cls:
 
         self.is_empty = False
 
-        clear_worksheet_filter(ws)
+        # clear_worksheet_filter() is always invoked on worksheet to determine range boundaries
         self.set_range_boundaries(index_meta=True, index_header=True)
 
     @property
@@ -117,12 +117,7 @@ class excel_levity_cls:
         if not self.has_filter:
             return
 
-        was_filtered = bool(self.sheet.AutoFilter.FilterMode)
-        clear_worksheet_filter(self.sheet)
-
-        # print('clear_filter ', was_filtered)
-
-        if was_filtered:
+        if is_filtered(self.sheet):
             self.set_range_boundaries()
 
     def remove_filter(self):
@@ -131,8 +126,6 @@ class excel_levity_cls:
 
         was_filtered = is_filtered(self.sheet)
         self.sheet.AutoFilterMode = False
-
-        # print('remove_filter ', was_filtered)
 
         if was_filtered:
             self.set_range_boundaries()
@@ -178,6 +171,13 @@ class excel_levity_cls:
             self.activate()
 
     def set_range_boundaries(self, index_meta=True, index_header=True):
+        """ find the margins of data within worksheet
+
+        clear_worksheet_filter() MUST be called in order to correctly
+        search for cells that are non-null
+        """
+
+        clear_worksheet_filter(self.sheet)
         self.__find_range_boundaries()
 
         if index_meta:
@@ -438,7 +438,7 @@ def _alphanum_reference(ref, col, row):
     if (col is not None) and (row is not None):
         return col, row
 
-    address_re = re.compile('''
+    address_re = re.compile(r'''
          (?P<col>^[$]?[a-z]{1,2})(?=[\d* ])
         |(?P<row>[$]?[\d]+$)
     ''', re.X | re.I)

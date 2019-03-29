@@ -2,10 +2,6 @@
 """
     Working with Excel can be tedious.
 
-    Published packages like xlrd, xlwt, openpyxl will allow you to
-    read Excel files, but don't grant control over the Excel application itself,
-    limiting many important abilities (recalculating values, calling add-ins, etc)
-
     It's extremely easy to build terrible worksheets and there is no enforcement
     in data organization / integrity -- anyone can just slap in some data where ever they feel like.
     Usually, this results in workbooks that are like a dirty laundry basket,
@@ -20,6 +16,10 @@
     header names, leaving you vulnerable whenever columns in the sheet are shifted or reordered.
     Ideally, it would be nice to work with Excel's data much more like
     fields in a database table
+
+    Published packages like xlrd, xlwt, openpyxl will allow you to
+    read Excel files, but don't grant control over the Excel application itself,
+    limiting many important abilities (recalculating values, calling add-ins, etc)
 
     The excel_levity_cls is meant to make Excel data feel as light as a feather
     instead of like the data is embedded in concrete

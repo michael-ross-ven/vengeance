@@ -54,15 +54,15 @@ def format_ms(ms):
     return f_ms
 
 
-def repr_iter(seq, concat=', ', quotes=False, nl=False, wrap=None):
-    """ provide more flexibility beyond built-in repr() for iterables """
+def repr_(sequence, concat=', ', quotes=False, wrap=None):
+    """ extend formatting options of built-in repr() """
 
-    def repr_nested(v):
+    def repr_recurse(v):
         if isinstance(v, Iterable) and not isinstance(v, str):
             c = ', '
             w = None
 
-            if is_dict_seq:
+            if is_original_seq_dict:
                 c = ': '
             elif isinstance(v, dict):
                 w = '{}'
@@ -71,24 +71,23 @@ def repr_iter(seq, concat=', ', quotes=False, nl=False, wrap=None):
             elif isinstance(v, list):
                 w = '[]'
 
-            return repr_iter(v, c, wrap=w)
+            return repr_(v, c, wrap=w)
 
         if isinstance(v, str) and quotes:
             return "'{}'".format(v)
 
         return str(v)
 
-    is_dict_seq = isinstance(seq, dict)
-    if is_dict_seq:
-        seq = seq.items()
+    is_original_seq_dict = isinstance(sequence, dict)
+    if is_original_seq_dict:
+        sequence = sequence.items()
 
-    if nl:
-        concat = concat.strip(' ') + '\n'
-
-    s = concat.join(repr_nested(o) for o in seq)
+    s = [repr_recurse(o) for o in sequence]
 
     if wrap:
-        s = wrap[0] + s + wrap[1]
+        s = concat.join(s)
+    else:
+        s = wrap[0] + concat.join(s) + wrap[1]
 
     return s
 

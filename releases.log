@@ -23,4 +23,13 @@ $release 3
 
 
 
+2019-03-29
+$release 4
+	minor edits to documentation
+	clear_worksheet_filter() now always called as a part of excel_levity_cls.set_range_boundaries()
+
+
+
+
+
 <end />

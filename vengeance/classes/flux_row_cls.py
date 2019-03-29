@@ -4,7 +4,7 @@ import textwrap
 from collections import OrderedDict
 from collections import namedtuple
 
-from .. util.text import repr_iter
+from .. util.text import repr_
 
 
 class flux_row_cls:
@@ -137,7 +137,7 @@ class flux_row_cls:
         if isinstance(name, slice):
             return 'slice should be used on row.values\n(eg, row.values[2:5], not row[2:5])'
 
-        names = repr_iter(self.names, concat=',\n', quotes=True)
+        names = repr_(self.names, concat=',\n', quotes=True)
         names = textwrap.indent(names, '  ')
 
         return "flux_row_cls\nno column named: '{}' from\n{}".format(name, names)

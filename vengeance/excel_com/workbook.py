@@ -119,8 +119,6 @@ def new_excel_instance():
     excel_app = __comtype_to_pywin_obj(excel_app, IDispatch)
     excel_app = pywin_dispatch(excel_app)
 
-    # excel_app = pywin_dispatch('Excel.Application')
-
     excel_app.WindowState = xl_maximized
     excel_app.Visible = True
 
@@ -147,19 +145,6 @@ def empty_excel_instance():
 
 def any_excel_instance():
     return pywin_dispatch('Excel.Application')
-
-
-# def any_excel_instance_old():
-#     window_h = FindWindowEx(0, 0, xl_class_name, None)
-#
-#     while window_h != 0:
-#         excel_app = __excel_app_from_hwnd(window_h)
-#         if excel_app is not None:
-#             return excel_app
-#
-#         window_h = FindWindowEx(0, window_h, xl_class_name, None)
-#
-#     return None
 
 
 def __is_excel_app_empty(excel_app):

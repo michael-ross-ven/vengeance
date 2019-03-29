@@ -9,36 +9,33 @@ from collections import Iterable
 
 
 def modify_iteration_depth(v, depth=0):
+    """
+    eg:
+        'a' = modify_iteration_depth([['a']], depth=0)
+        ['a', 'b', 'c'] = modify_iteration_depth([['a', 'b', 'c']], depth=0)
+
+        [['a']] = modify_iteration_depth('a', depth=2)
+        [['a', 'b', 'c']] = modify_iteration_depth(['a', 'b', 'c'], depth=2)
+    """
     v  = generator_to_list(v)
     nd = iteration_depth(v)
 
     if nd > depth:
+        # remove nesting
         for _ in range(nd - depth + 1):
             if len(v) == 1 and is_subscriptable(v):
                 v = list(v)
                 v = v[0]
 
     elif nd < depth:
+        # additional nesting
         for _ in range(depth - nd):
             v = [v]
 
     return v
 
 
-# def force_two_dimen(v):
-#     v  = generator_to_list(v)
-#     nd = num_dimen(v)
-#
-#     if nd > 2:
-#         raise IndexError('parameter cannot be reduced to two dimensions')
-#
-#     for _ in range(2 - nd):
-#         v = [v]
-#
-#     return v
-
-
-def assert_depth(v, depth):
+def assert_iteration_depth(v, depth):
     nd = iteration_depth(v)
     if nd != depth:
         raise IndexError('invalid iteration depth, must be of depth {}'.format(depth))
@@ -47,11 +44,11 @@ def assert_depth(v, depth):
 def iteration_depth(v):
     """ determine iteration-depth (number of dimensions)
     eg:
-        0 = num_dimen('a')
-        1 = num_dimen(['a'])
-        1 = num_dimen([])
-        2 = num_dimen(['a'], ['b']])
-        2 = num_dimen([[]])
+        0 = iteration_depth('a')
+        1 = iteration_depth(['a'])
+        1 = iteration_depth([])
+        2 = iteration_depth(['a'], ['b']])
+        2 = iteration_depth([[]])
     """
     if not is_iterable(v):
         return 0
@@ -69,9 +66,8 @@ def iteration_depth(v):
 
 
 def depth_one(v):
-    """
-    standardize values from iteration of certain datatypes
-    so that the same iteration syntax can be used for multiple datatypes
+    """ add at least one iteration depth
+    iteration of string characters dont count
 
     eg:
         for v in depth_one('abc'):
@@ -93,7 +89,9 @@ def depth_one(v):
 
 
 def is_iterable(v):
-    """ if value is not a string, determine if it can be iterated
+    """ determine if value can be iterated
+    iteration of string characters dont count
+
     eg:
         False = is_iterable('mike')
         True  = is_iterable(['m', 'i' 'k' 'e'])
@@ -108,7 +106,7 @@ def is_subscriptable(v):
     return isinstance(v, (list, tuple))
 
 
-def generator_to_list(v, recurse=True):
+def generator_to_list(v, recurse=False):
     if is_vengeance_class(v):
         v = v.rows()
 
@@ -243,7 +241,7 @@ def index_sequence(seq, start=0):
             v = 'None'
 
         if v in non_unique:
-            v = '{}_non_unique_{}'.format(v, non_unique[v] + 1)
+            v = '{}_nonunique_{}'.format(v, non_unique[v] + 1)
 
         items.append((v, i))
         non_unique[v] += 1
@@ -256,17 +254,19 @@ def ordered_unique(sequence):
 
 
 def invert_mapping(d, inversion=None):
-    """ return new mapping of {value: key} from {key: value}
+    """ return new mapping of
+    {value: key}
+    {key: value}
 
-    eg, from:
-        {'a': [-1, -1, -1]
-         'b': 2
-         'c': 3
-         'd': 3}
-    to:
+    eg:
+        d = {'a': [-1, -1, -1]
+             'b': 2
+             'c': 3
+             'd': 3}
+
         {-1: ['a', 'a', 'a']
          2: b
-         3: ['c', 'd']}
+         3: ['c', 'd']} = invert_mapping(d)
     """
     if not isinstance(d, dict):
         raise TypeError('value must be a dictionary')
@@ -290,8 +290,9 @@ def invert_mapping(d, inversion=None):
 
 
 class OrderedDefaultDict(OrderedDict):
+
     def __init__(self, default_factory=None, *a, **kw):
-        if (default_factory is not None) and (callable(default_factory) is False):
+        if (default_factory is not None) and not callable(default_factory):
             raise TypeError('first argument must be callable')
 
         self.default_factory = default_factory
@@ -302,6 +303,11 @@ class OrderedDefaultDict(OrderedDict):
             OrderedDict.__init__(self, *a, **kw)
 
     def __append_values(self, sequence):
+        """
+        special case when a sequence was submitted to constructor and
+        all values should be appended as lists
+        """
+
         if isinstance(sequence, dict):
             sequence = OrderedDict(sequence.items()).items()
         elif not isinstance(sequence, (list, tuple)):
@@ -338,7 +344,10 @@ class OrderedDefaultDict(OrderedDict):
     def count_values(self):
         d = OrderedDict()
         for k, v in self.items():
-            d[k] = len(v)
+            if is_iterable(v):
+                d[k] = len(v)
+            else:
+                d[k] = 1
 
         return d
 

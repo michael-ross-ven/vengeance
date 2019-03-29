@@ -9,7 +9,7 @@ from glob import glob
 from datetime import datetime
 
 from . iter import generator_to_list
-from . iter import assert_depth
+from . iter import assert_iteration_depth
 
 from . text import p_json_dumps
 
@@ -52,9 +52,8 @@ def write_file(path, data, mode='w'):
     extn = file_extension(path)
 
     if extn == '.csv':
-        data = generator_to_list(data)
-        assert_depth(data, 2)
-
+        data = generator_to_list(data, recurse=True)
+        assert_iteration_depth(data, 2)
         with open(path, mode) as f:
             csv.writer(f, lineterminator='\n').writerows(data)
 
@@ -90,7 +89,7 @@ def clear_dir(f_dir, allow_not_exist=False):
         if allow_not_exist is True:
             return
         else:
-            raise FileNotFoundError("can not clear: '{}', directory does not exist".format(f_dir))
+            raise FileNotFoundError("cannot clear: '{}', directory does not exist".format(f_dir))
 
     for file_content in os.listdir(f_dir):
         path = f_dir + file_content

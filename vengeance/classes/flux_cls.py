@@ -8,7 +8,7 @@ from collections import namedtuple
 from .. util.iter import OrderedDefaultDict
 
 from .. util.iter import generator_to_list
-from .. util.iter import assert_depth
+from .. util.iter import assert_iteration_depth
 from .. util.iter import iteration_depth
 from .. util.iter import modify_iteration_depth
 from .. util.iter import transpose
@@ -17,7 +17,7 @@ from .. util.iter import depth_one
 from .. util.iter import ordered_unique
 from .. util.iter import is_vengeance_class
 
-from .. util.text import repr_iter
+from .. util.text import repr_
 from .. util.text import p_json_dumps
 
 from .. util.filesystem import write_file
@@ -265,7 +265,7 @@ class flux_cls:
                 rows = list(rows.rows())[1:]
 
         rows = generator_to_list(rows)
-        assert_depth(rows, 2)
+        assert_iteration_depth(rows, 2)
 
         if i == 0:
             self.reapply_header_names(rows[0])
@@ -288,7 +288,7 @@ class flux_cls:
             rows = list(rows.rows())[1:]
 
         rows = generator_to_list(rows)
-        assert_depth(rows, 2)
+        assert_iteration_depth(rows, 2)
 
         if len(self._matrix) == 0:
             self.headers = index_sequence(str(v) for v in rows[0])
@@ -475,7 +475,7 @@ class flux_cls:
 
     def __to_flux_rows(self, m):
         m = generator_to_list(m)
-        assert_depth(m, 2)
+        assert_iteration_depth(m, 2)
 
         reserved = set(m[0]) & flux_row_cls.class_names
         if reserved:
@@ -530,7 +530,7 @@ class flux_cls:
         if isinstance(f, (str, list, tuple)):
             invalid = [h for h in depth_one(f) if h not in self.headers]
             if invalid:
-                raise KeyError("invalid column reference: {}".format(repr_iter(invalid)))
+                raise KeyError("invalid column reference: {}".format(repr_(invalid)))
 
         elif isinstance(f, int):
             if f >= len(self.headers):
@@ -615,7 +615,7 @@ class flux_cls:
         return iter(islice(self._matrix, 1, None))
 
     def __repr__(self):
-        headers = repr_iter(self.headers.keys(), wrap='[]')
+        headers = repr_(self.headers.keys(), wrap='[]')
         return '{} ({:,})'.format(headers, self.num_rows)
 
 
