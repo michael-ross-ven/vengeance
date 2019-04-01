@@ -33,7 +33,7 @@ $release 4
 2019-04-01
 $release 5
 	added ValueError exception to flux_cls.namedtuples and flux_row_cls.namedtuples
-
+	fixed bug in repr_
 
 
 

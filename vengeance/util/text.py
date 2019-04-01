@@ -62,7 +62,7 @@ def repr_(sequence, concat=', ', quotes=False, wrap=None):
             c = ', '
             w = None
 
-            if is_original_seq_dict:
+            if is_top_sequence_dict:
                 c = ': '
             elif isinstance(v, dict):
                 w = '{}'
@@ -78,16 +78,14 @@ def repr_(sequence, concat=', ', quotes=False, wrap=None):
 
         return str(v)
 
-    is_original_seq_dict = isinstance(sequence, dict)
-    if is_original_seq_dict:
+    is_top_sequence_dict = isinstance(sequence, dict)
+    if is_top_sequence_dict:
         sequence = sequence.items()
 
-    s = [repr_recurse(o) for o in sequence]
+    s = concat.join(repr_recurse(o) for o in sequence)
 
     if wrap:
-        s = concat.join(s)
-    else:
-        s = wrap[0] + concat.join(s) + wrap[1]
+        s = wrap[0] + s + wrap[1]
 
     return s
 
