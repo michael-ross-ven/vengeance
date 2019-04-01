@@ -54,8 +54,15 @@ class flux_row_cls:
         return OrderedDict(zip(self.names, self.values))
 
     def namedtuples(self):
-        nt_cls = namedtuple('flux_row_nt', self.names)
-        return nt_cls(*self.values)
+        try:
+            nt_cls = namedtuple('flux_row_nt', self.names)
+            return nt_cls(*self.values)
+        except ValueError as e:
+            import re
+
+            names = [n for n in self.names
+                       if re.search('^[^a-z]|[ ]', n, re.IGNORECASE)]
+            raise ValueError("invalid headers for namedtuple: {}".format(names)) from e
 
     def bind(self):
         """ bind headers / values directly to instance, avoiding need for subsequent __getattr__ lookups

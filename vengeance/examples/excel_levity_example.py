@@ -83,10 +83,15 @@ def instantiate_lev(tab_name):
             '*h': header
             '*f': first
             '*l': last
+            '*a': append
+
+    Instantiating a new excel_levity_cls will always clear the Autofilter
+    of target worksheet; make sure nothing depends on having filterec data
     """
     # help(veng.excel_levity_cls)
 
     lev = share.tab_to_lev(tab_name)
+
     a = repr(lev)
     a = lev.is_empty
 

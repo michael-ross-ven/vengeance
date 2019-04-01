@@ -1,6 +1,6 @@
 
-__version__ = '1.0.3'
-__release__ = '$release 2'
+__version__ = '1.0.11'
+__release__ = '$release 4'
 
 dependencies = ('comtypes',
                 'pypiwin32',

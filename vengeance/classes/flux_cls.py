@@ -409,8 +409,15 @@ class flux_cls:
         return OrderedDefaultDict(list, items)
 
     def namedtuples(self):
-        nt_cls = namedtuple('flux_row_nt', self.header_values)
-        return [nt_cls(*row.values) for row in self]
+        try:
+            nt_cls = namedtuple('flux_row_nt', self.header_values)
+            return [nt_cls(*row.values) for row in self]
+        except ValueError as e:
+            import re
+
+            names = [n for n in self.header_values
+                       if re.search('^[^a-z]|[ ]', n, re.IGNORECASE)]
+            raise ValueError("invalid headers for namedtuple: {}".format(names)) from e
 
     def bind(self):
         """ speed up attribute access by binding values directly to flux_row_cls.__dict__

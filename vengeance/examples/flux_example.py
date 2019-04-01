@@ -14,7 +14,7 @@
 
 
     Two naive solutions for this are:
-        1) convert rows to a dictionaries
+        1) convert rows to dictionaries
         Using duplicate dictionary instances for every row has a high memory
         footprint, and makes accessing values by index more complicated
         eg,
@@ -24,7 +24,7 @@
         2) convert rows to namedtuples
         Named tuples do not have per-instance dictionaries, so they are
         lightweight and require no more memory than regular tuples,
-        but their values are read-only
+        but their values are read-only (this is kinda a dealbreaker)
 
     Another possibility would be to store the values in column-major order,
     like in a database. This has a further advantage in that all values
@@ -54,13 +54,14 @@
           syntax that can get very awkward and requires a lot of memorization
 
 
-    The flux_cls attempts to balance intuitive iteration with performance
+    The flux_cls attempts to balance ease-of-use with performance
 
     it has the following attributes:
-        * row-major order
-        * named attributes on rows (that are efficiently updated)
+        * row-major iteration
+        * named attributes on rows
         * value mutability on rows
         * light memory footprint
+        * efficient updates and modifications
 """
 
 from string import ascii_lowercase as ascii_s
@@ -469,7 +470,7 @@ def compare_against_pandas():
         nonlocal flux
 
         m = [['col_a', 'col_b', 'col_c']]
-        for i in range(10000):
+        for i in range(100000):
             if i % 10 == 0:
                 m.append([None, 'fill', 'missing'])
             else:
