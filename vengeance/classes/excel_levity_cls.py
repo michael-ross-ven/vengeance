@@ -20,6 +20,7 @@ from .. excel_com.worksheet import is_range_empty
 from .. excel_com.worksheet import parse_range
 
 from .. excel_com.excel_address import col_letter
+from .. excel_com.excel_address import col_letter_offset
 from .. excel_com.excel_address import col_number
 
 from .. excel_com.excel_constants import *
@@ -104,10 +105,15 @@ class excel_levity_cls:
 
         return r
 
-    # def apply_com_interface(self):
-    #     # noinspection PyProtectedMember
-    #     from comtypes.client import _manage
-    #     self.sheet = _manage(self.sheet, clsid=None, interface=None)
+    @property
+    def append_c(self):
+        """ determines the first available empty column in sheet """
+        if self.is_empty:
+            c = self.first_c
+        else:
+            c = col_letter_offset(self.last_c, 1)
+
+        return c
 
     def activate(self):
         if self.allow_focus:
@@ -210,7 +216,10 @@ class excel_levity_cls:
         a = '{}{}:{}{}'.format(self.first_c, self.first_r, self.last_c, self.last_r)
         excel_range = self.sheet.Range(a)
 
-        self.is_empty = is_range_empty(excel_range)
+        if self.first_r == self.last_r:
+            self.is_empty = is_range_empty(excel_range)
+        else:
+            self.is_empty = False
 
     @classmethod
     def index_headers(cls, ws, row_num=None):
@@ -409,7 +418,7 @@ def _set_named_ranges(wb):
 
 def _anchor_substitution(ref):
     anchor_re = re.compile('''
-         (?P<col>^[*][fl])
+         (?P<col>^[*][fla])
         |(?P<row>[*][mhfla]$)
     ''', re.X | re.I)
 

@@ -5,7 +5,7 @@
     It's extremely easy to build terrible worksheets and there is no enforcement
     in data organization / integrity -- anyone can just slap in some data where ever they feel like.
     Usually, this results in workbooks that are like a dirty laundry basket,
-    where dats is all carelessly tossed together
+    where data is haphazardly tossed together
 
     https://imgs.xkcd.com/comics/algorithms.png
 
@@ -21,7 +21,7 @@
     read Excel files, but don't grant control over the Excel application itself,
     limiting many important abilities (recalculating values, calling add-ins, etc)
 
-    The excel_levity_cls is meant to make Excel data feel as light as a feather
+    The excel_levity_cls is meant to make Excel data feel as light as a feather,
     instead of like the data is embedded in concrete
 """
 
@@ -49,26 +49,26 @@ def main():
                                 update_links=True)
 
     instantiate_lev('sheet1')
-    # instantiate_lev('sheet2')
-    # instantiate_lev('empty sheet')
-    # instantiate_lev('jagged rows')
+    instantiate_lev('sheet2')
+    instantiate_lev('empty sheet')
+    instantiate_lev('jagged rows')
 
-    # lev_subsections()
+    lev_subsections()
 
     iterate_primitive_rows()
     iterate_flux_rows()
     iterate_excel_errors()
 
-    # write_values()
-    # write_values_from_lev()
-    # append_values()
-    # write_formulas()
+    write_values()
+    write_values_from_lev()
+    append_values()
+    write_formulas()
 
     # modify_range_values(iter_method='slow')
-    # modify_range_values(iter_method='fast')
+    modify_range_values(iter_method='fast')
 
-    # excel_object_model()
-    # allow_focus()
+    excel_object_model()
+    allow_focus()
 
     # share.close_project_workbook(save=False)
 
@@ -86,7 +86,7 @@ def instantiate_lev(tab_name):
             '*a': append
 
     Instantiating a new excel_levity_cls will always clear the Autofilter
-    of target worksheet; make sure nothing depends on having filterec data
+    of target worksheet; make sure nothing depends on having filtered data
     """
     # help(veng.excel_levity_cls)
 
@@ -426,9 +426,9 @@ def excel_object_model():
     lev_1.application.CutCopyMode = False
 
     # invoke macro
-    path = "'{}'".format(share.wb.FullName)
-    macro_name = 'msgbox_test'
-    share.wb.Application.Run(path + '!' + macro_name, 'hello from python')
+    # path = "'{}'".format(share.wb.FullName)
+    # macro_name = 'msgbox_test'
+    # share.wb.Application.Run(path + '!' + macro_name, 'hello from python')
 
 
 def allow_focus():

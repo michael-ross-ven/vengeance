@@ -76,24 +76,24 @@ from examples import excel_project_template as share
 def main():
     flux = instantiate_flux()
 
-    # restricted_header_names()
+    restricted_header_names()
 
-    # write_to_file(flux)
-    # read_from_file()
+    write_to_file(flux)
+    read_from_file()
 
-    # read_from_excel()
-    # write_to_excel(flux)
+    read_from_excel()
+    write_to_excel(flux)
 
-    # modify_columns(flux)
-    # modify_rows(flux)
+    modify_columns(flux)
+    modify_rows(flux)
 
     iterate_primitive_rows(flux)
     iterate_flux_rows(flux)
 
-    # flux_sort_filter(flux)
-    # flux_mapping()
+    flux_sort_filter(flux)
+    flux_mapping()
 
-    # flux_subclass()
+    flux_subclass()
 
     # compare_against_pandas()
 
@@ -347,16 +347,18 @@ def flux_sort_filter(flux):
 
 def flux_mapping():
     """
-    note there is a subtle difference in names between these functions
+    notice there is a subtle difference in names between these functions
         flux.index_row  (singular)
         flux.index_rows (plural)
 
         .index_row
             * overwrites non-unique values
+            * eg, {'a': flux_row}
 
         .index_rows
-            * will append all rows as a list to its values
+            * will map all rows as a lists
             * effectively, a groupby statement
+            * eg, {'a': [flux_row, flux_row, flux_row]}
     """
     m = [['name_a', 'name_b', 'val_a', 'val_b']]
     m.extend([['a', 'b', 10, 20]] * 10)
@@ -427,6 +429,8 @@ class flux_custom_cls(flux_cls):
 
 def compare_against_pandas():
     """
+    https://realpython.com/fast-flexible-pandas/
+
     what are the tradeoffs with pandas?
 
     DataFrame Pros:
@@ -487,8 +491,8 @@ def compare_against_pandas():
             if _row[0] is None:
                 return ' '.join((_row[1], _row[2]))
 
-        for i, row in df.iterrows():
-            pass
+        # for i, row in df.iterrows():
+        #     pass
 
         # for row in df.itertuples():
         #     pass
@@ -497,7 +501,7 @@ def compare_against_pandas():
         # df['col_a'] = df['col_b'] + df['col_c']
         # df['col_a'] = df.apply(fill)
 
-        # a = df[df['col_a'].notnull() & (df['col_b'] == 'blah')]
+        a = df[df['col_a'].notnull() & (df['col_b'] == 'blah')]
 
         # df_2 = pandas.DataFrame([[1, 2, 3]] * 5000)
         # df.append(df_2)
@@ -508,15 +512,15 @@ def compare_against_pandas():
         def f(_row):
             return _row.col_a is not None and _row.col_b == 'blah'
 
-        for row in flux:
-            pass
-
-            # row.col_a = 1
-            # row.col_a = row.col_b + row.col_c
+        # for row in flux:
+        #     # pass
+        #
+        #     # row.col_a = 1
+        #     row.col_a = row.col_b + row.col_c
             # if row.col_a is None:
             #     row.col_a = ' '.join((row.col_b, row.col_c))
 
-        # a = flux.filtered(f)
+        a = flux.filtered(f)
 
         # flux.append_rows([[1, 2, 3]] * 5000)
 

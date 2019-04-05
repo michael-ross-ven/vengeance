@@ -33,16 +33,16 @@ class flux_cls:
         if is_vengeance_class(matrix):
             matrix = matrix.rows()
 
-        self.headers = OrderedDict()
-
         self._num_cols = None
-        self._matrix   = None
+
+        self.headers = OrderedDict()
+        self.matrix  = None
 
         self.__to_flux_rows(matrix)
 
     @property
     def header_values(self):
-        return self._matrix[0].values
+        return self.matrix[0].values
 
     @property
     def num_cols(self):
@@ -50,14 +50,14 @@ class flux_cls:
         if isinstance(self._num_cols, int):
             return self._num_cols
 
-        self._num_cols = max(len(row) for row in self._matrix)
+        self._num_cols = max(len(row) for row in self.matrix)
 
         return self._num_cols
 
     @property
     def is_jagged(self):
-        num_cols = len(self._matrix[0])
-        for row in self._matrix[1:]:
+        num_cols = len(self.matrix[0])
+        for row in self.matrix[1:]:
             if len(row) != num_cols:
                 return True
 
@@ -70,7 +70,7 @@ class flux_cls:
     @property
     def num_rows(self):
         """ header row not included in count """
-        return len(self._matrix) - 1
+        return len(self.matrix) - 1
 
     def execute_commands(self, commands, profile_performance=False):
         if profile_performance:
@@ -132,7 +132,7 @@ class flux_cls:
             self.headers[header] = i
 
     def matrix_by_headers(self, *headers):
-        columns = transpose([row.values for row in self._matrix[1:]])
+        columns = transpose([row.values for row in self.matrix[1:]])
 
         m = []
         for header in modify_iteration_depth(headers, 1):
@@ -240,7 +240,7 @@ class flux_cls:
 
     def append_columns(self, *names):
         names = modify_iteration_depth(names, depth=1)
-        self._matrix[0].values.extend(names)
+        self.matrix[0].values.extend(names)
 
         for header in names:
             self.headers[header] = len(self.headers)
@@ -252,7 +252,7 @@ class flux_cls:
         indeces = [self.headers[h] for h in names]
 
         for c in sorted(indeces, reverse=True):
-            for row in self._matrix:
+            for row in self.matrix:
                 del row.values[c]
 
         self.reapply_header_names(self.header_values)
@@ -269,7 +269,7 @@ class flux_cls:
 
         if i == 0:
             self.reapply_header_names(rows[0])
-            del self._matrix[0]
+            del self.matrix[0]
 
         self._num_cols = None
 
@@ -281,7 +281,7 @@ class flux_cls:
             row = flux_row_cls(self.headers, row)
             m.append(row)
 
-        self._matrix[i:i] = m
+        self.matrix[i:i] = m
 
     def append_rows(self, rows):
         if is_vengeance_class(rows):
@@ -290,7 +290,7 @@ class flux_cls:
         rows = generator_to_list(rows)
         assert_iteration_depth(rows, 2)
 
-        if len(self._matrix) == 0:
+        if len(self.matrix) == 0:
             self.headers = index_sequence(str(v) for v in rows[0])
 
         self._num_cols = None
@@ -300,7 +300,7 @@ class flux_cls:
                 row = row.values
 
             row = flux_row_cls(self.headers, row)
-            self._matrix.append(row)
+            self.matrix.append(row)
 
     def fill_jagged_columns(self):
         num_cols = self.num_cols
@@ -318,7 +318,7 @@ class flux_cls:
             flux.sort('col_a', 'col_b', 'col_c',
                       reverse=[True, True, True])
         """
-        self._matrix[1:] = self.__sort_rows(f, kwargs)
+        self.matrix[1:] = self.__sort_rows(f, kwargs)
 
     def sorted(self, *f, **kwargs):
         """ returns new flux
@@ -333,7 +333,7 @@ class flux_cls:
 
     def filter(self, f):
         """ in-place """
-        self._matrix[1:] = [row for row in self if f(row)]
+        self.matrix[1:] = [row for row in self if f(row)]
 
     def filtered(self, f):
         """ return new flux """
@@ -387,7 +387,7 @@ class flux_cls:
         return ordered_unique(f(row) for row in self)
 
     def reset_matrix(self, m):
-        self._matrix   = None
+        self.matrix   = None
         self._num_cols = None
 
         self.__to_flux_rows(m)
@@ -423,12 +423,12 @@ class flux_cls:
         """ speed up attribute access by binding values directly to flux_row_cls.__dict__
         (only use this if you know the side-effects)
         """
-        [row.bind() for row in self._matrix]
+        [row.bind() for row in self.matrix]
 
     def unbind(self):
         """ return dynamic flux_row_cls.values from flux_row_cls.__dict__ """
         instance_names = tuple(self.headers.keys())
-        [row.unbind(instance_names) for row in self._matrix]
+        [row.unbind(instance_names) for row in self.matrix]
 
     def to_json(self, path=None):
         j = [row.dict() for row in self]
@@ -460,6 +460,7 @@ class flux_cls:
         return cls(m)
 
     def serialize(self, path):
+        """ """
         path = apply_file_extension(path, '.flux')
         write_file(path, self)
 
@@ -472,13 +473,13 @@ class flux_cls:
         r_1 = self.__matrix_index(r_1)
         r_2 = self.__matrix_index(r_2)
 
-        return (row.values for row in islice(self._matrix, r_1, r_2 + 1))
+        return (row.values for row in islice(self.matrix, r_1, r_2 + 1))
 
     def flux_rows(self, r_1='*h', r_2='*l'):
         r_1 = self.__matrix_index(r_1)
         r_2 = self.__matrix_index(r_2)
 
-        return iter(islice(self._matrix, r_1, r_2 + 1))
+        return iter(islice(self.matrix, r_1, r_2 + 1))
 
     def __to_flux_rows(self, m):
         m = generator_to_list(m)
@@ -489,20 +490,26 @@ class flux_cls:
             raise NameError("reserved name(s) {} found in header row {}".format(list(reserved), m[0]))
 
         self.headers = index_sequence(str(v) for v in m[0])
-        self._matrix = []
+        self.matrix  = []
+
+        num_cols = 0
 
         for row in m:
             if not isinstance(row, list):
                 raise ValueError('row must be list')
 
+            num_cols = max(num_cols, len(row))
+
             row_o = flux_row_cls(self.headers, row)
-            self._matrix.append(row_o)
+            self.matrix.append(row_o)
+
+        self._num_cols = num_cols
 
     def __to_primitive_rows(self):
-        if not isinstance(self._matrix[0], flux_row_cls):
+        if not isinstance(self.matrix[0], flux_row_cls):
             return
 
-        self._matrix = [row.values for row in self._matrix]
+        self.matrix = [row.values for row in self.matrix]
 
     def __row_values_accessor(self, f):
         """ convert f into a function that can be called on each row in self._matrix """
@@ -568,15 +575,15 @@ class flux_cls:
             return deepcopy(self)
 
         # self._num_cols?
-        m = [row.values for row in self._matrix]
+        m = [row.values for row in self.matrix]
         return self.__class__(m.copy())
 
     def __len__(self):
-        return len(self._matrix)
+        return len(self.matrix)
 
     def __getitem__(self, ref):
         if isinstance(ref, int):
-            return self._matrix[ref]
+            return self.matrix[ref]
 
         if isinstance(ref, str):
             if ref not in self.headers:
@@ -589,13 +596,13 @@ class flux_cls:
             i_1, i_2, step = ref.start, ref.stop, ref.step
             if i_1 is not None:
                 if i_1 < 0:
-                    i_1 = len(self._matrix) + i_1
+                    i_1 = len(self.matrix) + i_1
 
             if i_2 is not None:
                 if i_2 < 0:
-                    i_2 = len(self._matrix) + i_2
+                    i_2 = len(self.matrix) + i_2
 
-            return list(row for row in islice(self._matrix, i_1, i_2, step))
+            return list(row for row in islice(self.matrix, i_1, i_2, step))
 
         raise KeyError("reference syntax should be integers, eg 'flux[1:3]'")
 
@@ -619,7 +626,7 @@ class flux_cls:
             row.values[i] = v
 
     def __iter__(self):
-        return iter(islice(self._matrix, 1, None))
+        return iter(islice(self.matrix, 1, None))
 
     def __repr__(self):
         headers = repr_(self.headers.keys(), wrap='[]')

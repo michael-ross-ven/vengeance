@@ -36,9 +36,19 @@ def modify_iteration_depth(v, depth=0):
 
 
 def assert_iteration_depth(v, depth):
+    """ make sure values have certain number of iterable layers """
     nd = iteration_depth(v)
+
     if nd != depth:
-        raise IndexError('invalid iteration depth, must be of depth {}'.format(depth))
+        msg = ('invalid iteration depth {}, value must have {} layers of iteration'
+               .format(nd, depth))
+
+        if depth == 1:
+            msg += ', (ie, a list)'
+        elif depth == 2:
+            msg += ', (ie, list of lists)'
+
+        raise IndexError(msg)
 
 
 def iteration_depth(v):

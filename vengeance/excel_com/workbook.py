@@ -224,8 +224,8 @@ def __excel_app_from_hwnd(window_h):
     window = Dispatch(obj_ptr)
 
     try:
-        com_obj = window.application
-        excel_app = __comtype_to_pywin_obj(com_obj, IDispatch)
+        com_ptr = window.Application
+        excel_app = __comtype_to_pywin_obj(com_ptr, IDispatch)
         excel_app = pywin_dispatch(excel_app)
 
         excel_app.Visible = True

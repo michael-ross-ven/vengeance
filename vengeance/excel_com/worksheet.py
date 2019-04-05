@@ -6,12 +6,8 @@ from datetime import date
 from datetime import datetime
 
 from .. util.iter import modify_iteration_depth
-from .. util.text import vengeance_message
-from .. util.iter import is_iterable
-
 from .. excel_com.excel_address import col_letter
 from .. excel_com.excel_address import col_number
-from .. excel_com.excel_address import max_str_len
 from .. excel_com.excel_address import max_cols
 
 from .workbook import app_to_foreground
@@ -31,9 +27,8 @@ def get_worksheet(wb, tab_name,
 
     ws = None
     if isinstance(tab_name, str):
-        for s in wb.Sheets:
-            if s.Name.lower() == tab_name.lower():
-                ws = s
+        for ws in wb.Sheets:
+            if ws.Name.lower() == tab_name.lower():
                 break
 
     elif isinstance(tab_name, int):
@@ -78,7 +73,7 @@ def activate_sheet(ws):
 
 def write_to_excel_range(v, excel_range):
     m = modify_iteration_depth(v, 2)
-    m = __excel_friendly_matrix(m)
+    m = list(__excel_friendly_matrix(m))
 
     a = excel_range.Address
     if ':' not in a:
@@ -95,7 +90,7 @@ def gen_range_rows(excel_range):
 
 
 def __convert_excel_errors(excel_range):
-    m = excel_range.Value2
+    m = excel_range.Value
     m = modify_iteration_depth(m, 2)
     m = [list(row) for row in m]
 
@@ -117,46 +112,26 @@ def __convert_excel_errors(excel_range):
 
 
 def __excel_friendly_matrix(m):
-    """ modify matrix values so they can be written to an excel range without error
-        repr() any objects
-        convert datetime.date values to datetime.datetime
-        truncate any strings that are too large
-    """
+    """ modify matrix values so they can be written to an excel range without error """
+
     if len(m[0]) > max_cols:
-        raise ValueError("number of matrix columns ({:,}) exceeds Excel's column limit\n"
-                         "(did you mean to transpose this matrix?)"
+        raise ValueError("matrix columns ({:,}) exceeds Excel's column limit\n(did you mean to transpose this matrix?)"
                          .format(len(m[0])))
 
-    def is_primitive():
-        return not hasattr(v, '__dict__')
-
-    def is_string_too_long():
-        too_long = isinstance(v, str) and len(v) > max_str_len
-        if too_long:
-            vengeance_message("making excel-friendly value from very long string: '{} ... {}'"
-                              .format(v[:10], v[-10:]))
-
-        return too_long
-
-    em = []
     for row in m:
-        row_e = []
+        row_ = []
 
-        for v in row:
-            if type(v) == date:
+        for c, v in enumerate(row):
+            if isinstance(v, (bool, int, float, str)) or v is None:
+                pass
+            elif isinstance(v, date):
                 v = datetime(v.year, v.month, v.day)
-            elif is_string_too_long():
-                v = v[:32767]
-            elif not is_primitive():
+            else:
                 v = repr(v)
-            elif is_iterable(v):
-                v = str(v)
 
-            row_e.append(v)
+            row_.append(v)
 
-        em.append(row_e)
-
-    return em
+        yield row_
 
 
 def range_find(excel_range,
@@ -174,8 +149,13 @@ def range_find(excel_range,
         elif search_direction == xl_previous:
             after = first_cell(excel_range)
 
-    args = (what, after, look_in, look_at, search_order, search_direction, match_case)
-    search = excel_range.Find(*args)
+    search = excel_range.Find(what,
+                              after,
+                              look_in,
+                              look_at,
+                              search_order,
+                              search_direction,
+                              match_case)
 
     return search
 
@@ -266,7 +246,6 @@ def first_non_blank_col(excel_range, default_c='A'):
 
 
 def parse_range(excel_range):
-
     c_1 = first_cell(excel_range).Column
     c_1 = col_letter(c_1)
 

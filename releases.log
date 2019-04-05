@@ -37,7 +37,14 @@ $release 5
 
 
 
+2019-04-05
+$release 6
+	added optional d_format param to to_datetime
+	new print_timeit() function 
+		(stolen from https://github.com/realpython/materials/blob/master/pandas-fast-flexible-intuitive/tutorial/timer.py)
+
+	added append_c property to excel_levity_cls
+	changed flux_cls._matrix to flux_cls.matrix
+	updated README.md
 
 
-
-<end />
