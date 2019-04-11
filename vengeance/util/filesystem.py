@@ -8,13 +8,15 @@ import shutil
 from glob import glob
 from datetime import datetime
 
+from . iter import is_iterable
 from . iter import generator_to_list
 from . iter import assert_iteration_depth
 
+from . text import repr_
 from . text import p_json_dumps
 
 
-def read_file(path):
+def read_file(path, encoding='utf-8'):
     """
     supports
         .csv
@@ -26,22 +28,22 @@ def read_file(path):
 
     extn = file_extension(path)
     if extn == '.csv':
-        with open(path, 'r') as f:
+        with open(path, 'r', encoding=encoding) as f:
             return list(csv.reader(f))
 
     if extn == '.json':
-        with open(path, 'r') as f:
+        with open(path, 'r', encoding=encoding) as f:
             return json.load(f)
 
     if extn == '.flux':
         with open(path, 'rb') as f:
             return pickle.load(f)
 
-    with open(path, 'r') as f:
+    with open(path, 'r', encoding=encoding) as f:
         return f.read()
 
 
-def write_file(path, data, mode='w'):
+def write_file(path, data, mode='w', encoding='utf-8'):
     """
     supports
         .csv
@@ -54,14 +56,15 @@ def write_file(path, data, mode='w'):
     if extn == '.csv':
         data = generator_to_list(data, recurse=True)
         assert_iteration_depth(data, 2)
-        with open(path, mode) as f:
+
+        with open(path, mode, encoding=encoding) as f:
             csv.writer(f, lineterminator='\n').writerows(data)
 
     elif extn == '.json':
         if not isinstance(data, str):
-            data = p_json_dumps(data)
+            data = p_json_dumps(data, ensure_ascii=False)
 
-        with open(path, mode) as f:
+        with open(path, mode, encoding=encoding) as f:
             f.write(data)
 
     elif extn == '.flux':
@@ -69,11 +72,12 @@ def write_file(path, data, mode='w'):
             pickle.dump(data, f)
 
     else:
-        with open(path, mode) as f:
-            if isinstance(data, str):
-                f.write(data)
-            else:
-                f.writelines(data)
+        with open(path, mode, encoding=encoding) as f:
+            if is_iterable(data):
+                data = repr_(data, quotes=True, concat=',\n')
+                # data = repr(data)
+
+            f.write(data)
 
 
 def make_dirs(f_dir):
@@ -168,6 +172,10 @@ def sanatize_file_name(f_name):
                     '/':  '-',
                     ':':  '-',
                     '*':  '-',
+                    '?':  '-',
+                    '<':  '-',
+                    '>':  '-',
+                    '|':  '-',
                     '"':  '-',
                     "'":  '-'}
 

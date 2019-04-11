@@ -1,6 +1,8 @@
 
 import copy
 
+from math import ceil
+
 from types import GeneratorType
 
 from collections import OrderedDict
@@ -132,9 +134,35 @@ def generator_to_list(v, recurse=False):
     return v
 
 
+def sequence_strides(sequence, num_strides):
+    if isinstance(sequence, int):
+        sequence = [None] * sequence
+    else:
+        sequence = generator_to_list(sequence)
+
+    num_items  = len(sequence)
+    stride_len = int(ceil(num_items / num_strides))
+    stride_len = max(stride_len, 1)
+
+    strides = []
+    for i_1 in range(0, num_items, stride_len):
+        i_2 = i_1 + stride_len
+        strides.append(sequence[i_1:i_2])
+
+    return strides
+
+
 def is_vengeance_class(o):
     bases = {b.__name__ for b in o.__class__.mro()}
     if 'flux_cls' in bases or 'excel_levity_cls' in bases:
+        return True
+
+    return False
+
+
+def is_flux_row_class(o):
+    bases = {b.__name__ for b in o.__class__.mro()}
+    if 'flux_row_cls' in bases or 'lev_row_cls' in bases:
         return True
 
     return False

@@ -14,8 +14,7 @@ class flux_row_cls:
                    'values'}
 
     def __init__(self, headers, values):
-        """ basically, a mutable namedtuple
-
+        """
         :param headers: OrderedDict of {'header': index}
         :param values:  list of underlying data
 
@@ -24,13 +23,10 @@ class flux_row_cls:
         memory usage and allowing all mapping updates to be made
         instantaneously
 
-            namedtuples may be more efficient, but too much of a headache to deal
-            with their immutability
-
-            maybe __slots__ or weakref / metaclass would be better?
-            Effective Python: Item 35: Annotate Class Attributes with Metaclasses
+        namedtuples may be more efficient, but too much of a headache to deal
+        with their immutability
         """
-        # cannot call attributes directly in __init__ as this invokes __setattr__ lookup too early
+        # cannot set attributes directly in __init__ as this invokes __setattr__ lookup too early
         self.__dict__['_headers'] = headers
         self.__dict__['values']   = values
         self.__dict__['is_bound'] = False

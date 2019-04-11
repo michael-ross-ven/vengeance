@@ -300,6 +300,7 @@ class excel_levity_cls:
         return a
 
     def __reference_to_col_row(self, ref):
+        ref = ref.strip()
         ref = _anchor_substitution(ref)
 
         col, row = self.__property_reference(ref)
@@ -417,22 +418,21 @@ def _set_named_ranges(wb):
 
 
 def _anchor_substitution(ref):
-    anchor_re = re.compile('''
-         (?P<col>^[*][fla])
-        |(?P<row>[*][mhfla]$)
-    ''', re.X | re.I)
-
     anchor_names = {'*m': 'meta',
                     '*h': 'header',
                     '*f': 'first',
                     '*l': 'last',
                     '*a': 'append'}
 
-    ref = ref.strip()
+    anchor_re = re.compile('''
+         (?P<col>^[*][fla])
+        |(?P<row>[*][mhfla]$)
+    ''', re.X | re.I)
 
     for match in anchor_re.finditer(ref):
         name_re = match.lastgroup
         val_re  = match.group(0)
+
         if name_re == 'col':
             col = anchor_names[val_re] + '_c '
             ref = ref.replace(val_re, col, 1)

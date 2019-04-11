@@ -45,7 +45,7 @@ be stored more efficiently
 
 
 This is essentially what a pandas DataFrame is. The drawback to this
-is a major conceptual overhead.
+is a major conceptual overhead. 
 - **Intuitively, each row is some entity, each column is a property of that row**
 
 - DataFrames have some great features, but also require specialized syntax that can get very awkward and requires a lot of memorization

@@ -48,3 +48,23 @@ $release 6
 	updated README.md
 
 
+
+2019-04-
+$release 7
+	added optional encoding='utf-8' param to filesystem.read_file 
+	added optional encoding='utf-8' param to filesystem.write_file
+
+	flux_cls accepts matrix as optional param in constructor
+	flux_cls.is_empty property renamed to has_data
+	added flux_cls.is_empty attribute
+
+	flux_cls.__to_flux_rows() now returns a matrix instead of setting self.matrix
+
+	simplified flux_cls.append_rows()
+	simplified flux_cls.insert_rows()
+	forced paths to have appropriate file extension in flux_cls.to_csv() / flux_cls.from_csv()
+	forced paths to have appropriate file extension in flux_cls.to_json() / flux_cls.from_json()
+
+
+
+

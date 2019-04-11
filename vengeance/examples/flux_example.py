@@ -81,8 +81,8 @@ def main():
     write_to_file(flux)
     read_from_file()
 
-    read_from_excel()
-    write_to_excel(flux)
+    # read_from_excel()
+    # write_to_excel(flux)
 
     modify_columns(flux)
     modify_rows(flux)
@@ -167,11 +167,6 @@ def write_to_excel(flux):
 
 
 def modify_columns(flux):
-    """
-    currently, these methods only modify header names, and the rest of the column
-    is initialized to None
-    columns must be assigned new values separately
-    """
     flux = flux.copy(deep=True)
 
     del flux[3].values[2]
@@ -206,8 +201,14 @@ def modify_columns(flux):
     flux['renamed_a'] = [None] * flux.num_rows
     col = flux['renamed_a']
 
+    # appends a new column named new_col
+    flux['new_col'] = ['n'] * flux.num_rows
+
 
 def modify_rows(flux):
+    flux_e = flux_cls()
+    flux_e.append_rows([['a', 'b', 'c']] * 25)
+
     flux_1 = flux.copy()
     flux_2 = flux.copy()
 

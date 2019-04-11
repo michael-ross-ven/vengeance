@@ -128,38 +128,55 @@ def print_timeit(f, *, repeat=3, number=1000):
     return wrap(f)
 
 
-def repr_(sequence, concat=', ', quotes=False, wrap=None):
-    """ extend formatting options of built-in repr() """
+def repr_(sequence, concat=', ', quotes=False, wrap=True):
+    """ extend formatting options beyond built-in repr() """
 
     def repr_recurse(v):
-        if isinstance(v, Iterable) and not isinstance(v, str):
+        if isinstance(v, str):
+            if quotes:
+                v = "'{}'".format(v)
+
+            return v
+
+        if is_sequence_dict:
+            c = ': '
+            w = False
+
+            return repr_(v, c, quotes, w)
+
+        if isinstance(v, Iterable):
             c = ', '
-            w = None
+            w = wrap
 
-            if is_top_sequence_dict:
-                c = ': '
-            elif isinstance(v, dict):
-                w = '{}'
-            elif isinstance(v, tuple):
-                w = '()'
-            elif isinstance(v, list):
-                w = '[]'
-
-            return repr_(v, c, wrap=w)
-
-        if isinstance(v, str) and quotes:
-            return "'{}'".format(v)
+            return repr_(v, c, quotes, w)
 
         return str(v)
 
-    is_top_sequence_dict = isinstance(sequence, dict)
-    if is_top_sequence_dict:
+    def wrapped_characters(v):
+        if isinstance(v, dict):
+            w = '{}'
+        elif isinstance(v, tuple):
+            w = '()'
+        elif isinstance(v, list):
+            w = '[]'
+        else:
+            w = None
+
+        return w
+
+    if wrap is True:
+        w_ = wrapped_characters(sequence)
+    else:
+        w_ = wrap
+
+    is_sequence_dict = isinstance(sequence, dict)
+    if is_sequence_dict:
         sequence = sequence.items()
 
     s = concat.join(repr_recurse(o) for o in sequence)
 
-    if wrap:
-        s = wrap[0] + s + wrap[1]
+    if w_:
+        s = w_[0] + s + w_[1]
 
     return s
 
@@ -210,7 +227,7 @@ def between(s, substr_1, substr_2=None):
     return s[i_1:i_2]
 
 
-def p_json_dumps(o, indent=4):
+def p_json_dumps(o, indent=4, ensure_ascii=False):
     """
     json can not convert certain python objects to string representations
         dates
@@ -225,7 +242,9 @@ def p_json_dumps(o, indent=4):
 
         raise TypeError('cannot convert type to json ' + repr(_o))
 
-    return json.dumps(o, indent=indent,  default=unhandled_conversion)
+    s = json.dumps(o, indent=indent,  default=unhandled_conversion, ensure_ascii=ensure_ascii)
+
+    return s
 
 
 def to_ascii(s):

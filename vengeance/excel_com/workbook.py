@@ -38,8 +38,7 @@ SetForegroundWindow        = ctypes.windll.user32.SetForegroundWindow
 corrupt_hwnds = set()
 
 
-def open_workbook(path,
-                  excel_instance=None,
+def open_workbook(path, excel_instance=None,
                   *,
                   read_only=False,
                   update_links=True):
@@ -59,11 +58,11 @@ def open_workbook(path,
             vengeance_message("'{}' already open in another Excel instance".format(wb.Name))
             sleep(3)
 
-    if wb.ReadOnly is False and read_only:
+    if wb.ReadOnly is False and read_only is True:
         vengeance_message("'{}' is NOT opened read-only".format(wb.Name))
         sleep(3)
 
-    if wb.ReadOnly and read_only is False:
+    if wb.ReadOnly is True and read_only is False:
         vengeance_message("('{}' opened as read-only)".format(wb.Name))
         sleep(3)
 
@@ -308,7 +307,7 @@ def reload_all_add_ins(excel_app):
             try:
                 add_in.Installed = False
                 add_in.Installed = True
-                vengeance_message('{}'.format(name))
+                vengeance_message('   {}'.format(name))
             except COMError:
                 vengeance_message('failed to load add-in: {}' + name)
     print()
