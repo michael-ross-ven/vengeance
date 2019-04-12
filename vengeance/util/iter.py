@@ -23,14 +23,14 @@ def modify_iteration_depth(v, depth=0):
     nd = iteration_depth(v)
 
     if nd > depth:
-        # remove nesting
-        for _ in range(nd - depth + 1):
-            if len(v) == 1 and is_subscriptable(v):
+        # remove unneccesary nesting
+        for _ in range(nd - depth):
+            if is_subscriptable(v) and len(v) == 1:
                 v = list(v)
                 v = v[0]
 
     elif nd < depth:
-        # additional nesting
+        # add additional nesting
         for _ in range(depth - nd):
             v = [v]
 

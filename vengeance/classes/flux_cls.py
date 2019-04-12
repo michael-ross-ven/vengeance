@@ -31,9 +31,6 @@ from . flux_row_cls import flux_row_cls
 class flux_cls:
 
     def __init__(self, matrix=None):
-        if is_vengeance_class(matrix):
-            matrix = matrix.rows()
-
         self._num_cols = None
         self.is_empty  = None
 
@@ -410,32 +407,32 @@ class flux_cls:
         instance_names = tuple(self.headers.keys())
         [row.unbind(instance_names) for row in self.matrix]
 
-    def to_csv(self, path):
+    def to_csv(self, path, encoding=None):
         path = apply_file_extension(path, '.csv')
         m = list(self.rows())
 
-        write_file(path, m)
+        write_file(path, m, encoding=encoding)
 
     @classmethod
-    def from_csv(cls, path):
+    def from_csv(cls, path, encoding=None):
         path = apply_file_extension(path, '.csv')
-        m = read_file(path)
+        m = read_file(path, encoding=encoding)
 
         return cls(m)
 
-    def to_json(self, path):
+    def to_json(self, path, encoding=None):
         path = apply_file_extension(path, '.json')
 
         j = [row.dict() for row in self]
         j = p_json_dumps(j)
 
-        write_file(path, j)
+        write_file(path, j, encoding=encoding)
 
     @classmethod
-    def from_json(cls, path):
+    def from_json(cls, path, encoding=None):
         path = apply_file_extension(path, '.json')
 
-        rows = read_file(path)
+        rows = read_file(path, encoding=encoding)
         if rows:
             m = [list(d.values()) for d in rows]
             m.insert(0, list(rows[0].keys()))
@@ -466,11 +463,12 @@ class flux_cls:
         return iter(islice(self.matrix, r_1, r_2 + 1))
 
     def __to_flux_rows(self, m):
-        if not m:
+        m = generator_to_list(m)
+
+        if m is None or not any(m):
             self.is_empty = True
             return [flux_row_cls({}, [])]
 
-        m = generator_to_list(m)
         assert_iteration_depth(m, 2)
 
         if is_flux_row_class(m[0]):
@@ -525,7 +523,7 @@ class flux_cls:
             return f
 
         if isinstance(f, (list, tuple)):
-            columns = tuple(self.headers[n] for n in f)
+            columns = tuple(self.headers.get(n, n) for n in f)
             f = row_values
         elif isinstance(f, str):
             i = self.headers[f]
@@ -537,13 +535,25 @@ class flux_cls:
         return f
 
     def __validate_row_accessor(self, f):
+        num_cols = len(self.headers) - 1
+
         if isinstance(f, (str, list, tuple)):
-            invalid = [h for h in depth_one(f) if h not in self.headers]
+            f_ = depth_one(f)
+
+            invalid = [h for h in f_
+                         if isinstance(h, str)
+                         if h not in self.headers]
             if invalid:
                 raise KeyError("invalid column reference: {}".format(repr_(invalid)))
 
+            invalid = [i for i in f_
+                         if isinstance(i, int)
+                         if i > num_cols]
+            if invalid:
+                raise KeyError("integer(s) out of bounds: {}".format(repr_(invalid)))
+
         elif isinstance(f, int):
-            if f >= len(self.headers):
+            if f > num_cols:
                 raise KeyError("integer out of bounds: {}".format(f))
 
         else:

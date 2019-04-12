@@ -335,12 +335,18 @@ class excel_levity_cls:
         return literal
 
     def rows(self, r_1='*h', r_2='*l'):
+        if self.is_empty:
+            return [[]]
+
         a = '*f {}:*l {}'.format(r_1, r_2)
         excel_range = self.excel_range(a)
 
         return (row for row in gen_range_rows(excel_range))
 
     def flux_rows(self, r_1='*h', r_2='*l'):
+        if self.is_empty:
+            return [[]]
+
         a = '*f {}:*l {}'.format(r_1, r_2)
         excel_range = self.excel_range(a)
 
@@ -384,11 +390,11 @@ class excel_levity_cls:
             yield row
 
     def __repr__(self):
-        return '{} {}{}:{}{}'.format(self.tab_name,
-                                     self.first_c,
-                                     self.header_r,
-                                     self.last_c,
-                                     self.last_r)
+        return "'{}' {}{}:{}{}".format(self.tab_name,
+                                       self.first_c,
+                                       self.header_r,
+                                       self.last_c,
+                                       self.last_r)
 
 
 def _set_named_ranges(wb):

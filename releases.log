@@ -49,7 +49,7 @@ $release 6
 
 
 
-2019-04-
+2019-04-11
 $release 7
 	added optional encoding='utf-8' param to filesystem.read_file 
 	added optional encoding='utf-8' param to filesystem.write_file
@@ -64,6 +64,19 @@ $release 7
 	simplified flux_cls.insert_rows()
 	forced paths to have appropriate file extension in flux_cls.to_csv() / flux_cls.from_csv()
 	forced paths to have appropriate file extension in flux_cls.to_json() / flux_cls.from_json()
+
+
+
+2019-04-11
+$release 8
+	jagged column check in worksheet.__excel_friendly_matrix()
+	added max_row check in worksheet.__excel_friendly_matrix()
+	
+	fixed bug in modify_iteration_depth()
+
+	fixed bug in flux_cls.__validate_row_accessor()
+
+	if excel_levity_cls.is_empty, will return [[]] for .rows() and .flux_rows()
 
 
 

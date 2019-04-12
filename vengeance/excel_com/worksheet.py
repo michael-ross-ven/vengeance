@@ -6,9 +6,11 @@ from datetime import date
 from datetime import datetime
 
 from .. util.iter import modify_iteration_depth
+
 from .. excel_com.excel_address import col_letter
 from .. excel_com.excel_address import col_number
-from .. excel_com.excel_address import max_cols
+from .. excel_com.excel_address import max_cols as excel_max_cols
+from .. excel_com.excel_address import max_rows as excel_max_rows
 
 from .workbook import app_to_foreground
 from .excel_constants import *
@@ -113,14 +115,20 @@ def __convert_excel_errors(excel_range):
 
 def __excel_friendly_matrix(m):
     """ modify matrix values so they can be written to an excel range without error """
+    num_cols = len(m[0])
 
-    if len(m[0]) > max_cols:
-        raise ValueError("matrix columns ({:,}) exceeds Excel's column limit\n(did you mean to transpose this matrix?)"
-                         .format(len(m[0])))
+    if num_cols > excel_max_cols:
+        raise ValueError("number of columns ({:,}) exceeds Excel's column limit\n"
+                         "(did you mean to transpose this matrix?)".format(num_cols))
 
-    for row in m:
+    if len(m) > excel_max_rows:
+        raise ValueError("number of rows ({:,}) exceeds Excel's row limit".format(len(m)))
+
+    for r, row in enumerate(m):
+        if len(row) != num_cols:
+            raise ValueError('jagged column (at row {:,}), cannot write to Excel'.format(r))
+
         row_ = []
-
         for c, v in enumerate(row):
             if isinstance(v, (bool, int, float, str)) or v is None:
                 pass

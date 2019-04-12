@@ -16,7 +16,7 @@ from . text import repr_
 from . text import p_json_dumps
 
 
-def read_file(path, encoding='utf-8'):
+def read_file(path, encoding=None):
     """
     supports
         .csv
@@ -43,7 +43,7 @@ def read_file(path, encoding='utf-8'):
         return f.read()
 
 
-def write_file(path, data, mode='w', encoding='utf-8'):
+def write_file(path, data, mode='w', encoding=None):
     """
     supports
         .csv
