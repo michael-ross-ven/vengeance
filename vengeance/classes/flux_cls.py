@@ -69,8 +69,8 @@ class flux_cls:
         """ header row not included in count """
         return len(self.matrix) - 1
 
-    def execute_commands(self, commands, profile_performance=False):
-        if profile_performance:
+    def execute_commands(self, commands, profile=False):
+        if profile:
             from line_profiler import LineProfiler
             profiler = LineProfiler()
         else:
@@ -329,13 +329,15 @@ class flux_cls:
         if kwargs and 'reverse' not in kwargs:
             raise ValueError("only 'reverse' keyword is accepted")
 
-        reverses = list(kwargs.get('reverse', []))
+        r = list(kwargs.get('reverse', []))
+        for _ in range(len(f) - len(r)):
+            r.append(False)
 
-        for _ in range(len(f) - len(reverses)):
-            reverses.append(False)
+        r = reversed(r)
+        f = reversed(f)
 
         m = [row for row in self]
-        for f, reverse in zip(f, reverses):
+        for f, reverse in zip(f, r):
             f = self.__row_values_accessor(f)
             m.sort(key=f, reverse=reverse)
 
@@ -420,11 +422,14 @@ class flux_cls:
 
         return cls(m)
 
-    def to_json(self, path, encoding=None):
+    def to_json(self, path=None, encoding=None):
         path = apply_file_extension(path, '.json')
 
         j = [row.dict() for row in self]
         j = p_json_dumps(j)
+
+        if path is None:
+            return j
 
         write_file(path, j, encoding=encoding)
 
@@ -442,11 +447,13 @@ class flux_cls:
         return cls(m)
 
     def serialize(self, path):
+        """ you should be aware of the security flaws from using pickle """
         path = apply_file_extension(path, '.flux')
         write_file(path, self)
 
     @classmethod
     def deserialize(cls, path):
+        """ you should be aware of the security flaws from using pickle """
         path = apply_file_extension(path, '.flux')
         return read_file(path)
 
@@ -464,12 +471,11 @@ class flux_cls:
 
     def __to_flux_rows(self, m):
         m = generator_to_list(m)
+        assert_iteration_depth(m, 2)
 
         if m is None or not any(m):
             self.is_empty = True
             return [flux_row_cls({}, [])]
-
-        assert_iteration_depth(m, 2)
 
         if is_flux_row_class(m[0]):
             m = [row.values for row in m]

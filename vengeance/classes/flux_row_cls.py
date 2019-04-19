@@ -4,8 +4,6 @@ import textwrap
 from collections import OrderedDict
 from collections import namedtuple
 
-from .. util.text import repr_
-
 
 class flux_row_cls:
 
@@ -87,13 +85,7 @@ class flux_row_cls:
     def __getattr__(self, name):
         """  eg:
              v = row.header
-
-        self.__dict__ is empty when being deserialized from a binary file
-        '__setstate__' key must be called with self.__getattribute__
         """
-        if not self.__dict__:
-            return self.__getattribute__(name)
-
         return self.__getitem__(name)
 
     def __getitem__(self, name):
@@ -136,11 +128,17 @@ class flux_row_cls:
 
         raise AttributeError(self.__attr_err_msg(name))
 
+    def __getstate__(self):
+        return self.__dict__
+
+    def __setstate__(self, d):
+        super().__setattr__('__dict__', d)
+
     def __attr_err_msg(self, name):
         if isinstance(name, slice):
             return 'slice should be used on row.values\n(eg, row.values[2:5], not row[2:5])'
 
-        names = repr_(self.names, concat=',\n', quotes=True)
+        names = '\n'.join(self.names)
         names = textwrap.indent(names, '  ')
 
         return "flux_row_cls\nno column named: '{}' from\n{}".format(name, names)

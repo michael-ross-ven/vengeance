@@ -80,4 +80,13 @@ $release 8
 
 
 
+2019-04-19
+$release 9
+	added flux_row_cls.__getstate__()
+	added flux_row_cls.__setstate__()
+
+	fixed iteration depth bug in flux_cls.__to_flux_rows()
+
+
+
 

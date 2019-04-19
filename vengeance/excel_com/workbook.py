@@ -1,34 +1,29 @@
 
-from time import sleep
-
 import ctypes
-import pythoncom
-
-# noinspection PyUnresolvedReferences
-from pythoncom import com_error
-
-from ctypes import byref
-from ctypes import PyDLL
 from ctypes import POINTER
-from ctypes.wintypes import DWORD
+from ctypes import PyDLL
+from ctypes import byref
 from ctypes.wintypes import BOOL
+from ctypes.wintypes import DWORD
 
-from win32com.client import Dispatch as pywin_dispatch
-# from win32com.client.gencache import EnsureDispatch as pywin_dispatch
-
+import pythoncom
 from comtypes import COMError
 from comtypes import GUID
 from comtypes import IUnknown
 from comtypes.automation import IDispatch
-from comtypes.client.dynamic import Dispatch
 from comtypes.client import CreateObject
+from comtypes.client.dynamic import Dispatch
 
-from .. util.text import vengeance_message
-from .. util.filesystem import assert_path_exists
-from .. util.filesystem import standardize_path
-from .. util.filesystem import file_extension
+# noinspection PyUnresolvedReferences
+from pythoncom import com_error
 
-from . excel_constants import *
+from win32com.client import Dispatch as pywin_dispatch                      # late-bound reference
+# from win32com.client.gencache import EnsureDispatch as pywin_dispatch     # early-bound reference
+
+from .excel_constants import *
+from ..util.filesystem import assert_path_exists
+from ..util.filesystem import standardize_path
+from ..util.text import vengeance_message
 
 AccessibleObjectFromWindow = ctypes.oledll.oleacc.AccessibleObjectFromWindow
 FindWindowEx               = ctypes.windll.user32.FindWindowExA
@@ -56,15 +51,12 @@ def open_workbook(path, excel_instance=None,
     elif excel_instance is not None:
         if wb.Application != excel_instance:
             vengeance_message("'{}' already open in another Excel instance".format(wb.Name))
-            sleep(3)
 
     if wb.ReadOnly is False and read_only is True:
         vengeance_message("'{}' is NOT opened read-only".format(wb.Name))
-        sleep(3)
 
     if wb.ReadOnly is True and read_only is False:
         vengeance_message("('{}' opened as read-only)".format(wb.Name))
-        sleep(3)
 
     return wb
 
@@ -73,7 +65,6 @@ def open_workbook(path, excel_instance=None,
 def close_workbook(wb, save):
     """
     all references need to be severed for excel_com pointer to be released
-    variables should be set to None
     """
     if save and wb.ReadOnly:
         raise AssertionError("workbook: '{}' is open read-only, cannot save and close".format(wb.Name))
@@ -103,9 +94,7 @@ def is_workbook_open(path):
     window_h = FindWindowEx(0, 0, xl_class_name, None)
     while window_h != 0:
         for wb in __workbooks_from_hwnd(window_h):
-            path_search = standardize_path(wb.FullName)
-
-            if path == path_search:
+            if standardize_path(wb.FullName) == path:
                 return wb
 
         window_h = FindWindowEx(0, window_h, xl_class_name, None)
@@ -127,6 +116,26 @@ def new_excel_instance():
     return excel_app
 
 
+def app_to_foreground(excel_app):
+    excel_app.Visible = True
+    SetForegroundWindow(excel_app.Hwnd)
+
+
+def reload_all_add_ins(excel_app):
+    vengeance_message('reloading Excel add-ins...')
+
+    for add_in in excel_app.AddIns:
+        if add_in.Installed:
+            name = add_in.Name
+            try:
+                add_in.Installed = False
+                add_in.Installed = True
+                vengeance_message('   {}'.format(name))
+            except COMError:
+                vengeance_message('failed to load add-in: {}' + name)
+    print()
+
+
 def empty_excel_instance():
     window_h = FindWindowEx(0, 0, xl_class_name, None)
 
@@ -144,6 +153,20 @@ def empty_excel_instance():
 
 def any_excel_instance():
     return pywin_dispatch('Excel.Application')
+
+
+def all_excel_instances():
+    excel_apps = []
+    window_h = FindWindowEx(0, 0, xl_class_name, None)
+
+    while window_h != 0:
+        excel_app = __excel_app_from_hwnd(window_h)
+        if excel_app:
+            excel_apps.append(excel_app)
+
+        window_h = FindWindowEx(0, window_h, xl_class_name, None)
+
+    return excel_apps
 
 
 def __is_excel_app_empty(excel_app):
@@ -166,10 +189,10 @@ def __is_excel_app_empty(excel_app):
 
 
 def __workbook_from_excel_app(excel_app, path, update_links, read_only):
+    assert_path_exists(path)
+
     if read_only:
         vengeance_message('opening workbook as read-only ...')
-
-    assert_path_exists(path)
 
     excel_app.DisplayAlerts = False
     wb = excel_app.Workbooks.Open(path, update_links, read_only)
@@ -188,8 +211,8 @@ def __workbooks_from_hwnd(window_h):
 
 def __excel_app_from_hwnd(window_h):
     """
-    comtypes library is used to search windows handles for Excel application,
-    then converts that pointer to a pywin object thru __comtype_to_pywin_obj()
+    the comtypes library is used to search windows handles for Excel application,
+    then converts that pointer to a pywin object
 
     sometimes, non-Excel applications are running under the same window_h
     as an Excel process, like "print driver host for applications"
@@ -208,14 +231,17 @@ def __excel_app_from_hwnd(window_h):
 
     if excel7_wnd == 0:
         corrupt_hwnds.add(window_h)
-        if __is_excel_process(window_h):
+
+        if __process_name(window_h).lower() == 'excel':
+            vengeance_message('attempting to kill corrupt Excel application: {}'.format(window_h))
             __kill_task(window_h)
+        else:
+            vengeance_message('corrupt Excel application detected {}'.format(window_h))
 
         return None
 
     cls_id  = GUID.from_progid(xl_clsid)
-    obj_ptr = ctypes.POINTER(IDispatch)()
-
+    obj_ptr = POINTER(IDispatch)()
     AccessibleObjectFromWindow(excel7_wnd,
                                native_om,
                                byref(cls_id),
@@ -254,7 +280,7 @@ def __comtype_to_pywin_obj(ptr, interface):
     return com_obj(ptr._comobj, byref(interface._iid_), True)
 
 
-def __is_excel_process(window_h):
+def __process_name(window_h):
     SysAllocStringLen           = ctypes.windll.oleaut32.SysAllocStringLen
     SysAllocStringLen.argtypes  = (ctypes.c_wchar_p, ctypes.c_uint)
     SysAllocStringLen.restype   = ctypes.POINTER(ctypes.c_char)
@@ -263,9 +289,9 @@ def __is_excel_process(window_h):
     GetWindowText(window_h, chr_buffer, 255)
 
     name = ctypes.cast(chr_buffer, ctypes.c_char_p).value
-    name = name.decode('ascii').lower()
+    name = name.decode('ascii')
 
-    return name == 'excel'
+    return name
 
 
 def __kill_task(window_h):
@@ -274,51 +300,10 @@ def __kill_task(window_h):
     TerminateProcess         = ctypes.windll.kernel32.TerminateProcess
     CloseHandle              = ctypes.windll.kernel32.CloseHandle
 
-    vengeance_message('attempting to kill corrupt Excel application: {}'.format(window_h))
-
     lp_ptr = POINTER(DWORD)()
     GetWindowThreadProcessId(window_h, byref(lp_ptr))
 
     handle = OpenProcess(process_terminate, False, lp_ptr)
     TerminateProcess(handle, -1)
     CloseHandle(handle)
-
-
-def app_to_foreground(excel_app):
-    excel_app.Visible = True
-    SetForegroundWindow(excel_app.Hwnd)
-
-
-def add_in_exists(excel_app, name):
-    try:
-        excel_app.AddIns(name)
-    except COMError:
-        return False
-
-    return True
-
-
-def reload_all_add_ins(excel_app):
-    vengeance_message('reloading Excel add-ins...')
-
-    for add_in in excel_app.AddIns:
-        if add_in.Installed:
-            name = add_in.Name
-            try:
-                add_in.Installed = False
-                add_in.Installed = True
-                vengeance_message('   {}'.format(name))
-            except COMError:
-                vengeance_message('failed to load add-in: {}' + name)
-    print()
-
-
-def reload_add_in(excel_app, name):
-    if add_in_exists(excel_app, name):
-        excel_app.addins(name).Installed = False
-        excel_app.addins(name).Installed = True
-
-
-def is_workbook_an_addin(f_name):
-    return 'xla' in file_extension(f_name)
 

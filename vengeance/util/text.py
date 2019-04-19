@@ -54,20 +54,18 @@ def format_ms(ms):
     return f_ms
 
 
-def print_timeit(f, *, repeat=3, number=1000):
+def print_performance(f=None, *, repeat=3, number=100):
     """
     stolen and modified from
     https://github.com/realpython/materials/blob/master/pandas-fast-flexible-intuitive/tutorial/timer.py
 
-    Decorator: prints time from best of `repeat` trials.
+    Decorator: prints time from best of repeat trials.
 
-    Mimics `timeit.repeat()`, but avg. time is printed.
+    Mimics timeit.repeat(), but avg. time is printed.
     Returns function result and prints time.
 
     You can decorate with or without parentheses, as in
     Python's @dataclass class decorator.
-
-    kwargs are passed to `print()`.
     """
     import gc
     import functools
@@ -76,46 +74,43 @@ def print_timeit(f, *, repeat=3, number=1000):
     _repeat = functools.partial(itertools.repeat, None)
 
     def wrap(func):
-
         @functools.wraps(func)
         def performance_wrapper(*args, **kwargs):
-            # Temporarily turn off garbage collection during the timing.
-            # Makes independent timings more comparable.
-            # If it was originally enabled, switch it back on afterwards.
+
+            # Temporarily turn off garbage collection
             gcold = gc.isenabled()
             gc.disable()
 
             result = None
+            best   = None
+            total  = 0
 
             try:
-                # Outer loop - the number of repeats.
-                trials = []
                 for _ in _repeat(repeat):
-                    # Inner loop - the number of calls within each repeat.
                     total = 0
-                    for _ in _repeat(number):
-                        start = default_timer()
+
+                    for _ in _repeat(number):                   # number of trials within each repeat.
+                        tic = default_timer() * 1000
                         result = func(*args, **kwargs)
-                        end = default_timer()
-                        total += end - start
+                        toc = default_timer() * 1000
+                        elapsed = -(tic - toc)
 
-                    trials.append(total)
+                        if best is None:
+                            best = elapsed
+                        else:
+                            best = min(best, elapsed)
 
-                # We want the *average time* from the *best* trial.
-                # For more on this methodology, see the docs for
-                # Python's `timeit` module.
-                #
-                # "In a typical case, the lowest value gives a lower bound
-                # for how fast your machine can run the given code snippet;
-                # higher values in the result vector are typically not
-                # caused by variability in Python’s speed, but by other
-                # processes interfering with your timing accuracy."
-                best = min(trials) / number
+                        total += elapsed
 
-                print("Best of {} trials with {} function calls per trial:"
-                      .format(repeat, number))
-                print("Function `{}` ran in average of {:0.3f} seconds."
-                      .format(func.__name__, best), end="\n\n")
+                average = total / number
+
+                f_name = func.__module__.split('.')[-1]
+                f_name = '{}.{}'.format(f_name, func.__name__)
+
+                print_unicode('   τ: @{}: {} (average), {} (best)'.format(f_name,
+                                                                          format_ms(average),
+                                                                          format_ms(best),))
+
             finally:
                 if gcold:
                     gc.enable()
@@ -124,8 +119,10 @@ def print_timeit(f, *, repeat=3, number=1000):
 
         return performance_wrapper
 
-    # Syntax trick from Python @dataclass
-    return wrap(f)
+    if f is None:
+        return wrap
+    else:
+        return wrap(f)
 
 
 def repr_(sequence, concat=', ', quotes=False, wrap=True):

@@ -7,8 +7,8 @@ from setuptools import setup
 from textwrap import dedent
 
 
-__version__ = '1.0.16'
-__release__ = '$release 8'
+__version__ = '1.0.17'
+__release__ = '$release 9'
 
 dependencies = ('comtypes',
                 'pypiwin32',
@@ -16,7 +16,7 @@ dependencies = ('comtypes',
                 'pyodbc')
 
 
-long_description = 'https://github.com/michael-ross-ven/vengeance/blob/master/README.md (figure out how to fix this later)'
+long_description = 'https://github.com/michael-ross-ven/vengeance/blob/master/README.md'
 
 
 def write_version_file():

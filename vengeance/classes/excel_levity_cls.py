@@ -157,11 +157,10 @@ class excel_levity_cls:
 
     def clear(self, ref,
                     clear_values=True,
-                    clear_colors=False,
-                    activate=False):
+                    clear_colors=False):
 
         excel_range = self.excel_range(ref)
-        c_1, r_1, c_2, r_2 = parse_range(excel_range)
+        _, r_1, _, r_2 = parse_range(excel_range)
 
         if clear_values:
             excel_range.ClearContents()
@@ -172,9 +171,6 @@ class excel_levity_cls:
 
         if clear_colors:
             excel_range.Interior.Color = xl_clear
-
-        if activate:
-            self.activate()
 
     def set_range_boundaries(self, index_meta=True, index_header=True):
         """ find the margins of data within worksheet
@@ -382,7 +378,7 @@ class excel_levity_cls:
         index_header = (r <= self.header_r)
         self.set_range_boundaries(index_meta, index_header)
 
-        if index_meta or index_header:
+        if self.has_filter:
             self.reapply_filter()
 
     def __iter__(self):

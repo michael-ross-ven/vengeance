@@ -86,12 +86,17 @@ def write_to_tab(tab_name, m, r_1='*h', c_1=None, c_2=None):
         lev = tab_to_lev(tab_name)
 
     lev.activate()
-    lev.clear_filter()
+    was_filtered = lev.has_filter
 
     if r_1 != '*a':
-        lev.clear('*f {}:*l *l'.format(r_1))
+        a = '*f {}:*l *l'.format(r_1)
+        lev.clear(a)
 
-    lev['*f ' + str(r_1)] = m
+    a = '*f {}'.format(r_1)
+    lev[a] = m
+
+    if was_filtered:
+        lev.reapply_filter()
 
 
 

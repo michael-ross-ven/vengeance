@@ -142,8 +142,8 @@ def read_from_file():
     """ thse are CLASS METHODS, called from flux_cls not flux """
     f_dir = share.project_dir
 
-    flux = flux_cls.from_csv(f_dir + 'flux_file.csv')
-    flux = flux_cls.from_json(f_dir + 'flux_file.json')
+    # flux = flux_cls.from_csv(f_dir + 'flux_file.csv')
+    # flux = flux_cls.from_json(f_dir + 'flux_file.json')
     flux = flux_cls.deserialize(f_dir + 'flux_file.flux')
 
 
@@ -151,8 +151,8 @@ def write_to_file(flux):
     """ thse are INSTANCE METHODS, called from flux not flux_cls """
     f_dir = share.project_dir
 
-    flux.to_csv(f_dir + 'flux_file.csv')
-    flux.to_json(f_dir + 'flux_file.json')
+    # flux.to_csv(f_dir + 'flux_file.csv')
+    # flux.to_json(f_dir + 'flux_file.json')
     flux.serialize(f_dir + 'flux_file.flux')
 
 
@@ -305,6 +305,8 @@ def iterate_flux_rows(flux):
         a = row.col_a
         a = row['col_a']
         a = row[0]
+
+        row.col_a = a
 
     # slice, stride
     m = flux[5:-2]

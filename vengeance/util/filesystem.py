@@ -2,8 +2,10 @@
 import os
 import csv
 import json
-import pickle
 import shutil
+
+import _pickle as pickle    # cPickle
+# import pickle
 
 from glob import glob
 from datetime import datetime
