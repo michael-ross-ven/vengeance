@@ -235,8 +235,8 @@ def __excel_app_from_hwnd(window_h):
         if __process_name(window_h).lower() == 'excel':
             vengeance_message('attempting to kill corrupt Excel application: {}'.format(window_h))
             __kill_task(window_h)
-        else:
-            vengeance_message('corrupt Excel application detected {}'.format(window_h))
+        # else:
+        #     vengeance_message('corrupt Excel application detected {}'.format(window_h))
 
         return None
 

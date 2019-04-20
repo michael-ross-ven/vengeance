@@ -470,13 +470,13 @@ class flux_cls:
         return iter(islice(self.matrix, r_1, r_2 + 1))
 
     def __to_flux_rows(self, m):
-        m = generator_to_list(m)
-        assert_iteration_depth(m, 2)
-
-        if m is None or not any(m):
+        if m is None:
             self.is_empty = True
             return [flux_row_cls({}, [])]
 
+        m = generator_to_list(m)
+        assert_iteration_depth(m, 2)
+        
         if is_flux_row_class(m[0]):
             m = [row.values for row in m]
 
