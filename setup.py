@@ -7,8 +7,8 @@ from setuptools import setup
 from textwrap import dedent
 
 
-__version__ = '1.0.18'
-__release__ = '$release 9'
+__version__ = '1.0.19'
+__release__ = '$release 10'
 
 dependencies = ('comtypes',
                 'pypiwin32',

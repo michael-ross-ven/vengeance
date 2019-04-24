@@ -32,7 +32,6 @@ class flux_cls:
 
     def __init__(self, matrix=None):
         self._num_cols = None
-        self.is_empty  = None
 
         self.headers = OrderedDict()
         self.matrix  = self.__to_flux_rows(matrix)
@@ -43,17 +42,21 @@ class flux_cls:
 
     @property
     def num_cols(self):
-        """ find the maximum column length of all rows """
-        if isinstance(self._num_cols, int):
+        """ maximum column length of all rows """
+        if self._num_cols is not None:
             return self._num_cols
 
-        self._num_cols = max(len(row) for row in self.matrix)
-
+        self._num_cols = max(len(row.values) for row in self.matrix)
         return self._num_cols
 
     @property
+    def is_empty(self):
+        return (len(self.matrix) == 1) and (len(self.header_values) == 0)
+
+    @property
     def is_jagged(self):
-        num_cols = len(self.matrix[0])
+        num_cols = len(self.header_values)
+
         for row in self.matrix[1:]:
             if len(row) != num_cols:
                 return True
@@ -117,9 +120,7 @@ class flux_cls:
 
     def reapply_header_names(self, headers):
         """
-        as to not de-reference flux_row_cls._headers in meta_m
-
-        can NOT reset self.headers to new variable, each item must be individually reassigned
+        self.headers.clear() must be called as to not de-reference flux_row_cls._headers
         """
         if len(headers) != self._num_cols:
             self._num_cols = None
@@ -133,7 +134,7 @@ class flux_cls:
 
         m = []
         for header in modify_iteration_depth(headers, 1):
-            header = self.__process_header(header)
+            header = self.__process_renamed_inserted(header)
 
             if header not in self.headers:
                 column = [None] * self.num_rows
@@ -149,25 +150,23 @@ class flux_cls:
         self.headers.clear()
         self.matrix = self.__to_flux_rows(m)
 
-    def __process_header(self, header):
+    def __process_renamed_inserted(self, header):
         """
-        inserted headers must be surrounded by parenthesis to ensure these
-        new columns are being created intentionally (and not because of spelling errors, etc)
+        inserted headers must be surrounded by parenthesis to ensure
+        these new columns are being created intentionally
+        (and not because of spelling errors, etc)
         """
-
-        # renamed header
-        if isinstance(header, dict):
+        if isinstance(header, dict):                            # renamed
             h_old, h_new = tuple(header.items())[0]
             self.headers[h_new] = self.headers[h_old]
 
             return h_new
 
-        # inserted header
-        if header.startswith('(') and header.endswith(')'):
+        if header.startswith('(') and header.endswith(')'):     # inserted
             return header.replace('(', '').replace(')', '')
 
         if header not in self.headers:
-            raise ValueError("'{header}' not found in flux headers\n"
+            raise ValueError("'{header}' not found in headers\n"
                              "inserted columns should be surrounded by parenthesis, ie '({header})' not '{header}'"
                              .format(header=header))
 
@@ -471,7 +470,6 @@ class flux_cls:
 
     def __to_flux_rows(self, m):
         if m is None:
-            self.is_empty = True
             return [flux_row_cls({}, [])]
 
         m = generator_to_list(m)
@@ -484,8 +482,8 @@ class flux_cls:
         if not self.headers:
             self.headers = index_sequence(str(v) for v in m[0])
 
-        num_cols = self._num_cols or 0
         flux_m   = []
+        num_cols = self._num_cols or 0
 
         for row in m:
             if not isinstance(row, list):
@@ -495,7 +493,6 @@ class flux_cls:
             flux_m.append(flux_row_cls(self.headers, row))
 
         self._num_cols = num_cols
-        self.is_empty  = (len(flux_m) == 0)
 
         return flux_m
 
@@ -641,6 +638,9 @@ class flux_cls:
         return iter(islice(self.matrix, 1, None))
 
     def __repr__(self):
+        if self.is_empty:
+            return ''
+
         headers = repr_(self.headers.keys(), wrap='[]')
         return '{} ({:,})'.format(headers, self.num_rows)
 

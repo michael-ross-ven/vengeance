@@ -89,4 +89,12 @@ $release 9
 
 
 
+2019-04-24
+$release 10
+	minor correction to flux_cls constructor when matrix is None
+	changed flux_cls.is_empty to property
+
+
+
+
 

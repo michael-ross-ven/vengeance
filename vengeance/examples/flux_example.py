@@ -75,7 +75,6 @@ from examples import excel_project_template as share
 @vengeance.print_runtime
 def main():
     flux = instantiate_flux()
-
     restricted_header_names()
 
     write_to_file(flux)
