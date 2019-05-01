@@ -1,6 +1,4 @@
 
-import textwrap
-
 from collections import OrderedDict
 from collections import namedtuple
 
@@ -16,15 +14,17 @@ class flux_row_cls:
         :param headers: OrderedDict of {'header': index}
         :param values:  list of underlying data
 
-        headers is a single dictionary passed *byref* from the
+        headers is a single dictionary passed byref from the
         flux_cls to all flux_row_cls instances, reducing unneccesary
         memory usage and allowing all mapping updates to be made
         instantaneously
 
         namedtuples may be more efficient, but too much of a headache to deal
         with their immutability
+
+        self.__dict__ is used to set attributes in __init__ so as to avoid
+        premature __setattr__ lookups
         """
-        # cannot set attributes directly in __init__ as this invokes __setattr__ lookup too early
         self.__dict__['_headers'] = headers
         self.__dict__['values']   = values
         self.__dict__['is_bound'] = False
@@ -92,41 +92,41 @@ class flux_row_cls:
         """ eg:
             v = row['header']
 
-        list index is translated from self._headers dictionary
-        self._headers.get(name, name) is a shortcut for avoiding an isinstance(name, int) check
+        name is converted to an integer, which is then used to reference self.values
 
-        i *could* handle slices here eg, row[1:], but it would just be easier
-        for client to call row.values[1:] instead
+        (if name is already an integer, it's faster to use row.values[i])
+        (if name is a slice, it should be called directly on row.values)
         """
         try:
-            i = self.__dict__['_headers'].get(name, name)
-            return self.__dict__['values'][i]
-        except (TypeError, IndexError):
-            pass
-
-        raise AttributeError(self.__attr_err_msg(name))
+            i = self._headers.get(name, name)
+            return self.values[i]
+        except (TypeError, IndexError) as e:
+            raise AttributeError(self.__attr_err_msg(name)) from e
 
     def __setattr__(self, name, value):
         """ eg:
             row.header = v
         """
-        if name in self.__dict__:               # a flux_row_cls property
+        if name in self.__dict__:               # a property directly on flux_row_cls
             self.__dict__[name] = value
-        else:                                   # a {self._headers: self.values} pair
+        else:                                   # a property of self._headers
             self.__setitem__(name, value)
 
     def __setitem__(self, name, value):
         """ eg:
             row['header'] = v
+
+        name is converted to an integer, which is then used to reference self.values
+
+        (if name is already an integer, it's faster to use row.values[i])
+        (if name is a slice, it should be called directly on row.values)
         """
         try:
-            i = self.__dict__['_headers'].get(name, name)
-            self.__dict__['values'][i] = value
+            i = self._headers.get(name, name)
+            self.values[i] = value
             return
-        except (TypeError, IndexError):
-            pass
-
-        raise AttributeError(self.__attr_err_msg(name))
+        except (TypeError, IndexError) as e:
+            raise AttributeError(self.__attr_err_msg(name)) from e
 
     def __getstate__(self):
         return self.__dict__
@@ -138,10 +138,8 @@ class flux_row_cls:
         if isinstance(name, slice):
             return 'slice should be used on row.values\n(eg, row.values[2:5], not row[2:5])'
 
-        names = '\n'.join(self.names)
-        names = textwrap.indent(names, '  ')
-
-        return "flux_row_cls\nno column named: '{}' from\n{}".format(name, names)
+        names = '\n\t'.join(self.names)
+        return "No flux_row_cls column named '{}'\navailable columns:\n\t{}".format(name, names)
 
     def __len__(self):
         return len(self.values)

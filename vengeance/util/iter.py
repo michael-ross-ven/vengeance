@@ -277,7 +277,7 @@ def index_sequence(seq, start=0):
             v = 'None'
 
         if v in non_unique:
-            v = '{} nonunique ({})'.format(v, non_unique[v] + 1)
+            v = '{} (nonunique_{})'.format(v, non_unique[v] + 1)
 
         items.append((v, i))
         non_unique[v] += 1

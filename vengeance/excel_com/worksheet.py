@@ -27,25 +27,17 @@ def get_worksheet(wb, tab_name,
     if wb is None:
         raise AssertionError("Excel workbook has not been initialized! Cannot retrieve tab: '{}'".format(tab_name))
 
-    ws = None
-    if isinstance(tab_name, str):
-        for ws in wb.Sheets:
-            if ws.Name.lower() == tab_name.lower():
-                break
-
-    elif isinstance(tab_name, int):
+    try:
         ws = wb.sheets[tab_name]
-
-    if ws is None:
-        raise NameError("tab: '{}' not found in workbook: '{}'".format(tab_name, wb.name))
-
-    ws.Visible = True
+    except com_error as e:
+        raise NameError("'{}' worksheet not found in '{}'".format(tab_name, wb.Name)) from e
 
     if clear_filter:
         clear_worksheet_filter(ws)
 
     if activate:
         app_to_foreground(ws.Application)
+        ws.Visible = True
         ws.Activate()
 
     return ws

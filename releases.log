@@ -96,5 +96,10 @@ $release 10
 
 
 
+2019-05-01
+$release 11
+	fixed bug in get_worksheet(), when tab name does not exist
+	small performance optimization in flux_row_cls.__getitem__() and flux_row_cls.__setitem__() (speeds up attribute access by ~10%)
+
 
 
