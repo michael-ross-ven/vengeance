@@ -4,7 +4,7 @@
 
     If values are stored in a matrix, it should't be any harder to iterate or modify
     than a normal list. One enhancement, however, would be to have row values accessible
-    by column names instead of by integer indeces
+    by column names instead of by integer indices
         eg,
             for row in m:
                 row.header
@@ -67,16 +67,17 @@
 from string import ascii_lowercase as ascii_s
 from random import choice
 
-import vengeance
 from vengeance import flux_cls
+from vengeance import print_runtime
+from vengeance.util.text import print_performance
+
 from examples import excel_project_template as share
 
 
-@vengeance.print_runtime
+@print_runtime
 def main():
-
     flux = instantiate_flux()
-    restricted_header_names()
+    conflicting_header_names()
 
     write_to_file(flux)
     read_from_file()
@@ -94,6 +95,8 @@ def main():
     flux_mapping()
 
     flux_subclass()
+
+    attribute_access_performance(flux)
 
     # compare_against_pandas()
 
@@ -118,7 +121,7 @@ def instantiate_flux():
     return flux
 
 
-def restricted_header_names():
+def conflicting_header_names():
     """
     the flux_row_cls has certain reserved attributes (see iterate_flux_rows())
 
@@ -276,31 +279,31 @@ def iterate_flux_rows(flux):
         * preferred over flux.flux_rows(i_1, i_2)
         * as full matrix, slice syntax
 
-    m = flux[::10]
-        * every 10th row
-
     m = list(flux.flux_rows())
         * as full matrix, includes header row
 
     m = list(flux)
         * as full matrix, excludes header row
 
+    m = flux[::10]
+        * every 10th row
+
     offset comparisions can easily be achieved by:
         rows = iter(flux)
         row_prev = next(rows)
 
         for row in rows:
-            if row_prev.col_a ... and row.col_a ...:
-
+            # compare row_prev and row
             row_prev = row
     """
+    # label rows by index to help identify them more easily
+    # flux.apply_row_indices()
 
     for row in flux:
-        # see restricted_header_names()
+        # see conflicting_header_names()
         a = row.names
         a = row.values
-
-        a = row.view_as_array       # meant as a debugging tool in PyCharm
+        a = row.view_as_array       # triggers a debugging feature in PyCharm
 
         a = row.col_a
         a = row['col_a']
@@ -428,6 +431,20 @@ class flux_custom_cls(flux_cls):
 
     def _count_unique_names(self):
         self.num_unique_names = len(self.unique_values('name'))
+
+
+@print_performance(repeat=3, number=10)
+def attribute_access_performance(flux):
+    # flux.bind()
+
+    for row in flux:
+        # a = row.col_a
+        # b = row.col_b
+        # c = row.col_c
+
+        row.col_a = row.col_a
+        row.col_b = row.col_b
+        row.col_c = row.col_c
 
 
 def compare_against_pandas():

@@ -62,21 +62,23 @@ class flux_row_cls:
         """ bind headers / values directly to instance, avoiding need for subsequent __getattr__ lookups
         (only use this if you know the side-effects)
         """
+        if self.__dict__['is_bound']:
+            return
+
         self.__dict__.update(zip(self.names, self.values))
 
         self.__dict__['values']   = '(values bound to __dict__)'
         self.__dict__['is_bound'] = True
 
-    def unbind(self, instance_names=None):
-        """ ehhh, this could still require some work if headers have been substantially modified ... """
+    def unbind(self, names=None):
         if not self.__dict__['is_bound']:
             return
 
-        if instance_names is None:
-            instance_names = self.__dict__.keys() - self.class_names
+        if names is None:
+            names = self.__dict__.keys() - self.class_names
 
         values = self.__dict__['values'] = []
-        for k in instance_names:
+        for k in names:
             v = self.__dict__.pop(k)
             values.append(v)
 
@@ -86,7 +88,11 @@ class flux_row_cls:
         """  eg:
              v = row.header
         """
-        return self.__getitem__(name)
+        try:
+            i = self._headers.get(name, name)
+            return self.values[i]
+        except (TypeError, IndexError) as e:
+            raise AttributeError(self.__attr_err_msg(name)) from e
 
     def __getitem__(self, name):
         """ eg:
@@ -109,8 +115,13 @@ class flux_row_cls:
         """
         if name in self.__dict__:               # a property directly on flux_row_cls
             self.__dict__[name] = value
-        else:                                   # a property of self._headers
-            self.__setitem__(name, value)
+            return
+
+        try:
+            i = self._headers.get(name, name)
+            self.values[i] = value
+        except (TypeError, IndexError) as e:
+            raise AttributeError(self.__attr_err_msg(name)) from e
 
     def __setitem__(self, name, value):
         """ eg:
@@ -124,7 +135,6 @@ class flux_row_cls:
         try:
             i = self._headers.get(name, name)
             self.values[i] = value
-            return
         except (TypeError, IndexError) as e:
             raise AttributeError(self.__attr_err_msg(name)) from e
 
@@ -148,7 +158,13 @@ class flux_row_cls:
         return iter(self.values)
 
     def __repr__(self):
-        return 'flux_row: ' + repr(self.values)
+        i = self.__dict__.get('i')
+        if i is not None:
+            i = '({:,})  '.format(i)
+        else:
+            i = ''
+
+        return 'flux_row  {}{}'.format(i, repr(self.values))
 
 
 class lev_row_cls(flux_row_cls):

@@ -98,7 +98,7 @@ class flux_cls:
 
     def __parse_commands(self, commands):
         parsed = []
-        command_names = index_sequence(['method_name', 'method', 'args', 'num_args'])
+        nt_cls = namedtuple('command_nt', ['method', 'args', 'num_args'])
 
         for command in commands:
             if isinstance(command, (list, tuple)):
@@ -110,11 +110,7 @@ class flux_cls:
                 num_args = 0
 
             method = getattr(self, name)
-
-            row_o = flux_row_cls(command_names, [name, method, args, num_args])
-            row_o.bind()
-
-            parsed.append(row_o)
+            parsed.append(nt_cls(method, args, num_args))
 
         return parsed
 
@@ -131,6 +127,9 @@ class flux_cls:
 
     def matrix_by_headers(self, *headers):
         columns = transpose([row.values for row in self.matrix[1:]])
+
+        if not columns:             # when self.num_rows == 0
+            columns = [[]]
 
         m = []
         for header in modify_iteration_depth(headers, 1):
@@ -224,13 +223,13 @@ class flux_cls:
 
             headers.insert(i, header)
 
-        indeces = []
+        indices = []
         for _, header in inserted:
-            indeces.append(headers.index(header))
+            indices.append(headers.index(header))
 
-        indeces.sort()
+        indices.sort()
 
-        for i in indeces:
+        for i in indices:
             for row in self:
                 row.values.insert(i, None)
 
@@ -247,9 +246,9 @@ class flux_cls:
 
     def delete_columns(self, *names):
         names = modify_iteration_depth(names, depth=1)
-        indeces = [self.headers[h] for h in names]
+        indices = [self.headers[h] for h in names]
 
-        for c in sorted(indeces, reverse=True):
+        for c in sorted(indices, reverse=True):
             for row in self.matrix:
                 del row.values[c]
 
@@ -397,16 +396,29 @@ class flux_cls:
                        if re.search('^[^a-z]|[ ]', n, re.IGNORECASE)]
             raise ValueError("invalid headers for namedtuple: {}".format(names)) from e
 
+    def apply_row_indices(self, start=0):
+        """ to assist with debugging """
+        for i, row in enumerate(self.matrix, start):
+            row.__dict__['i'] = i
+
     def bind(self):
-        """ speed up attribute access by binding values directly to flux_row_cls.__dict__
-        (only use this if you know the side-effects)
+        """ speed up attribute access on rows
+
+        * Waring: this method could cause serious side-effects, only use unless you
+                  are aware of these behaviors
+
+        bind attributes directly to the instance __dict__, bypassing the need for
+        dynamic __getattr__ and __setattr__ lookups
+
+        when converting rows back to primitive values, any modifications made to
+        attributes will not persist unless row.unbind() is called first
         """
         [row.bind() for row in self.matrix]
 
     def unbind(self):
-        """ return dynamic flux_row_cls.values from flux_row_cls.__dict__ """
-        instance_names = tuple(self.headers.keys())
-        [row.unbind(instance_names) for row in self.matrix]
+        """ reset dynamic attribute access values on rows """
+        names = tuple(self.headers.keys())
+        [row.unbind(names) for row in self.matrix]
 
     def to_csv(self, path, encoding=None):
         path = apply_file_extension(path, '.csv')
@@ -502,12 +514,6 @@ class flux_cls:
         if reserved:
             raise NameError("reserved name(s) {} found in header row {}".format(list(reserved), headers))
 
-    def __to_primitive_rows(self):
-        if not isinstance(self.matrix[0], flux_row_cls):
-            return
-
-        self.matrix = [row.values for row in self.matrix]
-
     def __row_values_accessor(self, f):
         """ convert f into a function that can be called on each row in self._matrix """
 
@@ -584,6 +590,7 @@ class flux_cls:
             return deepcopy(self)
 
         # self._num_cols?
+
         m = [row.values for row in self.matrix]
         return self.__class__(m.copy())
 

@@ -99,7 +99,21 @@ $release 10
 2019-05-01
 $release 11
 	fixed bug in get_worksheet(), when tab name does not exist
-	small performance optimization in flux_row_cls.__getitem__() and flux_row_cls.__setitem__() (speeds up attribute access by ~10%)
+	small performance optimization (~10%) in flux_row_cls.__getitem__() and flux_row_cls.__setitem__()
+	by removing self.__dict__ attributes
+
+
+
+2019-05-07
+$release 12
+	flux.apply_row_indices() method added
+	fixed bug in flux_cls.matrix_by_headers() when num_rows is 0
+
+	additional performance optimization (~10%) flux_row_cls.__getattr__() and flux_row_cls.__setattr__()
+	by eliminating function call overhead to flux_row_cls.__getitem__() and flux_row_cls.__setitem__()
+
+
+
 
 
 
