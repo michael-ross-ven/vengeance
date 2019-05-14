@@ -114,6 +114,10 @@ $release 12
 
 
 
+2019-05-14
+$release 13
+	__kill_process() no longer called when corrupt Excel applications detected
+
 
 
 

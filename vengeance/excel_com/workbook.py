@@ -4,7 +4,6 @@ from ctypes import POINTER
 from ctypes import PyDLL
 from ctypes import byref
 from ctypes.wintypes import BOOL
-from ctypes.wintypes import DWORD
 
 import pythoncom
 from comtypes import COMError
@@ -27,8 +26,6 @@ from ..util.text import vengeance_message
 
 AccessibleObjectFromWindow = ctypes.oledll.oleacc.AccessibleObjectFromWindow
 FindWindowEx               = ctypes.windll.user32.FindWindowExA
-GetWindowText              = ctypes.windll.user32.GetWindowTextA
-SetForegroundWindow        = ctypes.windll.user32.SetForegroundWindow
 
 corrupt_hwnds = set()
 
@@ -117,6 +114,8 @@ def new_excel_instance():
 
 
 def app_to_foreground(excel_app):
+    SetForegroundWindow = ctypes.windll.user32.SetForegroundWindow
+
     excel_app.Visible = True
     SetForegroundWindow(excel_app.Hwnd)
 
@@ -180,6 +179,7 @@ def __is_excel_app_empty(excel_app):
 
     if len(workbooks) == 1:
         wb = workbooks[0]
+
         if wb.Saved and wb.Name == 'Book1':
             ws = wb.Sheets[1]
             if ws.Name == 'Sheet1' and ws.UsedRange.Address == '$A$1':
@@ -217,9 +217,7 @@ def __excel_app_from_hwnd(window_h):
     sometimes, non-Excel applications are running under the same window_h
     as an Excel process, like "print driver host for applications"
 
-    these will fail to return a valid excel7_wnd for FindWindowEx,
-    but killing these processes will also bring down the Excel application, which is
-    not neccessarily corrupt
+    these will fail to return a valid excel7_wnd for FindWindowEx
     """
     global corrupt_hwnds
 
@@ -231,12 +229,7 @@ def __excel_app_from_hwnd(window_h):
 
     if excel7_wnd == 0:
         corrupt_hwnds.add(window_h)
-
-        if __process_name(window_h).lower() == 'excel':
-            vengeance_message('attempting to kill corrupt Excel application: {}'.format(window_h))
-            __kill_task(window_h)
-        # else:
-        #     vengeance_message('corrupt Excel application detected {}'.format(window_h))
+        # vengeance_message('(corrupt Excel application detected)')
 
         return None
 
@@ -279,31 +272,4 @@ def __comtype_to_pywin_obj(ptr, interface):
     # noinspection PyProtectedMember
     return com_obj(ptr._comobj, byref(interface._iid_), True)
 
-
-def __process_name(window_h):
-    SysAllocStringLen           = ctypes.windll.oleaut32.SysAllocStringLen
-    SysAllocStringLen.argtypes  = (ctypes.c_wchar_p, ctypes.c_uint)
-    SysAllocStringLen.restype   = ctypes.POINTER(ctypes.c_char)
-
-    chr_buffer = SysAllocStringLen(' ' * 255, 255)
-    GetWindowText(window_h, chr_buffer, 255)
-
-    name = ctypes.cast(chr_buffer, ctypes.c_char_p).value
-    name = name.decode('ascii')
-
-    return name
-
-
-def __kill_task(window_h):
-    GetWindowThreadProcessId = ctypes.windll.user32.GetWindowThreadProcessId
-    OpenProcess              = ctypes.windll.kernel32.OpenProcess
-    TerminateProcess         = ctypes.windll.kernel32.TerminateProcess
-    CloseHandle              = ctypes.windll.kernel32.CloseHandle
-
-    lp_ptr = POINTER(DWORD)()
-    GetWindowThreadProcessId(window_h, byref(lp_ptr))
-
-    handle = OpenProcess(process_terminate, False, lp_ptr)
-    TerminateProcess(handle, -1)
-    CloseHandle(handle)
 
