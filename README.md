@@ -1,58 +1,76 @@
 ## Managing tabular data shouldn't be complicated.
 
-If values are stored in a matrix, it should't be any harder to iterate or modify
-than a normal list. One enhancement, however, would be to have row values accessible
-by column names instead of by integer indeces,eg
+If values are stored in a matrix, it should be just like interacting with a simple
+list of lists, staying very close to Python's native data structures. There shouldn't
+be any need for massive or complicated libraries just to help manage this kind of data.
+One nice-to-have, however, would be to have row values accessible by column names instead 
+of by integer indices, eg
 
-    for row in m:
-        row.header
+    for row in matrix:
+        row.field_a
 
-    for row in m:
-        row[17]    (did i count those columns correctly?)
+    for row in matrix:
+        row[17]           (did I count those columns correctly? what if the columns get re-ordered later on?)
 
 
-#### Two naive solutions for this are:
+#### Two possible approaches for implementing this nice-to-have are:
 
-1) Convert rows to dictionaries
+1) Convert rows to dictionaries (a JSON-like approach)
 
     Using duplicate dictionary instances for every row has a high memory
-    footprint, and makes accessing values by index more complicated, eg
+    footprint, makes renaming or modifying columns an expensive operation, 
+    and when needing to access values by numerical index, requires a 
+    conversion of the data into dictionary keys and values, eg
 
-        [{'col_a': 1.0, 'col_b': 'b', 'col_c': 'c'},
-         {'col_a': 1.0, 'col_b': 'b', 'col_c': 'c'}]
+        [
+            {'col_a': 1, 'col_b': 'b', 'col_c': 'c'},
+            {'col_a': 2, 'col_b': 'b', 'col_c': 'c'},
+            {'col_a': 3, 'col_b': 'b', 'col_c': 'c'}
+        ]
 
 2) Convert rows to namedtuples
 
-    Named tuples do not have per-instance dictionaries, so they are
-    lightweight and require no more memory than regular tuples,
-    but their values are read-only (which makes this kinda a dealbreaker)
+    Namedtuples do not have per-instance dictionaries, so they are
+    lightweight and require no more memory than regular tuples.
+    Unfortunately, tuple values are stored read-only, which makes 
+    any modifications to their field names or values much more complicated
 
-Another possibility would be to store the values in column-major order,
-like in a database. This has a further advantage in that all values
-in the same column are usually of the same data type, allowing them to
-be stored more efficiently
+Another possibility would be to abandon a JSON-like format (a series of rows), 
+for a database-like format (a series of columns). This has the further advantage 
+in that the values of the same column are usually of the same datatype, allowing 
+them to be stored more efficiently
 
     row-major order:
-        [['coi_a', 'col_b', 'col_c'],
-         [1.0,     'b',    'c'],
-         [1.0,     'b',    'c'],
-         [1.0,     'b',    'c']]
+        [['col_a', 'col_b', 'col_c'],
+         [1,       'b',    'c'],
+         [2,       'b',    'c'],
+         [3,       'b',    'c']]
 
     column-major order:
-         {'col_a': [1.0, 1.0, 1.0],
+         {'col_a': [1,   2,    3],
           'col_a': ['b', 'b', 'b'],
           'col_a': ['c', 'c', 'c']}
 
 
-This is essentially what a pandas DataFrame is. The drawback to this
-is a major conceptual overhead. 
-- **Intuitively, each row is some entity, each column is a property of that row**
+This is essentially what a pandas DataFrame is, but comes at the cost of huge conceptual overhead.
+**Intuitively, each row is some entity, and each column is a property of that row**,
+the DataFrame inverts this organization, and makes iteration by rows a frustratingly 
+discouraged operation.
 
-- DataFrames have some great features, but also require specialized syntax that can get very awkward and requires a lot of memorization
+- The DataFrame has great performance characteristics, but also requires
+specialized syntax that can get very awkward for ostensibly simple and common operations
 
-The flux_cls attempts to balance ease-of-use and performance. It has the following attributes:
-- row-major iteration
-- named attributes on rows
-- value mutability on rows
-- light memory footprint
-- efficient updates and modifications
+- A row-major format allows data to to be serialized into a JSON string for 
+web APIs much more simply (without need to be written out to the filesystem first)
+
+- Until performance becomes a limiting factor, it would be preferable 
+to use an interface that is easiest to develop and debug.
+
+The flux_cls attempts to maximize ease-of-use, but still performant with mid-scale data.
+It has the following attributes:
+- Intuitive iteration and organization
+- Named attributes access on rows
+- Efficient attribute modifications
+- Light memory footprint
+- Value mutability
+

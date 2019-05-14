@@ -8,7 +8,7 @@ from textwrap import dedent
 
 
 __version__ = '1.0.22'
-__release__ = '$release 13'
+__release__ = '$release 15'
 
 dependencies = ('comtypes',
                 'pypiwin32',

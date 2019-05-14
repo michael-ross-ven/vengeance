@@ -122,4 +122,14 @@ $release 13
 
 2019-05-14
 $release 14
-	fixed release script to call setup.py before publishing to githib (so it uploads updated version.py file correctly) 
+	fixed release script to call setup.py before publishing to githib (so it uploads updated version.py file correctly)
+
+
+
+2019-05-14
+$release 15
+	updated README.md
+
+
+
+
