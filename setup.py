@@ -7,8 +7,8 @@ from setuptools import setup
 from textwrap import dedent
 
 
-__version__ = '1.0.22'
-__release__ = '$release 15'
+__version__ = '1.0.23'
+__release__ = '$release 16'
 
 dependencies = ('comtypes',
                 'pypiwin32',
@@ -35,18 +35,18 @@ def write_version_file():
         f.write(dedent(s))
 
 
-def readme_to_description():
-    """ https://commonmark.org/help/tutorial/ 
-    this_directory = path.abspath(path.dirname(__file__))
-    """
+# def readme_to_description():
+#     """ https://commonmark.org/help/tutorial/ 
+#     this_directory = path.abspath(path.dirname(__file__))
+#     """
 
-    global long_description
+#     global long_description
 
-    f_dir = os.path.realpath(__file__)
-    f_dir = os.path.split(f_dir)[0]
+#     f_dir = os.path.realpath(__file__)
+#     f_dir = os.path.split(f_dir)[0]
 
-    with open(f_dir + '\\README.md', encoding='utf-8') as f:
-        long_description = f.read()
+#     with open(f_dir + '\\README.md', encoding='utf-8') as f:
+#         long_description = f.read()
 
 
 if __name__ == '__main__':
@@ -55,14 +55,13 @@ if __name__ == '__main__':
 
     setup(name='vengeance',
           version=__version__,
-          description='Data library focusing on pure python data structures and Excel interaction',
+          description='Data library focusing on JSON-like data organization and interaction with the Excel application',
           long_description=long_description,
           url='https://github.com/michael-ross-ven/vengeance',
           author='Michael Ross',
           author_email='michael.ross.uncc@gmail.com',
           license='MIT',
           install_requires=dependencies,
-          # packages=('vengeance',),
           packages=setuptools.find_packages(),
           classifiers=[
               "Programming Language :: Python :: 3",

@@ -55,22 +55,21 @@ them to be stored more efficiently
 This is essentially what a pandas DataFrame is, but comes at the cost of huge conceptual overhead.
 **Intuitively, each row is some entity, and each column is a property of that row**,
 the DataFrame inverts this organization, and makes iteration by rows a frustratingly 
-discouraged operation.
+discouraged operation. Pandas has excellent performance characteristics and many other reasons 
+why it has become the *de facto* data science library, but for cases which don't involve 
+the top 1% largest of all datasets, there are reasons to use a supplementary library:
 
-- The DataFrame has great performance characteristics, but also requires
-specialized syntax that can get very awkward for ostensibly simple and common operations
+- The DataFrame requires specialized syntax that can get very convoluted and awkward 
+for ostensibly simple and common transformations. (Antithetical to Python's principle
+that, "there should be one — and preferably only one — obvious way to do it").
 
-- A row-major format allows data to to be serialized into a JSON string for 
-web APIs much more simply (without need to be written out to the filesystem first)
+- Until performance becomes the deciding factor, it would be preferable to use an interface 
+that is the easiest to develop and debug. (The same philosophy used to design Python itself, 
+where performance is traded for clarity).
 
-- Until performance becomes a limiting factor, it would be preferable 
-to use an interface that is easiest to develop and debug.
-
-The flux_cls attempts to maximize ease-of-use, but still performant with mid-scale data.
-It has the following attributes:
-- Intuitive iteration and organization
-- Named attributes access on rows
-- Efficient attribute modifications
+The flux_cls attempts to maximize ease-of-use, but is still highly performant with mid-scale data.
+It has the following characteristics:
+- Efficient and intuitive iteration
+- Named attribute access (read/write) on each row
 - Light memory footprint
-- Value mutability
 

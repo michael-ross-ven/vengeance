@@ -3,14 +3,11 @@ import os
 import csv
 import json
 import shutil
-
-import _pickle as pickle    # cPickle
-# import pickle
+import _pickle as cpickle
 
 from glob import glob
 from datetime import datetime
 
-from . iter import is_iterable
 from . iter import generator_to_list
 from . iter import assert_iteration_depth
 
@@ -20,11 +17,16 @@ from . text import p_json_dumps
 
 def read_file(path, encoding=None):
     """
-    supports
+    explicitly handled file extensions:
         .csv
         .json
         .flux
-        (text-file encodings)
+        .pkl
+
+    TODO:
+        add .xls, .xlsx, .xlsm, .xlsb, .7z, .gzip, .hd5
+
+    (assumes text file if extension not otherwise specified)
     """
     assert_path_exists(path)
 
@@ -37,9 +39,9 @@ def read_file(path, encoding=None):
         with open(path, 'r', encoding=encoding) as f:
             return json.load(f)
 
-    if extn == '.flux':
+    if extn in {'.flux', '.pkl'}:
         with open(path, 'rb') as f:
-            return pickle.load(f)
+            return cpickle.load(f)
 
     with open(path, 'r', encoding=encoding) as f:
         return f.read()
@@ -47,39 +49,42 @@ def read_file(path, encoding=None):
 
 def write_file(path, data, mode='w', encoding=None):
     """
-    supports
+    explicitly handled file extensions:
         .csv
         .json
         .flux
-        (text-file encodings)
+        .pkl
+
+    (assumes text file if extension not otherwise specified)
     """
     extn = file_extension(path)
 
     if extn == '.csv':
         data = generator_to_list(data, recurse=True)
         assert_iteration_depth(data, 2)
-
         with open(path, mode, encoding=encoding) as f:
             csv.writer(f, lineterminator='\n').writerows(data)
 
-    elif extn == '.json':
+        return
+
+    if extn == '.json':
         if not isinstance(data, str):
-            data = p_json_dumps(data, ensure_ascii=False)
-
+            data = p_json_dumps(data, ensure_ascii=(encoding is None))
         with open(path, mode, encoding=encoding) as f:
             f.write(data)
 
-    elif extn == '.flux':
+        return
+
+    if extn in {'.flux', '.pkl'}:
         with open(path, mode + 'b') as f:
-            pickle.dump(data, f)
+            cpickle.dump(data, f)
 
-    else:
-        with open(path, mode, encoding=encoding) as f:
-            if is_iterable(data):
-                data = repr_(data, quotes=True, concat=',\n')
-                # data = repr(data)
+        return
 
-            f.write(data)
+    if not isinstance(data, str):
+        data = repr_(data, concat='\n', quotes=False, wrap=False)
+    with open(path, mode, encoding=encoding) as f:
+        f.write(data)
 
 
 def make_dirs(f_dir):
@@ -144,8 +149,8 @@ def standardize_dir(f_dir):
     replace all '\' with '/'
     make sure dir ends with '/'
     """
-    f_dir = (f_dir.strip(' \n')
-                  .replace('\\', '/')
+    f_dir = (f_dir.replace('\\', '/')
+                  .strip(' \n')
                   .lower())
 
     if not f_dir.endswith('/'):

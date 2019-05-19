@@ -5,7 +5,7 @@
     It's extremely easy to build terrible worksheets and there is no enforcement
     in data organization / integrity -- anyone can just slap in some data where ever they feel like.
     Usually, this results in workbooks that are like a dirty laundry basket,
-    where data is haphazardly tossed together
+    where data is stored haphazardly and poorly organized
 
     https://imgs.xkcd.com/comics/algorithms.png
 

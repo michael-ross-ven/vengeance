@@ -1,69 +1,4 @@
 
-"""
-    Managing tabular data shouldn't be complicated.
-
-    If values are stored in a matrix, it should't be any harder to iterate or modify
-    than a normal list. One enhancement, however, would be to have row values accessible
-    by column names instead of by integer indices
-        eg,
-            for row in m:
-                row.header
-
-            for row in m:
-                row[17]         # did i count those columns correctly?
-
-
-    Two naive solutions for this are:
-        1) convert rows to dictionaries
-        Using duplicate dictionary instances for every row has a high memory
-        footprint, and makes accessing values by index more complicated
-        eg,
-            [{'col_a': 1.0, 'col_b': 'b', 'col_c': 'c'},
-            {'col_a': 1.0, 'col_b': 'b', 'col_c': 'c'}]
-
-        2) convert rows to namedtuples
-        Named tuples do not have per-instance dictionaries, so they are
-        lightweight and require no more memory than regular tuples,
-        but their values are read-only (this is kinda a dealbreaker)
-
-    Another possibility would be to store the values in column-major order,
-    like in a database. This has a further advantage in that all values
-    in the same column are usually of the same data type, allowing them to
-    be stored more efficiently
-    eg,
-        row-major order
-            [['coi_a', 'col_b', 'col_c'],
-             [1.0,     'b',    'c'],
-             [1.0,     'b',    'c'],
-             [1.0,     'b',    'c']]
-
-        column-major order
-             {'col_a': [1.0, 1.0, 1.0],
-              'col_a': ['b', 'b', 'b'],
-              'col_a': ['c', 'c', 'c']}
-
-    This is essentially what a pandas DataFrame is. The drawback to this
-    is a major conceptual overhead.
-    ***********************************************************************************
-    *   Intuitively, each row is some entity, each column is a property of that row   *
-    ***********************************************************************************
-        * the first thing everyone looks up for a DataFrame is "how to iterate rows",
-          the first thing the documentation says is "I hope you never have to use this"
-
-        * DataFrames have some great features, but also require specialized
-          syntax that can get very awkward and requires a lot of memorization
-
-
-    The flux_cls attempts to balance ease-of-use with performance
-
-    it has the following attributes:
-        * row-major iteration
-        * named attributes on rows
-        * value mutability on rows
-        * light memory footprint
-        * efficient updates and modifications
-"""
-
 from string import ascii_lowercase as ascii_s
 from random import choice
 
@@ -212,24 +147,26 @@ def modify_rows(flux):
     flux_e = flux_cls()
     flux_e.append_rows([['a', 'b', 'c']] * 25)
 
-    flux_1 = flux.copy()
-    flux_2 = flux.copy()
+    flux_a = flux.copy()
+    flux_b = flux.copy()
 
-    flux_2.append_rows([['a', 'b', 'c']] * 25)
-    a = flux_1.num_rows
-    b = flux_2.num_rows
+    flux_b.append_rows([['a', 'b', 'c']] * 25)
+    a = flux_a.num_rows
+    b = flux_b.num_rows
 
-    flux_2.insert_rows(5, [['blah', 'blah', 'blah']] * 10)
+    flux_b.insert_rows(5, [['blah', 'blah', 'blah']] * 10)
 
     # inserting rows at index 0 will overwrite existing headers
-    flux_2.insert_rows(0, [['col_d', 'col_e', 'col_f']] +
+    flux_b.insert_rows(0, [['col_d', 'col_e', 'col_f']] +
                           [['d', 'e', 'f']] * 3)
-    a = flux_1.header_values
-    b = flux_2.header_values
+    a = flux_a.header_values
+    b = flux_b.header_values
 
     # add rows from another flux_cls
-    flux_2.insert_rows(0, flux_1)
-    flux_2.append_rows(flux_1[10:15])
+    flux_c = flux_a + flux_b
+    
+    flux_b.insert_rows(0, flux_a)
+    flux_b.append_rows(flux_a[10:15])
 
 
 def iterate_primitive_rows(flux):
@@ -339,10 +276,10 @@ def flux_sort_filter(flux):
     flux = flux.copy()
 
     # modifications return as new flux_cls
-    flux_2 = flux.sorted('col_a', 'col_b', 'col_c',
+    flux_b = flux.sorted('col_a', 'col_b', 'col_c',
                          reverse=[True, True, True])
-    flux_2 = flux.filtered(starts_with_a)
-    flux_2 = flux.filtered_by_unique('col_a', 'col_b')
+    flux_b = flux.filtered(starts_with_a)
+    flux_b = flux.filtered_by_unique('col_a', 'col_b')
 
     # in-place modifications
     flux.sort('col_a', 'col_b', 'col_c',

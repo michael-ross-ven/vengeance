@@ -132,4 +132,13 @@ $release 15
 
 
 
+2019-05-19
+$release 16
+	updated README.md
+
+	significant performance optimization (~2x) in flux_cls.__to_flux_rows()
+	fixed bug in in flux_cls.matrix_by_headers() (needed to reset self._num_cols back to None)
+	
+	'.pkl' extension added to read_file() / write_file()
+
 

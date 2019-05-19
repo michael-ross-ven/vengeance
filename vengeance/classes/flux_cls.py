@@ -47,11 +47,12 @@ class flux_cls:
             return self._num_cols
 
         self._num_cols = max(len(row.values) for row in self.matrix)
+
         return self._num_cols
 
     @property
     def is_empty(self):
-        return (len(self.matrix) == 1) and (len(self.header_values) == 0)
+        return (len(self.matrix) == 1) and (len(self.matrix[0].values) == 0)
 
     @property
     def is_jagged(self):
@@ -133,7 +134,7 @@ class flux_cls:
 
         m = []
         for header in modify_iteration_depth(headers, 1):
-            header = self.__process_renamed_inserted(header)
+            header = self.__renamed_or_inserted_header(header)
 
             if header not in self.headers:
                 column = [None] * self.num_rows
@@ -146,28 +147,30 @@ class flux_cls:
 
         m = transpose(m)
 
+        self._num_cols = None
         self.headers.clear()
         self.matrix = self.__to_flux_rows(m)
 
-    def __process_renamed_inserted(self, header):
+    def __renamed_or_inserted_header(self, header):
         """
-        inserted headers must be surrounded by parenthesis to ensure
-        these new columns are being created intentionally
-        (and not because of spelling errors, etc)
+        to ensure new columns are being created intentionally and not because
+        of spelling errors etc, inserted headers must be surrounded by parenthesis
         """
-        if isinstance(header, dict):                            # renamed
+        if not isinstance(header, (dict, str)):
+            raise ValueError('{}\nheader must be either dictionary or string'.format(header))
+
+        if isinstance(header, dict):                                # renamed, eg, {'header_a': 'header_z'}
             h_old, h_new = tuple(header.items())[0]
             self.headers[h_new] = self.headers[h_old]
 
             return h_new
 
-        if header.startswith('(') and header.endswith(')'):     # inserted
-            return header.replace('(', '').replace(')', '')
+        if header.startswith('(') and header.endswith(')'):         # inserted, eg, '(new_header)'
+            return header[1:-1]
 
         if header not in self.headers:
-            raise ValueError("'{header}' not found in headers\n"
-                             "inserted columns should be surrounded by parenthesis, ie '({header})' not '{header}'"
-                             .format(header=header))
+            raise ValueError("'{header}' does not exist\ninserted columns should be surrounded "
+                             "by parenthesis, ie '({header})' not '{header}'".format(header=header))
 
         return header
 
@@ -402,7 +405,7 @@ class flux_cls:
             row.__dict__['i'] = i
 
     def bind(self):
-        """ speed up attribute access on rows
+        """ speeds up attribute access on rows
 
         * Waring: this method could cause serious side-effects, only use unless you
                   are aware of these behaviors
@@ -421,9 +424,9 @@ class flux_cls:
         [row.unbind(names) for row in self.matrix]
 
     def to_csv(self, path, encoding=None):
-        path = apply_file_extension(path, '.csv')
         m = list(self.rows())
 
+        path = apply_file_extension(path, '.csv')
         write_file(path, m, encoding=encoding)
 
     @classmethod
@@ -434,14 +437,13 @@ class flux_cls:
         return cls(m)
 
     def to_json(self, path=None, encoding=None):
-        path = apply_file_extension(path, '.json')
-
         j = [row.dict() for row in self]
         j = p_json_dumps(j)
 
         if path is None:
             return j
 
+        path = apply_file_extension(path, '.json')
         write_file(path, j, encoding=encoding)
 
     @classmethod
@@ -458,13 +460,19 @@ class flux_cls:
         return cls(m)
 
     def serialize(self, path):
-        """ you should be aware of the security flaws from using pickle """
+        """
+        while convenient, using pickle also introduces significant security flaws
+        you should be sure no malicious actors have access to the location of these files
+        """
         path = apply_file_extension(path, '.flux')
         write_file(path, self)
 
     @classmethod
     def deserialize(cls, path):
-        """ you should be aware of the security flaws from using pickle """
+        """
+        while convenient, using pickle also introduces significant security flaws
+        you should be sure no malicious actors have access to the location of these files
+        """
         path = apply_file_extension(path, '.flux')
         return read_file(path)
 
@@ -484,9 +492,12 @@ class flux_cls:
         if m is None:
             return [flux_row_cls({}, [])]
 
+        def to_flux_row(row):
+            return flux_row_cls(self.headers, row)
+
         m = generator_to_list(m)
         assert_iteration_depth(m, 2)
-        
+
         if is_flux_row_class(m[0]):
             m = [row.values for row in m]
 
@@ -494,17 +505,10 @@ class flux_cls:
         if not self.headers:
             self.headers = index_sequence(str(v) for v in m[0])
 
-        flux_m   = []
-        num_cols = self._num_cols or 0
+        num_cols = max(map(len, m))
+        self._num_cols = max(num_cols, self._num_cols or 0)
 
-        for row in m:
-            if not isinstance(row, list):
-                raise ValueError('row must be list')
-
-            num_cols = max(num_cols, len(row))
-            flux_m.append(flux_row_cls(self.headers, row))
-
-        self._num_cols = num_cols
+        flux_m = map(to_flux_row, m)
 
         return flux_m
 
@@ -512,7 +516,7 @@ class flux_cls:
     def __assert_no_reserved_headers(headers):
         reserved = set(headers) & flux_row_cls.class_names
         if reserved:
-            raise NameError("reserved name(s) {} found in header row {}".format(list(reserved), headers))
+            raise NameError('reserved name(s) {} found in header row {}'.format(list(reserved), headers))
 
     def __row_values_accessor(self, f):
         """ convert f into a function that can be called on each row in self._matrix """
@@ -643,6 +647,11 @@ class flux_cls:
 
     def __iter__(self):
         return iter(islice(self.matrix, 1, None))
+
+    def __add__(self, flux_b):
+        flux_c = self.copy()
+        flux_c.append_rows(flux_b)
+        return flux_c
 
     def __repr__(self):
         if self.is_empty:

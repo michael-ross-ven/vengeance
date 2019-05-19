@@ -6,8 +6,8 @@ from collections import namedtuple
 class flux_row_cls:
 
     class_names = {'_headers',
-                   'is_bound',
-                   'values'}
+                   'values',
+                   'is_bound'}
 
     def __init__(self, headers, values):
         """
@@ -170,9 +170,9 @@ class flux_row_cls:
 class lev_row_cls(flux_row_cls):
 
     class_names = {'_headers',
-                   'is_bound',
                    'values',
-                   'address'}
+                   'address',
+                   'is_bound'}
 
     def __init__(self, headers, values, address):
         super().__init__(headers, values)
