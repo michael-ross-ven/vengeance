@@ -492,9 +492,6 @@ class flux_cls:
         if m is None:
             return [flux_row_cls({}, [])]
 
-        def to_flux_row(row):
-            return flux_row_cls(self.headers, row)
-
         m = generator_to_list(m)
         assert_iteration_depth(m, 2)
 
@@ -508,7 +505,8 @@ class flux_cls:
         num_cols = max(map(len, m))
         self._num_cols = max(num_cols, self._num_cols or 0)
 
-        flux_m = map(to_flux_row, m)
+        headers = self.headers
+        flux_m  = [flux_row_cls(headers, row) for row in m]
 
         return flux_m
 

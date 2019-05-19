@@ -1,27 +1,28 @@
 ## Managing tabular data shouldn't be complicated.
 
-If values are stored in a matrix, it should be just like interacting with a simple
-list of lists, staying very close to Python's native data structures. There shouldn't
-be any need for massive or complicated libraries just to help manage this kind of data.
-One nice-to-have, however, would be to have row values accessible by column names instead 
+Values stored as list of lists shouldn't require a massive or complex library just to help manage the data. 
+There shouldn't be a need to diverge very much from Python's native data structures and iteration syntax.
+
+One nice-to-have, however, would be to make each row in the matrix accessible by column names instead 
 of by integer indices, eg
 
     for row in matrix:
         row.field_a
 
     for row in matrix:
-        row[17]           (did I count those columns correctly? what if the columns get re-ordered later on?)
+        row[17]              (did I count those columns correctly? what if the columns get re-ordered later on?)
 
 
 #### Two possible approaches for implementing this nice-to-have are:
 
 1) Convert rows to dictionaries (a JSON-like approach)
 
-    Using duplicate dictionary instances for every row has a high memory
+    However, using duplicate dictionary instances for every row has a high memory
     footprint, makes renaming or modifying columns an expensive operation, 
     and when needing to access values by numerical index, requires a 
-    conversion of the data into dictionary keys and values, eg
+    conversion of the data into dictionary keys and values
 
+    eg
         [
             {'col_a': 1, 'col_b': 'b', 'col_c': 'c'},
             {'col_a': 2, 'col_b': 'b', 'col_c': 'c'},
@@ -53,23 +54,25 @@ them to be stored more efficiently
 
 
 This is essentially what a pandas DataFrame is, but comes at the cost of huge conceptual overhead.
-**Intuitively, each row is some entity, and each column is a property of that row**,
-the DataFrame inverts this organization, and makes iteration by rows a frustratingly 
-discouraged operation. Pandas has excellent performance characteristics and many other reasons 
-why it has become the *de facto* data science library, but for cases which don't involve 
-the top 1% largest of all datasets, there are reasons to use a supplementary library:
+**Intuitively, each row is some entity, and each column is a property of that row**.
+The DataFrame inverts this organization, and makes iteration by rows a frustratingly 
+discouraged operation. Pandas is extremely efficient and has many other reasons 
+why it has become the *de facto* data science library in Python, but for cases which aren't extremely
+performance sensitive or don't involve the top 1% largest of all datasets, there are reasons 
+to use a supplementary library:
 
-- The DataFrame requires specialized syntax that can get very convoluted and awkward 
-for ostensibly simple and common transformations. (Antithetical to Python's principle
-that, "there should be one — and preferably only one — obvious way to do it").
+- Instead of using a limited set of generic, compositional operations, the DataFrame requires specialized 
+syntax for specialized operations, which can get very convoluted and awkward for ostensibly simple and common transformations. 
+(Antithetical to the Python principle "there should be one — and preferably only one — obvious way to do it").
 
-- Until performance becomes the deciding factor, it would be preferable to use an interface 
-that is the easiest to develop and debug. (The same philosophy used to design Python itself, 
-where performance is traded for clarity).
+- Until performance becomes a deciding factor, it would be desirable to develop with a library 
+that offers the simplest organization of the data and is easiest to debug. (The same philosophy is used to design 
+Python itself, where performance is often sacrificed for clarity).
 
-The flux_cls attempts to maximize ease-of-use, but is still highly performant with mid-scale data.
+The flux_cls in vengeance attempts to maximize ease-of-use, but is still highly performant up to mid-sized data.
 It has the following characteristics:
-- Efficient and intuitive iteration
-- Named attribute access (read/write) on each row
 - Light memory footprint
+- Intuitive and efficient iteration
+- Named attribute access on each row (read as well as write)
+
 

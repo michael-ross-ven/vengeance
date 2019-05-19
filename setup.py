@@ -7,8 +7,8 @@ from setuptools import setup
 from textwrap import dedent
 
 
-__version__ = '1.0.23'
-__release__ = '$release 16'
+__version__ = '1.0.24'
+__release__ = '$release 17'
 
 dependencies = ('comtypes',
                 'pypiwin32',
@@ -55,7 +55,7 @@ if __name__ == '__main__':
 
     setup(name='vengeance',
           version=__version__,
-          description='Data library focusing on JSON-like data organization and interaction with the Excel application',
+          description='Data library focusing on intuitive, row-major organization and interaction with the Excel object model',
           long_description=long_description,
           url='https://github.com/michael-ross-ven/vengeance',
           author='Michael Ross',
