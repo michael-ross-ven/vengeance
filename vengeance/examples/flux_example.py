@@ -11,6 +11,8 @@ from examples import excel_project_template as share
 
 @print_runtime
 def main():
+    # help(flux_cls)
+
     flux = instantiate_flux()
     conflicting_header_names()
 
@@ -37,8 +39,6 @@ def main():
 
 
 def instantiate_flux():
-    # help(flux_cls)
-
     m = [['col_a', 'col_b', 'col_c']]
     for _ in range(100):
         m.append([''.join(choice(ascii_s) for _ in range(15))
@@ -234,7 +234,7 @@ def iterate_flux_rows(flux):
             row_prev = row
     """
     # label rows by index to help identify them more easily
-    # flux.apply_row_indices()
+    # flux.enumerate_rows()
 
     for row in flux:
         # see conflicting_header_names()
@@ -479,7 +479,7 @@ def compare_against_pandas():
 
         a = flux.filtered(f)
 
-        # flux.append_rows([[1, 2, 3]] * 5000)
+        # flux.append_matrices_rows([[1, 2, 3]] * 5000)
 
     init()
 

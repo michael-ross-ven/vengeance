@@ -191,15 +191,15 @@ def append_matrices(direction, *matrices, has_header=True):
     d = direction
 
     if d.startswith('v') or d.startswith('row'):
-        return append_rows(*matrices, has_header=has_header)
+        return append_matrices_rows(*matrices, has_header=has_header)
 
     if d.startswith('h') or d.startswith('col'):
-        return append_columns(*matrices)
+        return append_matrices_columns(*matrices)
 
     raise ValueError("invalid direction: '{}'".format(direction))
 
 
-def append_rows(*matrices, has_header=True):
+def append_matrices_rows(*matrices, has_header=True):
 
     def append(m_1, m_2):
         m_1 = generator_to_list(m_1)
@@ -229,7 +229,7 @@ def append_rows(*matrices, has_header=True):
     return m_f
 
 
-def append_columns(*matrices):
+def append_matrices_columns(*matrices):
 
     def append(m_1, m_2):
         m_1 = generator_to_list(m_1)

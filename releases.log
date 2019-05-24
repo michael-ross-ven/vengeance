@@ -136,7 +136,6 @@ $release 15
 $release 16
 	updated README.md
 
-	performance optimization (~10%) in flux_cls.__to_flux_rows()
 	fixed bug in in flux_cls.matrix_by_headers() (needed to reset self._num_cols back to None)
 	
 	'.pkl' extension added to read_file() / write_file()
@@ -147,7 +146,15 @@ $release 16
 $release 17
 	updated README.md
 
-	whoops, needed to convert to list first in flux_cls.__to_flux_rows()
+	performance optimization (~10%) in flux_cls.__to_flux_rows()
+	(for a matrix with 3 columns, flux_cls instantiation now only takes about 1 sec per 1,000,000 rows)
 
+
+
+2019-05-24
+$release 18
+	renamed internal / private methods in flux_cls
+	flux_cls._num_cols is set to None in flux_cls.insert_columns(), flux_cls.append_columns(), flux_cls.delete_columns()
+	
 
 

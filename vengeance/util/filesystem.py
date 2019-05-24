@@ -137,21 +137,14 @@ def file_last_modified(path):
     return datetime.fromtimestamp(unix_t)
 
 
-def is_modified_today(path):
-    d = file_last_modified(path).date()
-    t = datetime.today().date()
-
-    return d == t
-
-
 def standardize_dir(f_dir):
     """
     replace all '\' with '/'
     make sure dir ends with '/'
     """
-    f_dir = (f_dir.replace('\\', '/')
-                  .strip(' \n')
-                  .lower())
+    f_dir = (f_dir.lower()
+                  .replace('\\', '/')
+                  .strip(' \n'))
 
     if not f_dir.endswith('/'):
         f_dir += '/'
@@ -160,7 +153,8 @@ def standardize_dir(f_dir):
 
 
 def standardize_file_name(f_name):
-    return f_name.strip(' \n').lower()
+    return (f_name.lower()
+                  .strip(' \n'))
 
 
 def standardize_path(path):
