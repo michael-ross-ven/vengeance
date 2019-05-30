@@ -269,6 +269,6 @@ def print_unicode(s):
 
 
 def vengeance_message(s):
-    print_unicode('   ν: {}'.format(s))
+    print_unicode('\tν: {}'.format(s))
 
 

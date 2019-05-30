@@ -1,16 +1,16 @@
 ## Managing tabular data shouldn't be complicated.
 
-Values stored as list of lists shouldn't require a massive or complex library just to help manage the data. 
-There shouldn't be a need to diverge very much from Python's native data structures and iteration syntax.
+Values stored as list of lists (ie, a matrix) should be able to be easily managed with pure Python,  
+without the need for a massive or complex library.
 
-One nice-to-have, however, would be to make each row in the matrix accessible by column names instead 
+One nice-to-have in this kind of data however, would be to make each row in the matrix accessible by column names instead 
 of by integer indices, eg
 
     for row in matrix:
         row.field_a
 
     for row in matrix:
-        row[17]              (did I count those columns correctly? what if the columns get re-ordered later on?)
+        row[17]              (did I count those columns correctly?)
 
 
 #### Two possible approaches for implementing this nice-to-have are:
@@ -18,9 +18,10 @@ of by integer indices, eg
 1) Convert rows to dictionaries (a JSON-like approach)
 
     However, using duplicate dictionary instances for every row has a high memory
-    footprint, makes renaming or modifying columns an expensive operation, 
-    and when needing to access values by numerical index, requires a 
-    conversion of the data into dictionary keys and values
+    footprint, makes renaming or modifying columns an expensive operation. 
+    In the case that row values dd need to be accessed by numerical index, this requires an extra layer of 
+    complexity, whereby items first need to be converted into dictionary keys and values 
+    (where their original order must be guaranteed)
 
     eg
         [
@@ -61,8 +62,8 @@ why it has become the *de facto* data science library in Python, but for cases w
 performance sensitive or don't involve the top 1% largest of all datasets, there are reasons 
 to use a supplementary library:
 
-- Instead of using a limited set of generic, compositional operations, the DataFrame requires specialized 
-syntax for specialized operations, which can get very convoluted and awkward for ostensibly simple and common transformations. 
+- The DataFrame requires specialized syntax for specialized operations, instead of using a limited set of generic, 
+compositional operations, which can become very convoluted and awkward for ostensibly simple and common scenarios. 
 (Antithetical to the Python principle "there should be one — and preferably only one — obvious way to do it").
 
 - Until performance becomes a deciding factor, it would be desirable to develop with a library 
@@ -75,4 +76,17 @@ It has the following characteristics:
 - Intuitive and efficient iteration
 - Named attribute access on each row (read as well as write)
 
+
+#### Example usage for flux_cls:
+    flux = flux_cls(matrix)
+
+    for row in flux:
+      a = row.col_a
+      row.col_b = 'b'
+      row.values[1:] = ['blah', 'blah', 'blah']
+
+    flux.rename_columns({'col_a': 'renamed_a',
+                         'col_b': 'renamed_b'})
+
+    flux.insert_rows(i=5, rows=[['blah', 'blah', 'blah']] * 10)
 

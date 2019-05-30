@@ -1,8 +1,12 @@
 
 import os
 import vengeance
+from vengeance import flux_cls
+from vengeance import excel_levity_cls
 
 wb = None
+__levs = {}
+
 project_dir = os.getcwd() + '\\files\\'
 
 
@@ -15,7 +19,7 @@ def open_project_workbook(open_new_instance=True, read_only=False, update_links=
     if open_new_instance:
         excel_app = None
     else:
-        excel_app = vengeance.any_excel_instance()
+        excel_app = 'any'
 
     f_dir  = project_dir
     f_name = 'example.xlsm'
@@ -35,21 +39,41 @@ def close_project_workbook(save=True):
     wb = None
 
 
-def tab_to_lev(tab, header_r=2, meta_r=1, first_c='B'):
-    if isinstance(tab, vengeance.excel_levity_cls):
+def tab_to_lev(tab,
+               header_r=2,
+               meta_r=1,
+               first_c='B',
+               last_c=''):
+
+    global __levs
+    if isinstance(tab, excel_levity_cls):
         return tab
 
-    if isinstance(tab, str):
-        if tab.lower() == 'sheet1' or tab.lower() == 'empty sheet':
+    if hasattr(tab, 'Name'):
+        tab_name = tab.Name.lower()
+    else:
+        tab_name = tab.lower()
+        if tab_name in {'sheet1', 'empty sheet'}:
             header_r = 1
             meta_r   = 0
             first_c = 'A'
 
-    ws = vengeance.get_worksheet(wb, tab)
-    lev = vengeance.excel_levity_cls(ws,
-                                     meta_r=meta_r,
-                                     header_r=header_r,
-                                     first_c=first_c)
+    k = (tab_name,
+         header_r,
+         meta_r,
+         first_c,
+         last_c)
+
+    if k in __levs:
+        lev = __levs[k]
+    else:
+        ws  = vengeance.get_worksheet(wb, tab)
+        lev = excel_levity_cls(ws,
+                               meta_r=meta_r,
+                               header_r=header_r,
+                               first_c=first_c,
+                               last_c=last_c)
+        __levs[k] = lev
 
     return lev
 
@@ -57,17 +81,17 @@ def tab_to_lev(tab, header_r=2, meta_r=1, first_c='B'):
 def lev_subsection(tab_name, c_1, c_2, header_r=2, meta_r=1):
     ws = vengeance.get_worksheet(wb, tab_name)
 
-    headers = {**vengeance.excel_levity_cls.index_headers(ws, meta_r),
-               **vengeance.excel_levity_cls.index_headers(ws, header_r)}
+    headers = {**excel_levity_cls.index_headers(ws, meta_r),
+               **excel_levity_cls.index_headers(ws, header_r)}
 
     c_1 = headers.get(c_1, c_1)
     c_2 = headers.get(c_2, c_2)
 
-    return vengeance.excel_levity_cls(ws,
-                                      meta_r=meta_r,
-                                      header_r=header_r,
-                                      first_c=c_1,
-                                      last_c=c_2)
+    return excel_levity_cls(ws,
+                            meta_r=meta_r,
+                            header_r=header_r,
+                            first_c=c_1,
+                            last_c=c_2)
 
 
 def tab_to_flux(tab_name,
@@ -76,7 +100,7 @@ def tab_to_flux(tab_name,
                 first_c='B'):
 
     lev = tab_to_lev(tab_name, header_r, meta_r, first_c)
-    return vengeance.flux_cls(lev)
+    return flux_cls(lev)
 
 
 def write_to_tab(tab_name, m, r_1='*h', c_1=None, c_2=None):

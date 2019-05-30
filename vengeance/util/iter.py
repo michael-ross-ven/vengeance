@@ -1,6 +1,4 @@
 
-import copy
-
 from math import ceil
 
 from types import GeneratorType
@@ -62,11 +60,11 @@ def iteration_depth(v):
         2 = iteration_depth(['a'], ['b']])
         2 = iteration_depth([[]])
     """
+    if isinstance(v, GeneratorType):
+        raise TypeError('cannot evaluate iteration depth on iterator')
+
     if not is_iterable(v):
         return 0
-
-    if isinstance(v, GeneratorType):
-        v = list(v)
 
     if not is_subscriptable(v):
         return 1
@@ -171,18 +169,11 @@ def is_flux_row_class(o):
 
 
 def transpose(m):
-    m = generator_to_list(m)
-
+    """ what if original matrix is tuples? """
     if iteration_depth(m) == 1:
-        num_r = 1
-        num_c = len(m)
-        t = [[m[r] for _ in range(num_r)]
-                   for r in range(num_c)]
+        t = [[row] for row in m]
     else:
-        num_r = len(m)
-        num_c = len(m[0])
-        t = [[m[c][r] for c in range(num_r)]
-                      for r in range(num_c)]
+        t = [list(row) for row in zip(*m)]
 
     return t
 
@@ -191,15 +182,15 @@ def append_matrices(direction, *matrices, has_header=True):
     d = direction
 
     if d.startswith('v') or d.startswith('row'):
-        return append_matrices_rows(*matrices, has_header=has_header)
+        return append_vertical(*matrices, has_header=has_header)
 
     if d.startswith('h') or d.startswith('col'):
-        return append_matrices_columns(*matrices)
+        return append_horizontal(*matrices)
 
     raise ValueError("invalid direction: '{}'".format(direction))
 
 
-def append_matrices_rows(*matrices, has_header=True):
+def append_vertical(*matrices, has_header=True):
 
     def append(m_1, m_2):
         m_1 = generator_to_list(m_1)
@@ -214,22 +205,26 @@ def append_matrices_rows(*matrices, has_header=True):
         if is_empty(m_2):
             return m_1
 
-        m_a = copy.copy(m_1)
         if has_header:
-            m_a.extend(m_2[1:])
-        else:
-            m_a.extend(m_2)
+            m_2 = m_2[1:]
 
-        return m_a
+        return m_1 + m_2
 
-    m_f, matrices = matrices[0], matrices[1:]
+    m_final, matrices = matrices[0], matrices[1:]
     for m in matrices:
-        m_f = append(m_f, m)
+        m_final = append(m_final, m)
 
-    return m_f
+    return m_final
 
 
-def append_matrices_columns(*matrices):
+def append_horizontal(*matrices):
+    """
+    this is god-awfully slow
+
+    add all columns together in single iteration
+    zip(*matrices)?
+    but must assert all equal num columns
+    """
 
     def append(m_1, m_2):
         m_1 = generator_to_list(m_1)
@@ -246,11 +241,11 @@ def append_matrices_columns(*matrices):
 
         return [row_1 + row_2 for row_1, row_2 in zip(m_1, m_2)]
 
-    m_f, matrices = matrices[0], matrices[1:]
+    m_final, matrices = matrices[0], matrices[1:]
     for m in matrices:
-        m_f = append(m_f, m)
+        m_final = append(m_final, m)
 
-    return m_f
+    return m_final
 
 
 def is_empty(v):

@@ -158,3 +158,12 @@ $release 18
 	
 
 
+2019-05-29
+$release 19
+	removed flux_cls.has_data attribute
+	fixed bug in flux_cls.copy()
+
+	performance optimization (~10%) to transpose()
+	allow 'any' as excel_instance param for open_workbook() function 
+	added cached levs to excel_project_template.py
+

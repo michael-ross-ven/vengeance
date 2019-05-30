@@ -3,47 +3,51 @@
     Working with Excel can be tedious.
 
     It's extremely easy to build terrible worksheets and there is no enforcement
-    in data organization / integrity -- anyone can just slap in some data where ever they feel like.
-    Usually, this results in workbooks that are like a dirty laundry basket,
-    where data is stored haphazardly and poorly organized
+    in data organization / integrity -- anyone can just slap in some data where ever
+    they feel like. Usually, this results in workbooks that are like a dirty laundry basket,
+    where data is stored and organized haphazardly
 
     https://imgs.xkcd.com/comics/algorithms.png
 
-    In VBA, you'll spend a lot of time constantly finding range boundaries in the sheets,
-    determining last row or last column in order to do anything useful.
+    To do anything useful in VBA, you'll spend a large amount of time constantly finding
+    range boundaries in the sheets, determining the last row or last column.
     It's also dubious in your VBA code to reference data by the arbitrary
     alphanumerical addresses (eg, ws.Range("A3").value), instead of more meaningful
     header names, leaving you vulnerable whenever columns in the sheet are shifted or reordered.
-    Ideally, it would be nice to work with Excel's data much more like
-    fields in a database table
+    Ideally, it would be nice to work with Excel's data much more like fields in
+    a database table
 
     Published packages like xlrd, xlwt, openpyxl will allow you to
     read Excel files, but don't grant control over the Excel application itself,
-    limiting many important abilities (recalculating values, calling add-ins, etc)
+    limiting many important abilities (recalculating values, utilizing add-ins,
+    invoking VBA, etc)
 
-    The excel_levity_cls is meant to make Excel data feel as light as a feather,
-    instead of like the data is embedded in concrete
+    The excel_levity_cls is meant to make the data in Excel feel as light as a feather,
+    almost like it just "floats" off of Worksheets, instead of like having to 
+    bust concrete to pass data through your source code
 """
-
 
 from time import sleep
 
-import vengeance as veng
+import vengeance
+from vengeance import print_runtime
+from vengeance import excel_levity_cls
+
 from examples import excel_project_template as share
 
-xlPasteColumnWidths = 8
-
+xlPasteColumnWidths    = 8
 xlCalculationManual    = -4135
 xlCalculationAutomatic = -4105
-
 xlNone   = -4142
 xlYellow = 65535
 xlBlue   = 15773696
 xlPink   = 9856255
 
 
-@veng.print_runtime
+@print_runtime
 def main():
+    # help(excel_levity_cls)
+
     share.open_project_workbook(open_new_instance=True,
                                 read_only=True,
                                 update_links=True)
@@ -68,32 +72,36 @@ def main():
     modify_range_values(iter_method='fast')
 
     excel_object_model()
-    allow_focus()
+    # allow_focus()
 
     # share.close_project_workbook(save=False)
 
 
 def instantiate_lev(tab_name):
     """
-    excel_levity_cls range reference syntax:
-        returns win32com reference to Excel range
-
+    excel_levity_cls range reference:
         lev['<col><row>:<col><row>']
+        :returns a win32com reference to Excel range
+
         anchor reference mnemonics:
             '*h': header
             '*f': first
             '*l': last
             '*a': append
 
-    Instantiating a new excel_levity_cls will always clear the Autofilter
-    of target worksheet; make sure nothing depends on having filtered data
+    Instantiating a new excel_levity_cls will ALWAYS clear the Autofilter
+    of target worksheet so that range boundaries can be set correctly;
+    make sure nothing is dependent on having data filtered in the worksheet
     """
-    # help(veng.excel_levity_cls)
-
     lev = share.tab_to_lev(tab_name)
 
     a = repr(lev)
-    a = lev.is_empty
+
+    a = lev.is_empty        # if worksheet is totally blank (not even headers)
+    a = lev.has_filter
+
+    a = lev.num_cols
+    a = lev.num_rows
 
     a = lev.header_r
     a = lev.first_c
@@ -101,6 +109,7 @@ def instantiate_lev(tab_name):
     a = lev.first_r
     a = lev.last_r
     a = lev.append_r
+    a = lev.append_c
 
     a = lev.has_headers
     a = lev.headers
@@ -130,6 +139,8 @@ def instantiate_lev(tab_name):
     lev.remove_filter()
     lev.reapply_filter()
 
+    return lev
+
 
 def lev_subsections():
     """
@@ -144,6 +155,9 @@ def lev_subsections():
     lev_1 = share.lev_subsection('subsections', '<sect_1>', '</sect_1>')
     lev_2 = share.lev_subsection('subsections', '<sect_2>', '</sect_2>')
     lev_3 = share.lev_subsection('subsections', '<sect_3/>', '<sect_3/>')
+
+    a = lev_1.meta_headers
+    a = lev_1.meta_header_values
 
     a = lev_1.last_r
     b = lev_2.last_r
@@ -183,8 +197,9 @@ def iterate_primitive_rows():
           potentially because the matrix returns as read-only tuples,
           and because Excel's error values are not recognized (see iterate_excel_errors())
     """
-    # lev = share.tab_to_lev('Sheet1')
-    lev = share.tab_to_lev('errors')
+    lev = share.tab_to_lev('Sheet1')
+    # lev = share.tab_to_lev('errors')
+    # lev = share.tab_to_lev('empty sheet')
 
     # see docstring for caveats to this
     # m = lev['*f *f:*l *l'].Value2
@@ -220,7 +235,8 @@ def iterate_flux_rows():
     m = list(lev.flux_rows())
         * as full matrix, includes header row
     """
-    lev = share.tab_to_lev('Sheet1')
+    # lev = share.tab_to_lev('Sheet1')
+    lev = share.lev_subsection('subsections', '<sect_1>', '</sect_1>')
 
     for row in lev:
         a = row.address
@@ -289,7 +305,7 @@ def write_values():
     a = lev['excel_date'].Value2
 
     # convert Excel eopoch float value into datetime
-    b = veng.to_datetime(a)
+    b = vengeance.to_datetime(a)
 
     # Excel only accepts datetime.datetime, not datetime.date
     try:
@@ -362,7 +378,7 @@ def write_formulas():
     lev.calculate()
 
 
-@veng.print_runtime
+@vengeance.print_runtime
 def modify_range_values(iter_method='slow'):
     """
     although calls like "ws.Range('...').Value" work fine in VBA,
@@ -398,7 +414,7 @@ def excel_object_model():
     from vengeance.excel_com.worksheet import clear_worksheet_filter
 
     share.wb.Activate()
-    ws = veng.get_worksheet(share.wb, 'object model')
+    ws = vengeance.get_worksheet(share.wb, 'object model')
     activate_sheet(ws)
     ws.Range('B2:D10').Interior.Color = xlNone
 
@@ -441,12 +457,12 @@ def allow_focus():
     activate_all_sheets()
 
     print()
-    veng.excel_levity_cls.allow_focus = True
+    excel_levity_cls.allow_focus = True
     activate_all_sheets()
 
 
 def activate_all_sheets():
-    print('veng.excel_levity_cls.allow_focus = {}'.format(veng.excel_levity_cls.allow_focus))
+    print('excel_levity_cls.allow_focus = {}'.format(excel_levity_cls.allow_focus))
 
     for ws in share.wb.Sheets:
         print("activate sheet: '{}'".format(ws.Name))

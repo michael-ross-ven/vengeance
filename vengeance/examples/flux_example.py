@@ -38,12 +38,26 @@ def main():
     # compare_against_pandas()
 
 
+# def exper():
+#     flux = instantiate_flux()
+#     flux.matrix_by_headers('col_a',
+#                            {'col_a': 'renamed_a'},
+#                            '(col_d)')
+#
+#     a = flux[1].renamed_a
+#     flux[1].col_a = 'mike'
+#     b = flux[1].renamed_a
+#     pass
+
+
 def instantiate_flux():
     m = [['col_a', 'col_b', 'col_c']]
     for _ in range(100):
         m.append([''.join(choice(ascii_s) for _ in range(15))
                                           for _ in range(3)])
     flux = flux_cls(m)
+
+    a = flux.is_empty       # if matrix is totally blank (not even headers)
 
     a = flux.headers
     a = flux.header_values
@@ -112,7 +126,7 @@ def modify_columns(flux):
     del flux[5].values[2]
 
     if flux.is_jagged:
-        flux.fill_jagged_columns()
+        indices = flux.fill_jagged_columns()
 
     flux.rename_columns({'col_a': 'renamed_a',
                          'col_b': 'renamed_b'})
@@ -233,20 +247,19 @@ def iterate_flux_rows(flux):
             # compare row_prev and row
             row_prev = row
     """
-    # label rows by index to help identify them more easily
-    # flux.enumerate_rows()
+    # flux.enumerate_rows()         # labels rows by index to help identify them more easily
 
     for row in flux:
-        # see conflicting_header_names()
-        a = row.names
+        a = row.names               # see conflicting_header_names()
         a = row.values
-        a = row.view_as_array       # triggers a debugging feature in PyCharm
+        a = row.view_as_array       # to help with debugging; triggers a special view in PyCharm
 
         a = row.col_a
         a = row['col_a']
         a = row[0]
 
         row.col_a = a
+        row.values[1:] = ['blah', 'blah']
 
     # slice, stride
     m = flux[5:-2]
@@ -267,11 +280,12 @@ def iterate_flux_rows(flux):
 
 
 def flux_sort_filter(flux):
-    # filter_function
-    def starts_with_a(_row):
-        return (_row.col_a.startswith('a')
-                or _row.col_b.startswith('a')
-                or _row.col_c.startswith('a'))
+
+    def starts_with_a(_row_):
+        """ first-class filter function """
+        return (_row_.col_a.startswith('a')
+                or _row_.col_b.startswith('a')
+                or _row_.col_c.startswith('a'))
 
     flux = flux.copy()
 
@@ -283,7 +297,7 @@ def flux_sort_filter(flux):
 
     # in-place modifications
     flux.sort('col_a', 'col_b', 'col_c',
-              reverse=[True])
+              reverse=[False, True])
     flux.filter(starts_with_a)
     flux.filter_by_unique('col_a', 'col_b')
 
@@ -479,7 +493,7 @@ def compare_against_pandas():
 
         a = flux.filtered(f)
 
-        # flux.append_matrices_rows([[1, 2, 3]] * 5000)
+        # flux.append_vertical([[1, 2, 3]] * 5000)
 
     init()
 

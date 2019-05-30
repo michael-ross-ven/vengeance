@@ -65,16 +65,13 @@ class flux_cls:
     @property
     def is_empty(self):
         """ determine if matrix is totally empty """
-        return (not self.header_values) and (self.has_data is False)
+        has_data = False
 
-    @property
-    def has_data(self):
-        """ determine if matrix after header is empty """
         for row in self:
             if row.values:
-                return True
+                has_data = True
 
-        return False
+        return (not self.header_values) and (not has_data)
 
     def _to_flux_rows(self, m):
         if m is None:
@@ -152,7 +149,19 @@ class flux_cls:
         return parsed
 
     def matrix_by_headers(self, *headers):
-        columns = transpose([row.values for row in self.matrix[1:]])
+        """ this method could be faster
+
+        performance enhancements:
+            convert all headers to indices first
+            take values on demand
+            for c in range(indices):
+                columns.append([row.values[c] for row in self.matrix])
+
+            store columns that have already been used in dict
+            self._num_cols does not need to be reset if length of headers
+            equal to self._num_cols
+        """
+        columns = transpose([row.values for row in self])
         if not columns:
             columns = [[]]
 
@@ -164,15 +173,16 @@ class flux_cls:
                 column = [None] * self.num_rows
             else:
                 i = self.headers[header]
-                column = columns[i].copy()
+                column = columns[i]
 
-            column.insert(0, header)
+            column = [header] + column
             m.append(column)
+
+        m = transpose(m)
 
         self.headers.clear()
         self._num_cols = None
 
-        m = transpose(m)
         self.matrix = self._to_flux_rows(m)
 
     def __renamed_or_inserted_header(self, header):
@@ -278,7 +288,7 @@ class flux_cls:
     def delete_columns(self, *names):
         names = modify_iteration_depth(names, depth=1)
 
-        indices = [self.headers[h] for h in names]
+        indices = [self.headers.get(h, h) for h in names]
         indices.sort(reverse=True)
 
         for row in self.matrix:
@@ -288,65 +298,89 @@ class flux_cls:
         self._reapply_header_names(self.header_values)
 
     def fill_jagged_columns(self):
+        """ :returns indices of rows whose columns were extended """
+
         max_cols = self.num_cols
 
-        for row in self:
+        indices = []
+        for i, row in enumerate(self.matrix):
             values = row.values
             num_missing = max_cols - len(values)
 
             if num_missing > 0:
+                indices.append(i)
                 nones = [None for _ in range(num_missing)]
                 values.extend(nones)
 
-    def insert_rows(self, i, m):
+        return indices
+
+    def insert_rows(self, i, rows):
         self._num_cols = None
 
         if self.is_empty:
-            self.matrix = self._to_flux_rows(m)
+            self.matrix = self._to_flux_rows(rows)
             return
 
         if i == 0:
             self.headers.clear()
             del self.matrix[0]
-        elif is_vengeance_class(m):
-            m = list(m.rows())[1:]
+        elif is_vengeance_class(rows):
+            rows = list(rows.rows())[1:]
 
-        self.matrix[i:i] = self._to_flux_rows(m)
+        self.matrix[i:i] = self._to_flux_rows(rows)
 
-    def append_rows(self, m):
+    def append_rows(self, rows):
         self._num_cols = None
 
         if self.is_empty:
-            self.matrix = self._to_flux_rows(m)
+            self.matrix = self._to_flux_rows(rows)
             return
 
-        if is_vengeance_class(m):
-            m = list(m.rows())[1:]
+        if is_vengeance_class(rows):
+            rows = list(rows.rows())[1:]
 
-        self.matrix.extend(self._to_flux_rows(m))
+        self.matrix.extend(self._to_flux_rows(rows))
 
-    def sort(self, *f, **kwargs):
-        """ in-place
+    def sort(self, *f, reverse=None):
+        """ in-place sort
         eg:
             flux.sort('col_a', 'col_b', 'col_c',
                       reverse=[True, True, True])
         """
-        self.matrix[1:] = self.__sort_rows(f, kwargs)
+        self.matrix[1:] = self.__sort_rows(f, reverse)
 
-    def sorted(self, *f, **kwargs):
-        """ returns new flux
+    def sorted(self, *f, reverse=None):
+        """ returns new flux after sorting
         eg:
             flux = flux.sorted('col_a', 'col_b', 'col_c',
                                reverse=[True, True, True])
         """
-        m = [row.values for row in self.__sort_rows(f, kwargs)]
-        m.insert(0, self.header_values)
+        m = [self.header_values.copy()]
+        m.extend([row.values.copy() for row in self.__sort_rows(f, reverse)])
 
         flux = self.__class__()
         flux._num_cols = self._num_cols
-        flux.matrix = flux._to_flux_rows(m.copy())
+        flux.matrix = flux._to_flux_rows(m)
 
         return flux
+
+    def __sort_rows(self, f, reverse):
+        r = reverse or []
+        if not isinstance(r, (list, tuple)):
+            raise ValueError('reverse must be either a list of boolean')
+
+        for _ in range(len(f) - len(r)):
+            r.append(False)
+
+        r = reversed(r)
+        f = reversed(f)
+
+        m = self.matrix[1:]
+        for f_, r_ in zip(f, r):
+            f_ = self.__row_values_accessor(f_)
+            m.sort(key=f_, reverse=r_)
+
+        return m
 
     def filter(self, f):
         """ in-place """
@@ -354,12 +388,12 @@ class flux_cls:
 
     def filtered(self, f):
         """ return new flux """
-        m = [row.values for row in self if f(row)]
-        m.insert(0, self.header_values)
+        m = [self.header_values.copy()]
+        m.extend([row.values.copy() for row in self if f(row)])
 
         flux = self.__class__()
         flux._num_cols = self._num_cols
-        flux.matrix = flux._to_flux_rows(m.copy())
+        flux.matrix = flux._to_flux_rows(m)
 
         return flux
 
@@ -373,24 +407,6 @@ class flux_cls:
         """ :return: list of unique values within column(s), original order is preserved """
         f = self.__row_values_accessor(f)
         return ordered_unique(f(row) for row in self)
-
-    def __sort_rows(self, f, kwargs):
-        if kwargs and 'reverse' not in kwargs:
-            raise ValueError("only 'reverse' keyword is accepted")
-
-        r = list(kwargs.get('reverse', []))
-        for _ in range(len(f) - len(r)):
-            r.append(False)
-
-        r = reversed(r)
-        f = reversed(f)
-
-        m = [row for row in self]
-        for f, reverse in zip(f, r):
-            f = self.__row_values_accessor(f)
-            m.sort(key=f, reverse=reverse)
-
-        return m
 
     def __filter_unique_rows(self, f, in_place):
         uniq = set()
@@ -473,11 +489,11 @@ class flux_cls:
         if deep:
             return deepcopy(self)
 
-        m = [row.values for row in self.matrix]
+        m = [row.values.copy() for row in self.matrix]
 
         flux = self.__class__()
         flux._num_cols = self._num_cols
-        flux.matrix = flux._to_flux_rows(m.copy())
+        flux.matrix = flux._to_flux_rows(m)
 
         return flux
 
@@ -681,6 +697,6 @@ class flux_cls:
             return ''
 
         headers = repr_(self.headers.keys(), wrap='[]')
-        return '{} ({:,})'.format(headers, self.num_rows)
+        return '({:,})  {}'.format(self.num_rows, headers)
 
 

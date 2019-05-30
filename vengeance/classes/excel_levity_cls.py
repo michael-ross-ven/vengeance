@@ -47,10 +47,8 @@ class excel_levity_cls:
         self.sheet = ws
         self.tab_name = ws.Name
 
-        self._named_ranges = _set_named_ranges(self.workbook)
-
+        self.headers = OrderedDict()
         self.meta_headers = OrderedDict()
-        self.headers      = OrderedDict()
 
         self.first_c = first_c
         self.last_c  = last_c
@@ -60,15 +58,16 @@ class excel_levity_cls:
         self.first_r  = first_r
         self.last_r   = last_r
 
+        self._named_ranges  = _set_named_ranges(self.workbook)
         self._fixed_columns = (first_c, last_c)
         self._fixed_rows    = (first_r, last_r)
 
         self.num_cols = 0
         self.num_rows = 0
 
-        self.is_empty = False
+        self.is_empty = None
 
-        # clear_worksheet_filter() is always invoked on worksheet to determine range boundaries
+        # be aware: self.set_range_boundaries() always invokes clear_worksheet_filter()
         self.set_range_boundaries(index_meta=True, index_header=True)
 
     @property
@@ -76,7 +75,14 @@ class excel_levity_cls:
         return list(self.headers.keys())
 
     @property
+    def meta_header_values(self):
+        return list(self.meta_headers.keys())
+
+    @property
     def has_headers(self):
+        if self.is_empty:
+            return False
+
         return bool(self.headers) and bool(self.meta_headers)
 
     @property
@@ -86,6 +92,10 @@ class excel_levity_cls:
     @property
     def workbook(self):
         return self.sheet.Parent
+
+    @property
+    def worksheet(self):
+        return self.sheet
 
     @property
     def named_ranges(self):
@@ -170,7 +180,7 @@ class excel_levity_cls:
             self.set_range_boundaries(index_meta, index_header)
 
         if clear_colors:
-            excel_range.Interior.Color = xl_clear
+            excel_range.Interior.Color = xlClear
 
     def set_range_boundaries(self, index_meta=True, index_header=True):
         """ find the margins of data within worksheet
@@ -178,7 +188,6 @@ class excel_levity_cls:
         clear_worksheet_filter() MUST be called in order to correctly
         search for cells that are non-null
         """
-
         clear_worksheet_filter(self.sheet)
         self.__find_range_boundaries()
 
@@ -194,28 +203,29 @@ class excel_levity_cls:
 
         excel_range = self.sheet.UsedRange
 
-        self.first_c = col_letter(self.first_c or first_col(excel_range))
-        self.last_c  = col_letter(self.last_c or last_col(excel_range, default_c=self.first_c))
-
-        min_r = max(self.meta_r, self.header_r) + 1
-        max_r = excel_range.Rows.Count
-        a = '{}{}:{}{}'.format(self.first_c, min_r, self.last_c, max_r)
-        excel_range = self.sheet.Range(a)
-
-        self.first_r = first_row(excel_range, default_r=min_r)
-        self.last_r  = last_row(excel_range, default_r=self.first_r)
+        self.first_c = self.first_c or first_col(excel_range)
+        self.first_c = col_letter(self.first_c)
+        self.last_c  = self.last_c or last_col(excel_range, default_c=self.first_c)
+        self.last_c  = col_letter(self.last_c)
 
         self.num_cols = col_number(self.last_c) - col_number(self.first_c) + 1
-        self.num_rows = self.last_r - self.first_r + 1
 
-        # determine if any data exists in first_r or below
-        a = '{}{}:{}{}'.format(self.first_c, self.first_r, self.last_c, self.last_r)
+        r_1 = max(self.meta_r, self.header_r) + 1
+        r_2 = excel_range.Rows.Count
+        a = '{}{}:{}{}'.format(self.first_c, r_1, self.last_c, r_2)
         excel_range = self.sheet.Range(a)
 
-        if self.first_r == self.last_r:
-            self.is_empty = is_range_empty(excel_range)
-        else:
+        self.first_r = self.first_r or first_row(excel_range, default_r=r_1)
+        self.last_r  = self.last_r or last_row(excel_range, default_r=self.first_r)
+
+        self.num_rows = self.last_r - self.first_r + 1
+
+        if self.last_r > self.first_r:
             self.is_empty = False
+        else:
+            header_r = self.header_r or self.meta_r or self.first_r
+            a = '{}{}:{}{}'.format(self.first_c, header_r, self.last_c, header_r)
+            self.is_empty = is_range_empty(self.sheet.Range(a))
 
     @classmethod
     def index_headers(cls, ws, row_num=None):
@@ -238,7 +248,8 @@ class excel_levity_cls:
         return headers
 
     def __index_headers(self, row_ref):
-        row = self.excel_range('*f {} :*l {}'.format(row_ref, row_ref))
+        a = '*f {} :*l {}'.format(row_ref, row_ref)
+        row = self.excel_range(a)
         row = next(gen_range_rows(row))
         row = [str(v) for v in row]
         if not any(row):

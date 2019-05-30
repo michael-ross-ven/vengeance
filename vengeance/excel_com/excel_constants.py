@@ -18,31 +18,27 @@ excel_errors = {-2146826281: 'error div0',
                 0x800A07FA:  'error div0'}
 
 # colors
-xl_yellow = 13434879
-xl_clear  = -4142
+xlClear = -4142
 
 # find parameters
-xl_values     = -4163
-xl_cell_type_formulas = -4123
-xl_errors     = 16
-xl_whole      = 1
-xl_part       = 2
-xl_next       = 1
-xl_previous   = 2
-xl_by_rows    = 1
-xl_by_columns = 2
-xl_up         = -4162
-xl_to_right   = -4161
+xlCellTypeFormulas = -4123
+xlValues           = -4163
+xlErrors           = 16
+xlWhole            = 1
+xlPart             = 2
+xlNext             = 1
+xlPrevious         = 2
+xlByRows           = 1
+xlByColumns        = 2
+xlUp               = -4162
+xlToRight          = -4161
 
-# enums
-xl_paste_column_widths = 8
-xl_range_ms_xml = 12
-xl_range_value_ms_persist_xml = 12
+# other enums
+xlPasteColumnWidths    = 8
+xlMaximized            = -4137
+xlCalculationManual    = -4135
+xlCalculationAutomatic = -4105
 
-# external / windows / shell constants
-xl_maximized = -4137
-sw_show      = 1
-native_om    = -16
+# external / windows api
+native_om = -16
 
-vb_ok_only = 0
-process_terminate = 1

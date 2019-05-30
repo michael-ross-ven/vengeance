@@ -30,30 +30,48 @@ FindWindowEx               = ctypes.windll.user32.FindWindowExA
 corrupt_hwnds = set()
 
 
-def open_workbook(path, excel_instance=None,
+def open_workbook(path,
+                  excel_instance=None,
                   *,
                   read_only=False,
                   update_links=True):
 
+    print_extra_line = False
+
     wb = is_workbook_open(path)
 
     if wb is None:
-        if not excel_instance:
-            excel_app = empty_excel_instance() or new_excel_instance()
+        if excel_instance is None:
+            excel_app = empty_excel_instance()
+        elif excel_instance == 'any':
+            excel_app = any_excel_instance()
         else:
             excel_app = excel_instance
 
-        wb = __workbook_from_excel_app(excel_app, path, update_links, read_only)
+        if excel_app is None:
+            excel_app = new_excel_instance()
+            print_extra_line = True
 
-    elif excel_instance is not None:
+        wb = __workbook_from_excel_app(excel_app,
+                                       path,
+                                       update_links,
+                                       read_only)
+
+    elif excel_instance not in {'any', None}:
         if wb.Application != excel_instance:
             vengeance_message("'{}' already open in another Excel instance".format(wb.Name))
+            print_extra_line = True
 
     if wb.ReadOnly is False and read_only is True:
         vengeance_message("'{}' is NOT opened read-only".format(wb.Name))
+        print_extra_line = True
 
     if wb.ReadOnly is True and read_only is False:
         vengeance_message("('{}' opened as read-only)".format(wb.Name))
+        print_extra_line = True
+
+    if print_extra_line:
+        print()
 
     return wb
 
@@ -104,7 +122,7 @@ def new_excel_instance():
     excel_app = __comtype_to_pywin_obj(excel_app, IDispatch)
     excel_app = pywin_dispatch(excel_app)
 
-    excel_app.WindowState = xl_maximized
+    excel_app.WindowState = xlMaximized
     excel_app.Visible = True
 
     app_to_foreground(excel_app)
@@ -129,10 +147,9 @@ def reload_all_add_ins(excel_app):
             try:
                 add_in.Installed = False
                 add_in.Installed = True
-                vengeance_message('   {}'.format(name))
+                print('\t   * {}'.format(name))
             except COMError:
                 vengeance_message('failed to load add-in: {}' + name)
-    print()
 
 
 def empty_excel_instance():
@@ -151,7 +168,12 @@ def empty_excel_instance():
 
 
 def any_excel_instance():
-    return pywin_dispatch('Excel.Application')
+    excel_app = pywin_dispatch('Excel.Application')
+    if excel_app:
+        excel_app.WindowState = xlMaximized
+        excel_app.Visible = True
+
+    return excel_app
 
 
 def all_excel_instances():
