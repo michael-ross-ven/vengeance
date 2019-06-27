@@ -7,8 +7,8 @@ from setuptools import setup
 from textwrap import dedent
 
 
-__version__ = '1.0.26'
-__release__ = '$release 19'
+__version__ = '1.0.27'
+__release__ = '$release 20'
 
 dependencies = ('comtypes',
                 'pypiwin32',
@@ -35,23 +35,8 @@ def write_version_file():
         f.write(dedent(s))
 
 
-# def readme_to_description():
-#     """ https://commonmark.org/help/tutorial/ 
-#     this_directory = path.abspath(path.dirname(__file__))
-#     """
-
-#     global long_description
-
-#     f_dir = os.path.realpath(__file__)
-#     f_dir = os.path.split(f_dir)[0]
-
-#     with open(f_dir + '\\README.md', encoding='utf-8') as f:
-#         long_description = f.read()
-
-
 if __name__ == '__main__':
     write_version_file()
-    # readme_to_description()
 
     setup(name='vengeance',
           version=__version__,

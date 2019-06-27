@@ -155,7 +155,7 @@ $release 17
 $release 18
 	renamed internal / private methods in flux_cls
 	flux_cls._num_cols is set to None in flux_cls.insert_columns(), flux_cls.append_columns(), flux_cls.delete_columns()
-	
+
 
 
 2019-05-29
@@ -166,4 +166,17 @@ $release 19
 	performance optimization (~10%) to transpose()
 	allow 'any' as excel_instance param for open_workbook() function 
 	added cached levs to excel_project_template.py
+
+
+
+2019-06-27
+$release 20
+	minor updates to util.filesystem
+
+
+
+2019-
+$release 21
+
+
 

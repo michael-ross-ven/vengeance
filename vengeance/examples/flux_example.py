@@ -13,6 +13,8 @@ from examples import excel_project_template as share
 def main():
     # help(flux_cls)
 
+    print()
+
     flux = instantiate_flux()
     conflicting_header_names()
 
@@ -38,26 +40,15 @@ def main():
     # compare_against_pandas()
 
 
-# def exper():
-#     flux = instantiate_flux()
-#     flux.matrix_by_headers('col_a',
-#                            {'col_a': 'renamed_a'},
-#                            '(col_d)')
-#
-#     a = flux[1].renamed_a
-#     flux[1].col_a = 'mike'
-#     b = flux[1].renamed_a
-#     pass
-
-
-def instantiate_flux():
+def instantiate_flux(num_rows=100, num_cols=3, str_len=15):
     m = [['col_a', 'col_b', 'col_c']]
-    for _ in range(100):
-        m.append([''.join(choice(ascii_s) for _ in range(15))
-                                          for _ in range(3)])
+    for _ in range(num_rows):
+        m.append([''.join(choice(ascii_s) for _ in range(str_len))
+                                          for _ in range(num_cols)])
+
     flux = flux_cls(m)
 
-    a = flux.is_empty       # if matrix is totally blank (not even headers)
+    a = flux.is_empty       # determine if matrix is *totally* blank (not even headers)
 
     a = flux.headers
     a = flux.header_values
@@ -386,12 +377,15 @@ class flux_custom_cls(flux_cls):
 
 @print_performance(repeat=3, number=10)
 def attribute_access_performance(flux):
-    # flux.bind()
 
     for row in flux:
         # a = row.col_a
         # b = row.col_b
         # c = row.col_c
+
+        # row.col_a = 'a'
+        # row.col_b = 'b'
+        # row.col_c = 'c'
 
         row.col_a = row.col_a
         row.col_b = row.col_b

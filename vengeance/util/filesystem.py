@@ -114,6 +114,12 @@ def clear_dir(f_dir, allow_not_exist=False):
 def copy_dir(s_dir, d_dir, exclude_dirs=None):
     exclude_dirs = exclude_dirs or set()
 
+    s_dir = standardize_dir(s_dir)
+    d_dir = standardize_dir(d_dir)
+
+    if not os.path.exists(d_dir):
+        os.makedirs(d_dir)
+
     for file_content in os.listdir(s_dir):
         if file_content in exclude_dirs:
             continue
@@ -137,17 +143,17 @@ def file_last_modified(path):
     return datetime.fromtimestamp(unix_t)
 
 
-def standardize_dir(f_dir):
-    """
-    replace all '\' with '/'
-    make sure dir ends with '/'
+def standardize_dir(f_dir, pathsep='/'):
+    """ lowercase and make sure directory follows predictable pattern
+    pathsep=os.path.sep?
     """
     f_dir = (f_dir.lower()
-                  .replace('\\', '/')
+                  .replace('\\', pathsep)
+                  .replace('/', pathsep)
                   .strip(' \n'))
 
-    if not f_dir.endswith('/'):
-        f_dir += '/'
+    if not f_dir.endswith(pathsep):
+        f_dir += pathsep
 
     return f_dir
 

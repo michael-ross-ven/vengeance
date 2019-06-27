@@ -1,7 +1,7 @@
 
 import os
 import sys
-import textwrap
+from textwrap import dedent
 
 from logging import Logger
 from logging import Formatter
@@ -14,7 +14,6 @@ from concurrent.futures import ProcessPoolExecutor
 from .. util.filesystem import make_dirs
 
 
-# noinspection PyTypeChecker
 class log_cls(Logger):
 
     def __init__(self, name, f_dir=None, log_format=None):
@@ -23,10 +22,12 @@ class log_cls(Logger):
         self.log_format  = log_format
         self.formatter   = None
         self.child_desig = None
-        self.err_msg     = ''
         self._callback   = None
-        self._handlers   = {'file':   None,
-                            'stream': None}
+
+        self._file_handler   = None
+        self._stream_handler = None
+
+        self.err_msg = ''
 
         self._set_level()
         self._add_formatter()
@@ -34,8 +35,8 @@ class log_cls(Logger):
         self._add_stream_handler()
 
     def print_message(self, msg):
-        fh = self._handlers['file']
-        sh = self._handlers['stream']
+        fh = self._file_handler
+        sh = self._stream_handler
 
         if fh:
             fh.formatter = None
@@ -85,7 +86,7 @@ class log_cls(Logger):
         h.setFormatter(self.formatter)
 
         self.addHandler(h)
-        self._handlers['file'] = h
+        self._file_handler = h
 
     def _add_stream_handler(self):
         h = StreamHandler()
@@ -93,7 +94,7 @@ class log_cls(Logger):
         h.setFormatter(self.formatter)
 
         self.addHandler(h)
-        self._handlers['stream'] = h
+        self._stream_handler = h
 
     def _close_stream_handlers(self):
         for h in self.__stream_handlers():
@@ -125,62 +126,62 @@ class log_cls(Logger):
         # naviagate to most recent stack frame
         while s_frame.tb_next is not None:
             if has_child is False:
-                if self.child_desig in frame_filename(s_frame):
+                if self.child_desig in _frame_filename(s_frame):
                     child_frame = s_frame
                     has_child = True
 
             s_frame = s_frame.tb_next
 
-        code_file = frame_filename(s_frame)
+        code_file = _frame_filename(s_frame)
         file = os.path.split(code_file)[1]
         line = s_frame.tb_lineno
 
-        out_msg = '''
+        log_msg = '''\n\n\n
         ____________________________   vengeance   ____________________________
               the result 'w+resign' was added to the game information
               
               "{e_msg}"
-              error type:   <{typ_msg}>
+              error type:   <{e_type}>
               file:   {file}, line: {line} 
         ____________________________   vengeance   ____________________________
-        '''
+        \n\n\n'''.format(name=self.name,
+                         e_msg=e_msg,
+                         e_type=e_type.__name__,
+                         file=file,
+                         line=line)
 
-        out_msg = textwrap.dedent(out_msg)
-        out_msg = out_msg.format(name=self.name,
-                                 e_msg=e_msg,
-                                 typ_msg=e_type.__name__,
-                                 file=file,
-                                 line=line)
-        out_msg = '\n\n\n{}\n\n\n'.format(out_msg)
+        log_msg = dedent(log_msg)
 
-        # propagate error info through base class exception
-        self.error(out_msg, exc_info=(e_type, e_msg, child_frame))
+        # propagate error through base class exception
+        self.error(log_msg, exc_info=(e_type, e_msg, child_frame))
 
         self._close_file_handlers()
         self.callback()
 
-    def __repr__(self):
-        cls_name = '<{}>'.format(self.__class__.__name__)
-        return "{}: '{}'".format(cls_name, self.name)
+    # def __repr__(self):
+    #     return 'log  {}'.format(self.name)
 
 
 class pool_executor_log_cls(ProcessPoolExecutor):
-    def __init__(self, max_workers=None, base_name='pool_executor_log_cls', f_dir=None):
-        self.base_name = base_name
-        self.f_dir = f_dir
+    def __init__(self, max_workers=None,
+                       base_name='pool_executor_log_cls',
+                       f_dir=None):
 
         super().__init__(max_workers)
+
+        self.base_name = base_name
+        self.f_dir     = f_dir
 
     def submit(self, fn, *args, **kwargs):
         kwargs['i'] = self._queue_count
         kwargs['base_name'] = self.base_name
         kwargs['f_dir']     = self.f_dir
 
-        return super().submit(function_wrapper, fn, *args, **kwargs)
+        return super().submit(_function_wrapper, fn, *args, **kwargs)
 
 
 # noinspection PyBroadException
-def function_wrapper(fn, *args, **kwargs):
+def _function_wrapper(fn, *args, **kwargs):
     i = kwargs.pop('i') + 1
     base_name = kwargs.pop('base_name')
     f_dir     = kwargs.pop('f_dir')
@@ -193,5 +194,5 @@ def function_wrapper(fn, *args, **kwargs):
         log_.exception_handler(*sys.exc_info())
 
 
-def frame_filename(s_frame):
+def _frame_filename(s_frame):
     return s_frame.tb_frame.f_code.co_filename

@@ -36,41 +36,35 @@ def modify_iteration_depth(v, depth=0):
 
 
 def assert_iteration_depth(v, depth):
-    """ make sure values have certain number of iterable layers """
-    nd = iteration_depth(v)
-
-    if nd != depth:
-        msg = ('invalid iteration depth {}, value must have {} layers of iteration'
-               .format(nd, depth))
-
-        if depth == 1:
-            msg += ', (ie, a list)'
-        elif depth == 2:
-            msg += ', (ie, list of lists)'
-
-        raise IndexError(msg)
+    """ make sure values have certain number of iterable levels """
+    if iteration_depth(v) != depth:
+        raise IndexError('value must have an iteration depth of {}'.format(depth))
 
 
 def iteration_depth(v):
-    """ determine iteration-depth (number of dimensions)
+    """ determine number of nested iteration levels (number of dimensions)
+
     eg:
-        0 = iteration_depth('a')
-        1 = iteration_depth(['a'])
+        0 = iteration_depth('abc')
+        1 = iteration_depth(['abc'])
         1 = iteration_depth([])
-        2 = iteration_depth(['a'], ['b']])
+        2 = iteration_depth([['abc'], ['bcd']])
         2 = iteration_depth([[]])
+
+    only the first value of each iteration level is recursed
+        2 = iteration_depth([[], [[[['abc'], ['bcd']]]])
     """
     if isinstance(v, GeneratorType):
-        raise TypeError('cannot evaluate iteration depth on iterator')
+        raise TypeError('cannot evaluate iteration depth of a generator')
 
     if not is_iterable(v):
         return 0
 
-    if not is_subscriptable(v):
-        return 1
-
     if len(v) == 0:
         return 1
+
+    if not is_subscriptable(v):
+        return 1 + iteration_depth(next(iter(v)))
 
     return 1 + iteration_depth(v[0])
 
@@ -153,7 +147,7 @@ def divide_sequence(sequence, num_divisions):
 
 
 def is_vengeance_class(o):
-    bases = {b.__name__ for b in o.__class__.mro()}
+    bases = set(base_class_names(o))
     if 'flux_cls' in bases or 'excel_levity_cls' in bases:
         return True
 
@@ -161,11 +155,15 @@ def is_vengeance_class(o):
 
 
 def is_flux_row_class(o):
-    bases = {b.__name__ for b in o.__class__.mro()}
+    bases = set(base_class_names(o))
     if 'flux_row_cls' in bases or 'lev_row_cls' in bases:
         return True
 
     return False
+
+
+def base_class_names(o):
+    return [b.__name__ for b in o.__class__.mro()]
 
 
 def transpose(m):

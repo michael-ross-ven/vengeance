@@ -67,7 +67,7 @@ class flux_row_cls:
 
         self.__dict__.update(zip(self.names, self.values))
 
-        self.__dict__['values']   = '(values bound to __dict__)'
+        self.__dict__['values'] = '(values bound to __dict__)'
         self.__dict__['is_bound'] = True
 
     def unbind(self, names=None):

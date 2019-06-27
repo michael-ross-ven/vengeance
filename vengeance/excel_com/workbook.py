@@ -76,10 +76,33 @@ def open_workbook(path,
     return wb
 
 
+def is_workbook_open(path):
+    """ scan all open workbooks across all Excel instances, match is determined by matching file paths
+
+    :return captured Workbook or None
+    """
+    path = standardize_path(path)
+    assert_path_exists(path)
+
+    window_h = FindWindowEx(0, 0, xl_class_name, None)
+    while window_h != 0:
+        for wb in __workbooks_from_hwnd(window_h):
+            if standardize_path(wb.FullName) == path:
+                return wb
+
+        window_h = FindWindowEx(0, window_h, xl_class_name, None)
+
+    return None
+
+
 # noinspection PyUnusedLocal
 def close_workbook(wb, save):
     """
-    all references need to be severed for excel_com pointer to be released
+    this function accomplishes a few things that the client may not want to deal with
+        * if Workbook is the last in the Excel application, closes the application as well
+
+        * in order to correctly release com pointers, it needs to be completely de-referenced
+          need to be severed for the pointer to be released
     """
     if save and wb.ReadOnly:
         raise AssertionError("workbook: '{}' is open read-only, cannot save and close".format(wb.Name))
@@ -101,55 +124,17 @@ def close_workbook(wb, save):
         excel_app = None
 
 
-def is_workbook_open(path):
-    """ scan all open workbooks across all Excel sessions, match is determined by identical file path """
-    path = standardize_path(path)
-    assert_path_exists(path)
-
-    window_h = FindWindowEx(0, 0, xl_class_name, None)
-    while window_h != 0:
-        for wb in __workbooks_from_hwnd(window_h):
-            if standardize_path(wb.FullName) == path:
-                return wb
-
-        window_h = FindWindowEx(0, window_h, xl_class_name, None)
-
-    return None
-
-
 def new_excel_instance():
-    excel_app = CreateObject('Excel.Application', dynamic=True)
+    excel_app = CreateObject('Excel.Application', dynamic=True)     # comtypes method
     excel_app = __comtype_to_pywin_obj(excel_app, IDispatch)
     excel_app = pywin_dispatch(excel_app)
 
     excel_app.WindowState = xlMaximized
-    excel_app.Visible = True
 
     app_to_foreground(excel_app)
     reload_all_add_ins(excel_app)
 
     return excel_app
-
-
-def app_to_foreground(excel_app):
-    SetForegroundWindow = ctypes.windll.user32.SetForegroundWindow
-
-    excel_app.Visible = True
-    SetForegroundWindow(excel_app.Hwnd)
-
-
-def reload_all_add_ins(excel_app):
-    vengeance_message('reloading Excel add-ins...')
-
-    for add_in in excel_app.AddIns:
-        if add_in.Installed:
-            name = add_in.Name
-            try:
-                add_in.Installed = False
-                add_in.Installed = True
-                print('\t   * {}'.format(name))
-            except COMError:
-                vengeance_message('failed to load add-in: {}' + name)
 
 
 def empty_excel_instance():
@@ -170,7 +155,6 @@ def empty_excel_instance():
 def any_excel_instance():
     excel_app = pywin_dispatch('Excel.Application')
     if excel_app:
-        excel_app.WindowState = xlMaximized
         excel_app.Visible = True
 
     return excel_app
@@ -188,6 +172,27 @@ def all_excel_instances():
         window_h = FindWindowEx(0, window_h, xl_class_name, None)
 
     return excel_apps
+
+
+def reload_all_add_ins(excel_app):
+    vengeance_message('reloading Excel add-ins...')
+
+    for add_in in excel_app.AddIns:
+        if add_in.Installed:
+            name = add_in.Name
+            try:
+                add_in.Installed = False
+                add_in.Installed = True
+                print('\t   * {}'.format(name))
+            except COMError:
+                vengeance_message('failed to load add-in: {}' + name)
+
+
+def app_to_foreground(excel_app):
+    SetForegroundWindow = ctypes.windll.user32.SetForegroundWindow
+
+    excel_app.Visible = True
+    SetForegroundWindow(excel_app.Hwnd)
 
 
 def __is_excel_app_empty(excel_app):

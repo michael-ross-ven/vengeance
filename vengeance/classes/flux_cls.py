@@ -7,6 +7,7 @@ from collections import namedtuple
 
 from .. util.iter import OrderedDefaultDict
 from .. util.iter import generator_to_list
+from .. util.iter import base_class_names
 from .. util.iter import assert_iteration_depth
 from .. util.iter import iteration_depth
 from .. util.iter import modify_iteration_depth
@@ -17,7 +18,6 @@ from .. util.iter import ordered_unique
 from .. util.iter import is_vengeance_class
 from .. util.iter import is_flux_row_class
 
-from .. util.text import repr_
 from .. util.text import p_json_dumps
 
 from .. util.filesystem import write_file
@@ -65,17 +65,28 @@ class flux_cls:
     @property
     def is_empty(self):
         """ determine if matrix is totally empty """
-        has_data = False
+        if self.header_values:
+            return False
 
         for row in self:
             if row.values:
-                has_data = True
+                return False
 
-        return (not self.header_values) and (not has_data)
+        return True
 
     def _to_flux_rows(self, m):
         if m is None:
             return [flux_row_cls({}, [])]
+
+        base_names = set(base_class_names(m))
+
+        if 'DataFrame' in base_names:
+            raise NotImplementedError("conversion of 'DataFrame' not supported yet")
+        elif 'ndarray' in base_names:
+            raise NotImplementedError("conversion of 'ndarray' not supported yet")
+            # m = m.tolist()
+        elif 'flux_cls' in base_names or 'excel_levity_cls' in base_names:
+            m = list(m.rows())
 
         m = generator_to_list(m)
         assert_iteration_depth(m, 2)
@@ -634,7 +645,7 @@ class flux_cls:
     def __assert_valid_headers(headers):
         reserved = set(headers) & flux_row_cls.class_names
         if reserved:
-            raise NameError('reserved name(s) {} found in header row {}'.format(list(reserved), headers))
+            raise NameError('conflicting name(s) {} found in header row: {}'.format(list(reserved), headers))
 
     def __len__(self):
         return len(self.matrix)
@@ -694,9 +705,11 @@ class flux_cls:
 
     def __repr__(self):
         if self.is_empty:
-            return ''
+            return '(0)'
 
-        headers = repr_(self.headers.keys(), wrap='[]')
+        headers = list(self.headers.keys())
+        headers = str(headers).replace("'", '')
+
         return '({:,})  {}'.format(self.num_rows, headers)
 
 

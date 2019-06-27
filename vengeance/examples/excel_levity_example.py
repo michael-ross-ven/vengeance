@@ -8,6 +8,7 @@
     where data is stored and organized haphazardly
 
     https://imgs.xkcd.com/comics/algorithms.png
+    https://www.teampay.co/insights/biggest-excel-mistakes-of-all-time/
 
     To do anything useful in VBA, you'll spend a large amount of time constantly finding
     range boundaries in the sheets, determining the last row or last column.
