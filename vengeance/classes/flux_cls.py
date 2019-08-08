@@ -1,14 +1,16 @@
 
 from copy import deepcopy
-
-from itertools import islice
 from collections import OrderedDict
 from collections import namedtuple
+from itertools import islice
+
+from .. util.filesystem import write_file
+from .. util.filesystem import read_file
+from .. util.filesystem import apply_file_extension
 
 from .. util.iter import OrderedDefaultDict
 from .. util.iter import generator_to_list
 from .. util.iter import base_class_names
-from .. util.iter import assert_iteration_depth
 from .. util.iter import iteration_depth
 from .. util.iter import modify_iteration_depth
 from .. util.iter import transpose
@@ -19,10 +21,6 @@ from .. util.iter import is_vengeance_class
 from .. util.iter import is_flux_row_class
 
 from .. util.text import p_json_dumps
-
-from .. util.filesystem import write_file
-from .. util.filesystem import read_file
-from .. util.filesystem import apply_file_extension
 
 from . flux_row_cls import flux_row_cls
 
@@ -78,23 +76,9 @@ class flux_cls:
         if m is None:
             return [flux_row_cls({}, [])]
 
-        base_names = set(base_class_names(m))
+        m = self.__validate_matrix(m)
+        self.__validate_headers(m[0])
 
-        if 'DataFrame' in base_names:
-            raise NotImplementedError("conversion of 'DataFrame' not supported yet")
-        elif 'ndarray' in base_names:
-            raise NotImplementedError("conversion of 'ndarray' not supported yet")
-            # m = m.tolist()
-        elif 'flux_cls' in base_names or 'excel_levity_cls' in base_names:
-            m = list(m.rows())
-
-        m = generator_to_list(m)
-        assert_iteration_depth(m, 2)
-
-        if is_flux_row_class(m[0]):
-            m = [row.values for row in m]
-
-        self.__assert_valid_headers(m[0])
         if not self.headers:
             self.headers = index_sequence(str(v) for v in m[0])
 
@@ -108,7 +92,8 @@ class flux_cls:
 
     def _reapply_header_names(self, headers):
         """
-        self.headers.clear() must be called as to not de-reference flux_row_cls._headers
+        re-assigning self.headers will de-reference flux_row_cls._headers
+        instead, self.headers.clear() must be called, followed by addition of items
         """
         if len(headers) != self._num_cols:
             self._num_cols = None
@@ -234,27 +219,31 @@ class flux_cls:
 
         self._reapply_header_names(renamed)
 
-    def insert_columns(self, *inserted):
+    def insert_columns(self, *names):
         """
-        :param inserted: (before_header, new_header)
+        :param names: (before, header_name)
 
-        eg inserted:
-            [(0,          'header_a'),      insert column at index 0
-             ('*f',       'header_a'),      insert column at index 0
-             ('header_a', 'header_b')]      insert column before 'header_b'
+        eg names:
+            flux.insert_columns('header_a')                     insert column at index 0
+            flux.insert_columns((3, 'header_a'))                insert column at index 3
+            flux.insert_columns(('header_a', 'header_b'))       insert column at index 0
         """
-        inserted = modify_iteration_depth(inserted)
-        nd = iteration_depth(inserted)
+        names = modify_iteration_depth(names)
 
+        nd = iteration_depth(names)
         if nd == 0:
-            inserted = [(0, inserted)]
+            names = [(0, names)]
         elif nd == 1:
-            inserted = [inserted]
+            names = [names]
+
+        non_unique = list(self.headers.keys() & set([n[1] for n in names]))
+        if non_unique:
+            raise ValueError('duplicate column name(s) detected:\n{}'.format(non_unique))
 
         header_values = self.header_values
-        for before, header in inserted:
-            i = None
+        for before, header in names:
 
+            i = None
             if isinstance(before, int):
                 i = before
             elif isinstance(before, str):
@@ -272,7 +261,7 @@ class flux_cls:
             header_values.insert(i, header)
 
         indices = []
-        for _, header in inserted:
+        for _, header in names:
             indices.append(header_values.index(header))
 
         indices.sort()
@@ -285,6 +274,10 @@ class flux_cls:
 
     def append_columns(self, *names):
         names = modify_iteration_depth(names, depth=1)
+
+        non_unique = list(self.headers.keys() & set(names))
+        if non_unique:
+            raise ValueError('duplicate column name(s) detected:\n{}'.format(non_unique))
 
         self.matrix[0].values.extend(names)
         for header in names:
@@ -313,17 +306,17 @@ class flux_cls:
 
         max_cols = self.num_cols
 
-        indices = []
+        row_indices = []
         for i, row in enumerate(self.matrix):
             values = row.values
             num_missing = max_cols - len(values)
 
             if num_missing > 0:
-                indices.append(i)
+                row_indices.append(i)
                 nones = [None for _ in range(num_missing)]
                 values.extend(nones)
 
-        return indices
+        return row_indices
 
     def insert_rows(self, i, rows):
         self._num_cols = None
@@ -376,7 +369,11 @@ class flux_cls:
         return flux
 
     def __sort_rows(self, f, reverse):
-        r = reverse or []
+        if isinstance(reverse, bool):
+            r = [reverse]
+        else:
+            r = reverse or []
+
         if not isinstance(r, (list, tuple)):
             raise ValueError('reverse must be either a list of boolean')
 
@@ -476,25 +473,6 @@ class flux_cls:
 
         for i, row in enumerate(self.matrix, start):
             row.__dict__['i'] = i
-
-    def bind(self):
-        """ speeds up attribute access on rows
-
-        * Waring: this method could cause serious side-effects, only use unless you
-                  are aware of these behaviors
-
-        bind attributes directly to the instance __dict__, bypassing the need for
-        dynamic __getattr__ and __setattr__ lookups
-
-        when converting rows back to primitive values, any modifications made to
-        attributes will not persist unless row.unbind() is called first
-        """
-        [row.bind() for row in self.matrix]
-
-    def unbind(self):
-        """ reset dynamic attribute access values on rows """
-        names = tuple(self.headers.keys())
-        [row.unbind(names) for row in self.matrix]
 
     def copy(self, deep=False):
         if deep:
@@ -642,7 +620,29 @@ class flux_cls:
             raise TypeError("unhandled type conversion for '{}'".format(f))
 
     @staticmethod
-    def __assert_valid_headers(headers):
+    def __validate_matrix(m):
+        base_names = set(base_class_names(m))
+
+        if 'DataFrame' in base_names:
+            raise NotImplementedError("conversion of 'DataFrame' not supported yet")
+
+        if 'ndarray' in base_names:
+            raise NotImplementedError("conversion of 'ndarray' not supported yet")
+
+        if 'flux_cls' in base_names or 'excel_levity_cls' in base_names:
+            m = list(m.rows())
+
+        m = generator_to_list(m)
+        if iteration_depth(m) != 2:
+            raise IndexError('matrix must have exactly 2 dimensions')
+
+        if is_flux_row_class(m[0]):
+            m = [row.values for row in m]
+
+        return m
+
+    @staticmethod
+    def __validate_headers(headers):
         reserved = set(headers) & flux_row_cls.class_names
         if reserved:
             raise NameError('conflicting name(s) {} found in header row: {}'.format(list(reserved), headers))
@@ -650,19 +650,21 @@ class flux_cls:
     def __len__(self):
         return len(self.matrix)
 
-    def __getitem__(self, ref):
-        if isinstance(ref, int):
-            return self.matrix[ref]
+    def __getitem__(self, row_or_col):
+        """ returns flux_row(s) or values from specified column
+        eg:
+            flux_row  = flux[3]
+            flux_rows = flux[3:5]
+            values    = flux['col']
+        """
 
-        if isinstance(ref, str):
-            if ref not in self.headers:
-                raise ValueError("column '{}' not in headers".format(ref))
+        # flux_row
+        if isinstance(row_or_col, int):
+            return self.matrix[row_or_col]
 
-            i = self.headers[ref]
-            return [row.values[i] for row in self]
-
-        if isinstance(ref, slice):
-            i_1, i_2, step = ref.start, ref.stop, ref.step
+        # flux_rows (slice)
+        if isinstance(row_or_col, slice):
+            i_1, i_2, step = row_or_col.start, row_or_col.stop, row_or_col.step
             if i_1 is not None:
                 if i_1 < 0:
                     i_1 = len(self.matrix) + i_1
@@ -671,27 +673,39 @@ class flux_cls:
                 if i_2 < 0:
                     i_2 = len(self.matrix) + i_2
 
-            return list(row for row in islice(self.matrix, i_1, i_2, step))
+            return [row for row in islice(self.matrix, i_1, i_2, step)]
 
-        raise KeyError("reference syntax should be integers, eg 'flux[1:3]'")
+        # column values
+        if row_or_col in self.headers:
+            i = self.headers[row_or_col]
+            return [row.values[i] for row in self]
 
-    def __setitem__(self, ref, column):
-        if ref not in self.headers:
-            self.append_columns(ref)
+        raise KeyError("undefined reference: '{}'".format(row_or_col))
 
-        column = modify_iteration_depth(column, 1)
-        nd = iteration_depth(column)
+    def __setitem__(self, col_name, col_values):
+        """ sets values to a single column
 
+        number of values must be equal to length of self.matrix - 1
+        eg:
+            flux['col'] = [None] * flux.num_rows
+        """
+        col_values = modify_iteration_depth(col_values, 1)
+
+        nd = iteration_depth(col_values)
         if nd == 0:
-            column = [column]
+            col_values = [col_values]
         elif nd == 2:
-            column = transpose(column)[0]
+            col_values = transpose(col_values)[0]
 
-        if len(column) != self.num_rows:
-            raise ValueError('invalid length')
+        if len(col_values) != self.num_rows:
+            raise ValueError('number of rows in column must match the number of rows in flux')
 
-        i = self.headers[ref]
-        for row, v in zip(self, column):
+        if col_name not in self.headers:
+            # potentially inefficient to init with Nones when values are known...
+            self.append_columns(col_name)
+
+        i = self.headers[col_name]
+        for row, v in zip(self, col_values):
             row.values[i] = v
 
     def __iter__(self):

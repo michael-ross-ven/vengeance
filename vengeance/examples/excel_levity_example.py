@@ -34,7 +34,7 @@ import vengeance
 from vengeance import print_runtime
 from vengeance import excel_levity_cls
 
-from examples import excel_project_template as share
+from examples import excel_project_example as share
 
 xlPasteColumnWidths    = 8
 xlCalculationManual    = -4135
@@ -94,7 +94,7 @@ def instantiate_lev(tab_name):
     of target worksheet so that range boundaries can be set correctly;
     make sure nothing is dependent on having data filtered in the worksheet
     """
-    lev = share.tab_to_lev(tab_name)
+    lev = share.worksheet_to_lev(tab_name)
 
     a = repr(lev)
 
@@ -172,7 +172,7 @@ def lev_subsections():
     lev_2.clear('*f *f:*l *l', clear_colors=True)
     lev_3.clear('*f *f:*l *l', clear_colors=True)
 
-    lev = share.tab_to_lev('subsections')
+    lev = share.worksheet_to_lev('subsections')
     lev['*f *h:*l *l'].Interior.Color = xlNone
     lev.reapply_filter()
 
@@ -198,7 +198,7 @@ def iterate_primitive_rows():
           potentially because the matrix returns as read-only tuples,
           and because Excel's error values are not recognized (see iterate_excel_errors())
     """
-    lev = share.tab_to_lev('Sheet1')
+    lev = share.worksheet_to_lev('Sheet1')
     # lev = share.tab_to_lev('errors')
     # lev = share.tab_to_lev('empty sheet')
 
@@ -264,7 +264,7 @@ def iterate_flux_rows():
 
 
 def iterate_excel_errors():
-    lev = share.tab_to_lev('errors')
+    lev = share.worksheet_to_lev('errors')
 
     # these will return excel's integer error code, be careful
     for row in lev['B3:D6'].Value:
@@ -279,7 +279,7 @@ def iterate_excel_errors():
 
 
 def write_values():
-    lev = share.tab_to_lev('Sheet2')
+    lev = share.worksheet_to_lev('Sheet2')
     lev.clear('*f *f:*l *l')
 
     # write single value
@@ -299,7 +299,7 @@ def write_values():
     lev['*f *h'] = m
 
     # helper function shortcut
-    share.write_to_tab('Sheet2', m)
+    share.write_to_worksheet('Sheet2', m)
 
     # Excel dates
     a = lev['excel_date'].Value
@@ -319,8 +319,8 @@ def write_values():
 
 
 def write_values_from_lev():
-    lev_1 = share.tab_to_lev('Sheet1')
-    lev_2 = share.tab_to_lev('Sheet2')
+    lev_1 = share.worksheet_to_lev('Sheet1')
+    lev_2 = share.worksheet_to_lev('Sheet2')
 
     lev_2.clear('*f *f:*l *l')
     lev_2['*f 5'] = lev_1.rows(5, 10)
@@ -329,11 +329,11 @@ def write_values_from_lev():
     lev_2['*f *h'] = lev_1
 
     # helper function
-    share.write_to_tab(lev_2, lev_1)
+    share.write_to_worksheet(lev_2, lev_1)
 
 
 def append_values():
-    lev = share.tab_to_lev('Sheet2')
+    lev = share.worksheet_to_lev('Sheet2')
 
     lev.clear('*f *f:*l *l')
     a = lev.append_r
@@ -349,11 +349,11 @@ def append_values():
     lev['*f *a'] = m
 
     # or use helper function
-    share.write_to_tab(lev, ['d', 'd', 'd'], r_1='*a')
+    share.write_to_worksheet(lev, ['d', 'd', 'd'], r_1='*a')
 
 
 def write_formulas():
-    lev = share.tab_to_lev('Sheet2')
+    lev = share.worksheet_to_lev('Sheet2')
     lev.clear('*f *f:*l *l')
 
     lev.application.Calculation = xlCalculationManual
@@ -387,7 +387,7 @@ def modify_range_values(iter_method='slow'):
 
     value extraction into flux_cls can also be used for more complex transformations
     """
-    lev = share.tab_to_lev('Sheet1')
+    lev = share.worksheet_to_lev('Sheet1')
     # flux = share.tab_to_flux('Sheet1')
 
     if iter_method == 'slow':
@@ -425,8 +425,8 @@ def excel_object_model():
     ws.Range('C2:C10').Interior.Color = xlBlue
     ws.Range('D2:D10').Interior.Color = xlPink
 
-    lev_1 = share.tab_to_lev('Sheet1')
-    lev_2 = share.tab_to_lev('object model')
+    lev_1 = share.worksheet_to_lev('Sheet1')
+    lev_2 = share.worksheet_to_lev('object model')
 
     lev_2.remove_filter()
     lev_2.reapply_filter()
@@ -467,7 +467,7 @@ def activate_all_sheets():
 
     for ws in share.wb.Sheets:
         print("activate sheet: '{}'".format(ws.Name))
-        lev = share.tab_to_lev(ws)
+        lev = share.worksheet_to_lev(ws)
         lev.activate()
 
         sleep(0.25)

@@ -17,21 +17,21 @@ from . excel_constants import *
 
 
 def get_worksheet(wb,
-                  ws_name,
+                  ws,
                   *,
                   clear_filter=False,
                   activate=False):
 
-    if ws_name.__class__.__name__ in {'CDispatch', '_Worksheet'}:
-        return ws_name
+    if ws.__class__.__name__ in {'CDispatch', '_Worksheet'}:
+        return ws
 
     if wb is None:
-        raise AssertionError("Excel workbook has not been initialized! Cannot retrieve tab: '{}'".format(ws_name))
+        raise AssertionError("Excel workbook has not been initialized! Cannot retrieve tab: '{}'".format(ws))
 
     try:
-        ws = wb.Sheets[ws_name]
+        ws = wb.Sheets[ws]
     except com_error as e:
-        raise NameError("'{}' worksheet not found in '{}'".format(ws_name, wb.Name)) from e
+        raise NameError("'{}' worksheet not found in '{}'".format(ws, wb.Name)) from e
 
     if clear_filter:
         clear_worksheet_filter(ws)
@@ -137,16 +137,24 @@ def first_cell(excel_range):
 
 
 def last_cell(excel_range):
-    """ excel_range.Cells(excel_range.Cells.Count) causes an overflow error
-    this is not always reliable when excel_range.Cells() requires both row and column arguments
     """
-    a = excel_range.Address.split(':')[-1]
-    return excel_range.Parent.Range(a)
+    excel_range.Cells(excel_range.Cells.Count) is not always reliable
+    and can cause an overflow error, but when excel_range.Address
+    only provides row address, something like '$1:$20', this method must be used
+    """
+    try:
+        a = excel_range.Address.split(':')[-1]
+        return excel_range.Parent.Range(a)
+    except com_error:
+        # '$1:$20' = excel_range.Address
+        # excel_range.Parent.Rows(a)
+        pass
+
+    return excel_range.Cells(excel_range.Cells.Count)
 
 
 def is_filtered(ws):
-    if ws.AutoFilter is not None:
-        return ws.AutoFilter.FilterMode
+    return (ws.AutoFilter is not None) and bool(ws.AutoFilter.FilterMode)
 
 
 # noinspection PyProtectedMember

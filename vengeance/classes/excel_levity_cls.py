@@ -45,7 +45,7 @@ class excel_levity_cls:
                        last_r=0):
 
         self.sheet = ws
-        self.tab_name = ws.Name
+        self.sheet_name = ws.Name
 
         self.headers = OrderedDict()
         self.meta_headers = OrderedDict()
@@ -397,7 +397,7 @@ class excel_levity_cls:
             yield row
 
     def __repr__(self):
-        return "'{}' {}{}:{}{}".format(self.tab_name,
+        return "'{}' {}{}:{}{}".format(self.sheet_name,
                                        self.first_c,
                                        self.header_r,
                                        self.last_c,

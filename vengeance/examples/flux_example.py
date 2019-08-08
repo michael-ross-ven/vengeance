@@ -6,7 +6,7 @@ from vengeance import flux_cls
 from vengeance import print_runtime
 from vengeance.util.text import print_performance
 
-from examples import excel_project_template as share
+from examples import excel_project_example as share
 
 
 @print_runtime
@@ -16,7 +16,7 @@ def main():
     print()
 
     flux = instantiate_flux()
-    conflicting_header_names()
+    # invalid_instantiations()
 
     write_to_file(flux)
     read_from_file()
@@ -41,6 +41,7 @@ def main():
 
 
 def instantiate_flux(num_rows=100, num_cols=3, str_len=15):
+
     m = [['col_a', 'col_b', 'col_c']]
     for _ in range(num_rows):
         m.append([''.join(choice(ascii_s) for _ in range(str_len))
@@ -61,20 +62,29 @@ def instantiate_flux(num_rows=100, num_cols=3, str_len=15):
     return flux
 
 
-def conflicting_header_names():
+def invalid_instantiations():
     """
-    the flux_row_cls has certain reserved attributes (see iterate_flux_rows())
+    matrix must have exactly 2-dimensions
+    although a blank flux_cls may be instantiated without any arguments
+    eg
+        flux = flux_cls()
+        but not
+        flux = flux_cls([])
 
-    for row in flux:
-        row.names
-        row.values
-    """
+    there are certain reserved column names that cannot appear as
+    dynamic header names in matrix
+
     from vengeance.classes.flux_row_cls import flux_row_cls
-    print('headers cannot be named: {}\n'.format(flux_row_cls.class_names))
+    print('invalid header names: {}'.format(flux_row_cls.class_names))
+    """
 
     try:
-        m = [['values', 'other_col', 'other_col']]
-        flux_cls(m)
+        flux_cls(['col_a', 'col_b', 'col_c'])
+    except IndexError as e:
+        print(e)
+
+    try:
+        flux_cls([['values', '_headers', 'names', 'col_a']])
     except NameError as e:
         print(e)
 
@@ -82,31 +92,27 @@ def conflicting_header_names():
 
 
 def read_from_file():
-    """ thse are CLASS METHODS, called from flux_cls not flux """
-    f_dir = share.project_dir
-
-    # flux = flux_cls.from_csv(f_dir + 'flux_file.csv')
-    # flux = flux_cls.from_json(f_dir + 'flux_file.json')
-    flux = flux_cls.deserialize(f_dir + 'flux_file.flux')
+    """ class methods """
+    # flux = flux_cls.from_csv(share.project_dir + 'flux_file.csv')
+    # flux = flux_cls.from_json(share.project_dir + 'flux_file.json')
+    flux = flux_cls.deserialize(share.project_dir + 'flux_file.flux')
 
 
 def write_to_file(flux):
-    """ thse are INSTANCE METHODS, called from flux not flux_cls """
-    f_dir = share.project_dir
-
-    # flux.to_csv(f_dir + 'flux_file.csv')
-    # flux.to_json(f_dir + 'flux_file.json')
-    flux.serialize(f_dir + 'flux_file.flux')
+    """ instance methods """
+    # flux.to_csv(share.project_dir + 'flux_file.csv')
+    # flux.to_json(share.project_dir + 'flux_file.json')
+    flux.serialize(share.project_dir + 'flux_file.flux')
 
 
 def read_from_excel():
     share.open_project_workbook(read_only=True)
-    flux = share.tab_to_flux('Sheet2')
+    flux = share.worksheet_to_flux('Sheet2')
 
 
 def write_to_excel(flux):
     share.open_project_workbook(read_only=True)
-    share.write_to_tab('Sheet2', flux)
+    share.write_to_worksheet('Sheet2', flux)
 
 
 def modify_columns(flux):
@@ -117,7 +123,7 @@ def modify_columns(flux):
     del flux[5].values[2]
 
     if flux.is_jagged:
-        indices = flux.fill_jagged_columns()
+        row_indices = flux.fill_jagged_columns()
 
     flux.rename_columns({'col_a': 'renamed_a',
                          'col_b': 'renamed_b'})
@@ -241,8 +247,8 @@ def iterate_flux_rows(flux):
     # flux.enumerate_rows()         # labels rows by index to help identify them more easily
 
     for row in flux:
-        a = row.names               # see conflicting_header_names()
-        a = row.values
+        a = row.names               # values; see conflicting_header_names()
+        a = row.values              # see conflicting_header_names()
         a = row.view_as_array       # to help with debugging; triggers a special view in PyCharm
 
         a = row.col_a

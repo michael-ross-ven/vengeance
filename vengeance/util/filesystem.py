@@ -1,18 +1,18 @@
 
-import os
-import csv
-import json
-import shutil
 import _pickle as cpickle
 
-from glob import glob
+import csv
+import json
+import os
+import shutil
+
 from datetime import datetime
+from glob import glob
 
-from . iter import generator_to_list
-from . iter import assert_iteration_depth
-
-from . text import repr_
-from . text import p_json_dumps
+from .iter import assert_iteration_depth
+from .iter import generator_to_list
+from .text import p_json_dumps
+from .text import repr_
 
 
 def read_file(path, encoding=None):
@@ -22,6 +22,7 @@ def read_file(path, encoding=None):
         .json
         .flux
         .pkl
+        .pickle
 
     TODO:
         add .xls, .xlsx, .xlsm, .xlsb, .7z, .gzip, .hd5
@@ -39,7 +40,7 @@ def read_file(path, encoding=None):
         with open(path, 'r', encoding=encoding) as f:
             return json.load(f)
 
-    if extn in {'.flux', '.pkl'}:
+    if extn in {'.flux', '.pkl', '.pickle'}:
         with open(path, 'rb') as f:
             return cpickle.load(f)
 
@@ -54,6 +55,7 @@ def write_file(path, data, mode='w', encoding=None):
         .json
         .flux
         .pkl
+        .pickle
 
     (assumes text file if extension not otherwise specified)
     """
@@ -75,7 +77,7 @@ def write_file(path, data, mode='w', encoding=None):
 
         return
 
-    if extn in {'.flux', '.pkl'}:
+    if extn in {'.flux', '.pkl', '.pickle'}:
         with open(path, mode + 'b') as f:
             cpickle.dump(data, f)
 
@@ -183,8 +185,16 @@ def sanatize_file_name(f_name):
                     '<':  '-',
                     '>':  '-',
                     '|':  '-',
+                    '–':  '-',
+                    '\n': '-',
+                    '\t': '-',
                     '"':  '-',
-                    "'":  '-'}
+                    '“':  '-',
+                    '”':  '-',
+                    "'":  '-',
+                    "‘":  '-',
+                    "’":  '-',
+                    chr(160): ' '}      # non-breaking html space
 
     for k, v in invalid_chrs.items():
         f_name = f_name.replace(k, v)
@@ -228,7 +238,7 @@ def file_extension(f_name, include_dot=True):
     if include_dot is False:
         extn = extn.replace('.', '')
 
-    return extn
+    return extn.lower()
 
 
 def apply_file_extension(f_name, extn):

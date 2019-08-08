@@ -99,7 +99,7 @@ $release 10
 2019-05-01
 $release 11
 	fixed bug in get_worksheet(), when tab name does not exist
-	small performance optimization (~10%) in flux_row_cls.__getitem__() and flux_row_cls.__setitem__()
+	small performance optimization (~10% faster) in flux_row_cls.__getitem__() and flux_row_cls.__setitem__()
 	by removing self.__dict__ attributes
 
 
@@ -109,7 +109,7 @@ $release 12
 	flux.apply_row_indices() method added
 	fixed bug in flux_cls.matrix_by_headers() when num_rows is 0
 
-	additional performance optimization (~10%) flux_row_cls.__getattr__() and flux_row_cls.__setattr__()
+	additional performance optimization (~10% faster) flux_row_cls.__getattr__() and flux_row_cls.__setattr__()
 	by eliminating function call overhead to flux_row_cls.__getitem__() and flux_row_cls.__setitem__()
 
 
@@ -146,7 +146,7 @@ $release 16
 $release 17
 	updated README.md
 
-	performance optimization (~10%) in flux_cls.__to_flux_rows()
+	performance optimization (~10% faster) in flux_cls.__to_flux_rows()
 	(for a matrix with 3 columns, flux_cls instantiation now only takes about 1 sec per 1,000,000 rows)
 
 
@@ -163,7 +163,7 @@ $release 19
 	removed flux_cls.has_data attribute
 	fixed bug in flux_cls.copy()
 
-	performance optimization (~10%) to transpose()
+	performance optimization (~10% faster) to transpose()
 	allow 'any' as excel_instance param for open_workbook() function 
 	added cached levs to excel_project_template.py
 
@@ -175,8 +175,19 @@ $release 20
 
 
 
-2019-
-$release 21
+2019-08-08
+$release 28
+	flux_cls.insert_columns() and flux_cls.append_columns() will raise error if non-unique column names submitted
+	flux_cls.bind() and flux_cls.unbind() methods removed
+	performance optimization (~2x faster) to flux_cls.__getitem__, when parameter is a slice
+		
+
+	flux_row_cls.class_names expanded to include 'names', 'dict' and 'namedtuples'
+	
+
+
+
+
 
 
 

@@ -1,16 +1,12 @@
-
+import re
 import json
 
 from timeit import default_timer
 from datetime import date
 from collections import Iterable
 
-nbsp = chr(160)
-nonstandard_chars = "\"\'\n\t" + nbsp
-
 
 def print_runtime(f):
-
     def runtime_wrapper(*args, **kwargs):
         f_name = f.__module__.split('.')[-1]
         f_name = '{}.{}'.format(f_name, f.__name__)
@@ -58,14 +54,6 @@ def print_performance(f=None, *, repeat=3, number=100):
     """
     stolen and modified from
     https://github.com/realpython/materials/blob/master/pandas-fast-flexible-intuitive/tutorial/timer.py
-
-    Decorator: prints time from best of repeat trials.
-
-    Mimics timeit.repeat(), but avg. time is printed.
-    Returns function result and prints time.
-
-    You can decorate with or without parentheses, as in
-    Python's @dataclass class decorator.
     """
     import gc
     import functools
@@ -82,14 +70,14 @@ def print_performance(f=None, *, repeat=3, number=100):
             gc.disable()
 
             result = None
-            best   = None
-            total  = 0
+            best = None
+            total = 0
 
             try:
                 for _ in _repeat(repeat):
                     total = 0
 
-                    for _ in _repeat(number):                   # number of trials within each repeat.
+                    for _ in _repeat(number):  # number of trials within each repeat.
                         tic = default_timer() * 1000
                         result = func(*args, **kwargs)
                         toc = default_timer() * 1000
@@ -109,7 +97,7 @@ def print_performance(f=None, *, repeat=3, number=100):
 
                 print_unicode('   τ: @{}: {} (average), {} (best)'.format(f_name,
                                                                           format_ms(average),
-                                                                          format_ms(best),))
+                                                                          format_ms(best), ))
 
             finally:
                 if gcold:
@@ -179,28 +167,32 @@ def repr_(sequence, concat=', ', quotes=False, wrap=True):
 
 
 def sanitize(v):
+    """
+    convert value to string and remove common characters that can make
+    string more difficult to work with (quotes and whitespace)
+
+    (the html non-breaking space (&nbsp) is particularly annoying, but dealt
+    with by the regex whitespace character class)
+    """
+    non_standard_re = re.compile(r'[\"\'\s]+')
+
     s = value_to_string(v)
-    s = remove_multiple(s, nonstandard_chars)
-    s = s.strip()
+    s = non_standard_re.sub('', s).strip()
 
     return s
 
 
 def value_to_string(v):
-    if isinstance(v, str):
-        return v
-
     if v is None:
-        v = ''
-    elif isinstance(v, date):
-        v = v.strftime('%Y-%m-%d')
-    else:
-        v = str(v)
+        return ''
 
-    return v
+    return str(v)
 
 
 def remove_multiple(s, substrs, first_only=False):
+    if s == '':
+        return s
+
     for sub in substrs:
         if first_only:
             s = s.replace(sub, '', 1)
@@ -230,6 +222,7 @@ def p_json_dumps(o, indent=4, ensure_ascii=False):
         dates
         sets
     """
+
     def unhandled_conversion(_o):
         if isinstance(_o, date):
             return _o.isoformat()
@@ -239,7 +232,7 @@ def p_json_dumps(o, indent=4, ensure_ascii=False):
 
         raise TypeError('cannot convert type to json ' + repr(_o))
 
-    s = json.dumps(o, indent=indent,  default=unhandled_conversion, ensure_ascii=ensure_ascii)
+    s = json.dumps(o, indent=indent, default=unhandled_conversion, ensure_ascii=ensure_ascii)
 
     return s
 
@@ -256,7 +249,7 @@ def to_ascii(s):
         s = s.replace(old, new)
 
     s = (s.encode('ascii', errors='backslashreplace')
-          .decode('ascii'))
+         .decode('ascii'))
 
     return s
 
@@ -270,5 +263,3 @@ def print_unicode(s):
 
 def vengeance_message(s):
     print_unicode('\tν: {}'.format(s))
-
-

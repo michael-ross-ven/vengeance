@@ -39,26 +39,26 @@ def close_project_workbook(save=True):
     wb = None
 
 
-def tab_to_lev(tab,
-               header_r=2,
-               meta_r=1,
-               first_c='B',
-               last_c=''):
+def worksheet_to_lev(ws,
+                     header_r=2,
+                     meta_r=1,
+                     first_c='B',
+                     last_c=None):
 
     global __levs
-    if isinstance(tab, excel_levity_cls):
-        return tab
 
-    if hasattr(tab, 'Name'):
-        tab_name = tab.Name.lower()
+    if isinstance(ws, excel_levity_cls):
+        ws_name = ws.sheet_name.lower()
+    elif hasattr(ws, 'Name'):
+        ws_name = ws.Name.lower()
     else:
-        tab_name = tab.lower()
-        if tab_name in {'sheet1', 'empty sheet'}:
+        ws_name = ws.lower()
+        if ws_name in {'sheet1', 'empty sheet'}:
             header_r = 1
             meta_r   = 0
             first_c = 'A'
 
-    k = (tab_name,
+    k = (ws_name,
          header_r,
          meta_r,
          first_c,
@@ -67,7 +67,7 @@ def tab_to_lev(tab,
     if k in __levs:
         lev = __levs[k]
     else:
-        ws  = vengeance.get_worksheet(wb, tab)
+        ws  = vengeance.get_worksheet(wb, ws)
         lev = excel_levity_cls(ws,
                                meta_r=meta_r,
                                header_r=header_r,
@@ -94,20 +94,20 @@ def lev_subsection(tab_name, c_1, c_2, header_r=2, meta_r=1):
                             last_c=c_2)
 
 
-def tab_to_flux(tab_name,
-                header_r=2,
-                meta_r=1,
-                first_c='B'):
+def worksheet_to_flux(ws,
+                      header_r=2,
+                      meta_r=1,
+                      first_c='B'):
 
-    lev = tab_to_lev(tab_name, header_r, meta_r, first_c)
+    lev = worksheet_to_lev(ws, header_r, meta_r, first_c)
     return flux_cls(lev)
 
 
-def write_to_tab(tab_name, m, r_1='*h', c_1=None, c_2=None):
+def write_to_worksheet(tab_name, m, r_1='*h', c_1=None, c_2=None):
     if c_1 is not None:
         lev = lev_subsection(tab_name, c_1, c_2)
     else:
-        lev = tab_to_lev(tab_name)
+        lev = worksheet_to_lev(tab_name)
 
     lev.activate()
     was_filtered = lev.has_filter

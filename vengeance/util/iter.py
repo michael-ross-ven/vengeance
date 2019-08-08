@@ -266,14 +266,15 @@ def index_sequence(seq, start=0):
     non_unique = defaultdict(int)
 
     for i, v in enumerate(seq, start):
-        if v == '':
-            v = 'None'
+        if v in {'', None}:
+            v = '(blank)'
 
+        v_ = v
         if v in non_unique:
             v = '{} (nonunique_{})'.format(v, non_unique[v] + 1)
 
         items.append((v, i))
-        non_unique[v] += 1
+        non_unique[v_] += 1
 
     return OrderedDict(items)
 

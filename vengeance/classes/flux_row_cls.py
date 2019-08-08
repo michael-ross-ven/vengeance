@@ -7,27 +7,27 @@ class flux_row_cls:
 
     class_names = {'_headers',
                    'values',
-                   'is_bound'}
+                   'names',
+                   'dict',
+                   'namedtuples'}
 
     def __init__(self, headers, values):
         """
         :param headers: OrderedDict of {'header': index}
-        :param values:  list of underlying data
 
-        headers is a single dictionary passed byref from the
-        flux_cls to all flux_row_cls instances, reducing unneccesary
-        memory usage and allowing all mapping updates to be made
-        instantaneously
+            * headers is a single dictionary passed byref from the
+              flux_cls to many flux_row_cls instances
+            * this eliminates need for all flux_row_cls objects
+              to maintain a seprate copy of these mappings and
+              allows for centralized and instantaneous updatdes
 
-        namedtuples may be more efficient, but too much of a headache to deal
-        with their immutability
+        :param values: list of underlying data
 
         self.__dict__ is used to set attributes in __init__ so as to avoid
         premature __setattr__ lookups
         """
         self.__dict__['_headers'] = headers
         self.__dict__['values']   = values
-        self.__dict__['is_bound'] = False
 
     @property
     def names(self):
@@ -53,40 +53,13 @@ class flux_row_cls:
             return nt_cls(*self.values)
         except ValueError as e:
             import re
+            names = [n for n in self.names if re.search('^[^a-z]|[ ]', n, re.IGNORECASE)]
 
-            names = [n for n in self.names
-                       if re.search('^[^a-z]|[ ]', n, re.IGNORECASE)]
             raise ValueError("invalid headers for namedtuple: {}".format(names)) from e
-
-    def bind(self):
-        """ bind headers / values directly to instance, avoiding need for subsequent __getattr__ lookups
-        (only use this if you know the side-effects)
-        """
-        if self.__dict__['is_bound']:
-            return
-
-        self.__dict__.update(zip(self.names, self.values))
-
-        self.__dict__['values'] = '(values bound to __dict__)'
-        self.__dict__['is_bound'] = True
-
-    def unbind(self, names=None):
-        if not self.__dict__['is_bound']:
-            return
-
-        if names is None:
-            names = self.__dict__.keys() - self.class_names
-
-        values = self.__dict__['values'] = []
-        for k in names:
-            v = self.__dict__.pop(k)
-            values.append(v)
-
-        self.__dict__['is_bound'] = False
 
     def __getattr__(self, name):
         """  eg:
-             v = row.header
+             v = row.column
         """
         try:
             i = self._headers.get(name, name)
@@ -96,7 +69,7 @@ class flux_row_cls:
 
     def __getitem__(self, name):
         """ eg:
-            v = row['header']
+            v = row['column']
 
         name is converted to an integer, which is then used to reference self.values
 
@@ -111,12 +84,8 @@ class flux_row_cls:
 
     def __setattr__(self, name, value):
         """ eg:
-            row.header = v
+            row.column = v
         """
-        if name in self.__dict__:               # a property directly on flux_row_cls
-            self.__dict__[name] = value
-            return
-
         try:
             i = self._headers.get(name, name)
             self.values[i] = value
@@ -125,7 +94,7 @@ class flux_row_cls:
 
     def __setitem__(self, name, value):
         """ eg:
-            row['header'] = v
+            row['column'] = v
 
         name is converted to an integer, which is then used to reference self.values
 
@@ -171,8 +140,10 @@ class lev_row_cls(flux_row_cls):
 
     class_names = {'_headers',
                    'values',
-                   'address',
-                   'is_bound'}
+                   'names',
+                   'dict',
+                   'namedtuples',
+                   'address'}
 
     def __init__(self, headers, values, address):
         super().__init__(headers, values)
