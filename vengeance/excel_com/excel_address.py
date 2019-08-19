@@ -1,8 +1,6 @@
 
 import re
 
-col_re = re.compile('[a-z]{1,3}', re.I)
-
 max_rows    = 1048575
 max_cols    = 16384             # maximum number of columns in an excel worksheet (office 2010)
 max_str_len = 32767             # largest string that will fit in a single cell
@@ -31,7 +29,7 @@ def col_letter(col_int):
 
 def col_number(col_str):
     """ convert column letters to int representation """
-    if col_str == '':
+    if col_str == '' or col_str is None:
         return 0
 
     if isinstance(col_str, (float, int)):
@@ -55,11 +53,16 @@ def col_number(col_str):
 
 
 def __assert_valid_column_letter(col_str):
+    col_re = re.compile('^[a-z]{1,3}$', re.I)
+
     if not col_re.match(col_str):
-        raise ValueError("invalid excel column: '{}'".format(col_str))
+        raise ValueError("'{}' is not a valid Excel column address"
+                         "\n(valid columns should be 'A - {}')"
+                         .format(col_str.upper(), col_letter(max_cols)))
 
 
 def __assert_valid_column_number(col_int):
     if col_int > max_cols:
-        raise ValueError("column number ({:,}) exceeds Excel's maximum column limit".format(col_int))
+        raise ValueError("column number ({:,}) exceeds Excel's maximum column limit"
+                         .format(col_int))
 

@@ -145,17 +145,22 @@ def instantiate_lev(tab_name):
 
 def lev_subsections():
     """
-    row 1 (colored grey) in the Excel worksheets can be used as subsection markup,
-    although any other column reference will work
+    row 1 (called the meta_row) in the Excel worksheets can be used
+    to label subsections within a worksheet
+
+    any other column reference will work, however
 
     eg:
-        share.lev_subsection('subsections', '<sect_2>', '</sect_2>')
-        share.lev_subsection('subsections', 'col_d', 'col_h')
-        share.lev_subsection('subsections', 'F', 'H')
+        by meta names
+            share.worksheet_to_lev('subsections', c_1='<sect_2>', c_2='</sect_2>')
+        by header names
+            share.worksheet_to_lev('subsections', c_1='col_d', c_2='col_h')
+        by Excel column address
+            share.worksheet_to_lev('subsections', c_1='F', c_2='H')
     """
-    lev_1 = share.lev_subsection('subsections', '<sect_1>', '</sect_1>')
-    lev_2 = share.lev_subsection('subsections', '<sect_2>', '</sect_2>')
-    lev_3 = share.lev_subsection('subsections', '<sect_3/>', '<sect_3/>')
+    lev_1 = share.worksheet_to_lev('subsections', c_1='<sect_1>', c_2='</sect_1>')
+    lev_2 = share.worksheet_to_lev('subsections', c_1='<sect_2>', c_2='</sect_2>')
+    lev_3 = share.worksheet_to_lev('subsections', c_1='<sect_3/>', c_2='<sect_3/>')
 
     a = lev_1.meta_headers
     a = lev_1.meta_header_values
@@ -236,8 +241,7 @@ def iterate_flux_rows():
     m = list(lev.flux_rows())
         * as full matrix, includes header row
     """
-    # lev = share.tab_to_lev('Sheet1')
-    lev = share.lev_subsection('subsections', '<sect_1>', '</sect_1>')
+    lev = share.worksheet_to_lev('subsections', c_1='<sect_1>', c_2='</sect_1>')
 
     for row in lev:
         a = row.address

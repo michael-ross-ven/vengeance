@@ -75,6 +75,7 @@ def last_row(excel_range, default_r=1):
 
 
 def first_col(excel_range, default_c='A'):
+
     search = range_find(excel_range,
                         what='*',
                         look_at=xlPart,
@@ -91,6 +92,7 @@ def first_col(excel_range, default_c='A'):
 
 
 def last_col(excel_range, default_c='A'):
+
     search = range_find(excel_range,
                         what='*',
                         look_at=xlPart,
@@ -141,13 +143,14 @@ def last_cell(excel_range):
     excel_range.Cells(excel_range.Cells.Count) is not always reliable
     and can cause an overflow error, but when excel_range.Address
     only provides row address, something like '$1:$20', this method must be used
+
+    # '$1:$20' = excel_range.Address
+    # excel_range.Parent.Rows(a)
     """
     try:
         a = excel_range.Address.split(':')[-1]
         return excel_range.Parent.Range(a)
     except com_error:
-        # '$1:$20' = excel_range.Address
-        # excel_range.Parent.Rows(a)
         pass
 
     return excel_range.Cells(excel_range.Cells.Count)
@@ -229,9 +232,11 @@ def __excel_friendly_matrix(m):
 
     for r, row in enumerate(m):
         if len(row) != num_cols:
-            raise ValueError('jagged column (at row {:,}), cannot write to Excel'.format(r))
+            _m_ = [repr(_row_) for _row_ in m[r-1:r+2]]
+            _m_ = '\n\t'.join(_m_)
+            raise ValueError('jagged columns at row {:,} cannot write to Excel\n\n\t{}'.format(r, _m_))
 
-        row_ = []
+        _row_ = []
         for c, v in enumerate(row):
             if isinstance(v, (bool, int, float, str)) or v is None:
                 pass
@@ -240,9 +245,9 @@ def __excel_friendly_matrix(m):
             else:
                 v = repr(v)
 
-            row_.append(v)
+            _row_.append(v)
 
-        yield row_
+        yield _row_
 
 
 def parse_range(excel_range):

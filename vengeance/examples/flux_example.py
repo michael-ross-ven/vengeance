@@ -31,7 +31,7 @@ def main():
     iterate_flux_rows(flux)
 
     flux_sort_filter(flux)
-    flux_mapping()
+    flux_values()
 
     flux_subclass()
 
@@ -40,9 +40,8 @@ def main():
     # compare_against_pandas()
 
 
-def instantiate_flux(num_rows=100, num_cols=3, str_len=15):
-
-    m = [['col_a', 'col_b', 'col_c']]
+def instantiate_flux(num_rows=100, num_cols=3, str_len=5):
+    m = [['col_{}'.format(c) for c in ascii_s[:num_cols]]]
     for _ in range(num_rows):
         m.append([''.join(choice(ascii_s) for _ in range(str_len))
                                           for _ in range(num_cols)])
@@ -153,6 +152,8 @@ def modify_columns(flux):
     # appends a new column named new_col
     flux['new_col'] = ['n'] * flux.num_rows
 
+    pass
+
 
 def modify_rows(flux):
     flux_e = flux_cls()
@@ -178,6 +179,8 @@ def modify_rows(flux):
     
     flux_b.insert_rows(0, flux_a)
     flux_b.append_rows(flux_a[10:15])
+
+    pass
 
 
 def iterate_primitive_rows(flux):
@@ -208,6 +211,8 @@ def iterate_primitive_rows(flux):
 
     # extract single column
     b = [row[0] for row in flux.rows()]
+
+    pass
 
 
 def iterate_flux_rows(flux):
@@ -247,19 +252,31 @@ def iterate_flux_rows(flux):
     # flux.enumerate_rows()         # labels rows by index to help identify them more easily
 
     for row in flux:
-        a = row.names               # values; see conflicting_header_names()
-        a = row.values              # see conflicting_header_names()
+        # special flux_row_cls properties
+        a = row.names
+        a = row.values
         a = row.view_as_array       # to help with debugging; triggers a special view in PyCharm
 
+        # read row values
         a = row.col_a
         a = row['col_a']
         a = row[0]
 
+        # assign row values
         row.col_a = a
+        row['col_a'] = a
+        row[0] = a
+
+        # assign multiple row values
         row.values[1:] = ['blah', 'blah']
 
-    # slice, stride
-    m = flux[5:-2]
+    # slice
+    for row in flux[5:]:
+        pass
+
+    m = flux[10:-10]
+
+    # stride
     m = flux[::10]
 
     # extract single column
@@ -275,6 +292,8 @@ def iterate_flux_rows(flux):
         if r % 2 == 0:
             m.append(row.values)
 
+    pass
+
 
 def flux_sort_filter(flux):
 
@@ -287,57 +306,52 @@ def flux_sort_filter(flux):
     flux = flux.copy()
 
     # modifications return as new flux_cls
-    flux_b = flux.sorted('col_a', 'col_b', 'col_c',
-                         reverse=[True, True, True])
+    flux_b = flux.sorted('col_a', 'col_b', 'col_c', reverse=[True, True, True])
     flux_b = flux.filtered(starts_with_a)
     flux_b = flux.filtered_by_unique('col_a', 'col_b')
 
     # in-place modifications
-    flux.sort('col_a', 'col_b', 'col_c',
-              reverse=[False, True])
+    flux.sort('col_a', 'col_b', 'col_c', reverse=[False, True])
     flux.filter(starts_with_a)
     flux.filter_by_unique('col_a', 'col_b')
 
+    pass
 
-def flux_mapping():
-    """
-    notice there is a subtle difference in names between these functions
-        flux.index_row  (singular)
-        flux.index_rows (plural)
 
-        .index_row
-            * overwrites non-unique values
-            * eg, {'a': flux_row}
+def flux_values():
+    m = [['name_a', 'name_b', 'val']]
+    m.extend([['a', 'b', 10]] * 10)
+    m.extend([['c', 'd', 20]] * 10)
+    m.extend([['e', 'f', 30]] * 10)
 
-        .index_rows
-            * will map all rows as a lists
-            * effectively, a groupby statement
-            * eg, {'a': [flux_row, flux_row, flux_row]}
-    """
-    m = [['name_a', 'name_b', 'val_a', 'val_b']]
-    m.extend([['a', 'b', 10, 20]] * 10)
-    m.extend([['c', 'd', 50, 60]] * 20)
     flux = flux_cls(m)
 
     a = flux.unique_values('name_a')
     a = flux.unique_values('name_a', 'name_b')
+
     a = flux.namedtuples()
 
+    # .index_row ("row" singular) and .index_rows ("rows" plural)
     d_1 = flux.index_row('name_a', 'name_b')
     d_2 = flux.index_rows('name_a', 'name_b')
 
-    # notice the difference between these dictionaries
+    # different types of dictionaries returned
     a = d_1.__class__.__name__
     b = d_2.__class__.__name__
 
     k = ('a', 'b')
-    a = d_1[k]          # .index_row  (singular)
-    b = d_2[k]          # .index_rows (plural)
+    a = d_1[k]      # .index_row  (non-unique values are overwritten)
+    b = d_2[k]      # .index_rows (non-unique values are stored as list; effectively, a groupby statement)
 
-    # .index_rows() can act as a groupby / sumif
+    # .index_rows() can also act as a sumif
     for k, rows in d_2.items():
-        v = sum(row.val_a + row.val_b for row in rows)
-        print(k, v)
+        v = sum(row.val for row in rows)
+
+    # segments of identical values
+    a = flux.contiguous_indices('name_a', 'name_b')
+    b = flux.contiguous_rows('name_a', 'name_b')
+
+    pass
 
 
 def flux_subclass():
@@ -345,32 +359,37 @@ def flux_subclass():
     the flux_custom_cls.commands variable is intended to provide a high-level description
     of the behaviors of this class, and making its state transformations explicit and modular
 
-    flux.execute_commands(profile_performance=True)
-        output performance metrics for each command (requires line_profiler site-package)
+    flux.execute_commands(profile=True)
+        requires line_profiler site-package
+        outputs performance metrics for each command
         very useful for debugging any performance issues for custom flux methods
     """
     m = [['transaction_id', 'name', 'apples_sold', 'apples_bought'],
-         ['001', 'alice', 2, 0],
-         ['002', 'alice', 0, 1],
-         ['003', 'bob',   2, 1],
-         ['004', 'chris', 2, 1],
-         ['005', None,    7, 1]]
+         ['id-001', 'alice', 2, 0],
+         ['id-002', 'alice', 0, 1],
+         ['id-003', 'bob',   2, 1],
+         ['id-004', 'chris', 2, 1],
+         ['id-005',  None,   7, 1]]
 
     flux = flux_custom_cls(m)
 
     flux.execute_commands(flux.commands)
-    # flux.execute_commands(flux.commands, profile_performance=True)
+    # flux.execute_commands(flux.commands, profile=True)      # prints performance metrics for each command
+
+    pass
 
 
 class flux_custom_cls(flux_cls):
 
-    # "behavior manifest" variable
-    commands = ['_replace_nones',
+    # commands: a behavior manifest variable
+    # useful for concise, high-level summary of flux_cls
+    commands = [('sort', 'apples_sold'),
+                '_replace_nones',
                 '_count_unique_names']
 
     def __init__(self, matrix):
-        self.num_unique_names = []
         super().__init__(matrix)
+        self.num_unique_names = []
 
     def _replace_nones(self):
         for row in self:
@@ -381,18 +400,21 @@ class flux_custom_cls(flux_cls):
         self.num_unique_names = len(self.unique_values('name'))
 
 
-@print_performance(repeat=3, number=10)
+@print_performance(repeat=30)
 def attribute_access_performance(flux):
 
     for row in flux:
+        # read row values
         # a = row.col_a
         # b = row.col_b
         # c = row.col_c
 
+        # modify row values
         # row.col_a = 'a'
         # row.col_b = 'b'
         # row.col_c = 'c'
 
+        # read / modify row values
         row.col_a = row.col_a
         row.col_b = row.col_b
         row.col_c = row.col_c

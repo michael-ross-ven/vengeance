@@ -26,6 +26,7 @@ from .. excel_com.excel_address import col_number
 from .. excel_com.excel_constants import *
 
 from .. util.iter import index_sequence
+from .. util.iter import modify_iteration_depth
 from .. util.text import between
 
 from . flux_row_cls import lev_row_cls
@@ -44,10 +45,10 @@ class excel_levity_cls:
                        first_r=0,
                        last_r=0):
 
-        self.sheet = ws
-        self.sheet_name = ws.Name
+        self.ws = ws
+        self.ws_name = ws.Name
 
-        self.headers = OrderedDict()
+        self.headers      = OrderedDict()
         self.meta_headers = OrderedDict()
 
         self.first_c = first_c
@@ -87,15 +88,15 @@ class excel_levity_cls:
 
     @property
     def application(self):
-        return self.sheet.Application
+        return self.ws.Application
 
     @property
     def workbook(self):
-        return self.sheet.Parent
+        return self.ws.Parent
 
     @property
     def worksheet(self):
-        return self.sheet
+        return self.ws
 
     @property
     def named_ranges(self):
@@ -103,7 +104,7 @@ class excel_levity_cls:
 
     @property
     def has_filter(self):
-        return bool(self.sheet.AutoFilter)
+        return bool(self.ws.AutoFilter)
 
     @property
     def append_r(self):
@@ -127,21 +128,21 @@ class excel_levity_cls:
 
     def activate(self):
         if self.allow_focus:
-            activate_sheet(self.sheet)
+            activate_sheet(self.ws)
 
     def clear_filter(self):
         if not self.has_filter:
             return
 
-        if is_filtered(self.sheet):
+        if is_filtered(self.ws):
             self.set_range_boundaries()
 
     def remove_filter(self):
         if not self.has_filter:
             return
 
-        was_filtered = is_filtered(self.sheet)
-        self.sheet.AutoFilterMode = False
+        was_filtered = is_filtered(self.ws)
+        self.ws.AutoFilterMode = False
 
         if was_filtered:
             self.set_range_boundaries()
@@ -183,12 +184,12 @@ class excel_levity_cls:
             excel_range.Interior.Color = xlClear
 
     def set_range_boundaries(self, index_meta=True, index_header=True):
-        """ find the margins of data within worksheet
+        """ find the edges of data in worksheet
 
-        clear_worksheet_filter() MUST be called in order to correctly
-        search for cells that are non-null
+        worksheet filter MUST be cleared in order to correctly
+        determine these boundaries
         """
-        clear_worksheet_filter(self.sheet)
+        clear_worksheet_filter(self.ws)
         self.__find_range_boundaries()
 
         if index_meta:
@@ -201,7 +202,7 @@ class excel_levity_cls:
         self.first_c, self.last_c = self._fixed_columns
         self.first_r, self.last_r = self._fixed_rows
 
-        excel_range = self.sheet.UsedRange
+        excel_range = self.ws.UsedRange
 
         self.first_c = self.first_c or first_col(excel_range)
         self.first_c = col_letter(self.first_c)
@@ -213,7 +214,7 @@ class excel_levity_cls:
         r_1 = max(self.meta_r, self.header_r) + 1
         r_2 = excel_range.Rows.Count
         a = '{}{}:{}{}'.format(self.first_c, r_1, self.last_c, r_2)
-        excel_range = self.sheet.Range(a)
+        excel_range = self.ws.Range(a)
 
         self.first_r = self.first_r or first_row(excel_range, default_r=r_1)
         self.last_r  = self.last_r or last_row(excel_range, default_r=self.first_r)
@@ -225,38 +226,31 @@ class excel_levity_cls:
         else:
             header_r = self.header_r or self.meta_r or self.first_r
             a = '{}{}:{}{}'.format(self.first_c, header_r, self.last_c, header_r)
-            self.is_empty = is_range_empty(self.sheet.Range(a))
+            self.is_empty = is_range_empty(self.ws.Range(a))
 
     @classmethod
-    def index_headers(cls, ws, row_num=None):
-        if row_num is None:
-            row_num = first_row(ws)
+    def index_headers(cls, ws, row_int=None):
+        if row_int is None:
+            row_int = first_row(ws)
 
-        first_c = 'A'
-        last_c  = col_letter(ws.UsedRange.Columns.Count)
+        c = col_letter(ws.UsedRange.Columns.Count)
+        a = '{}{}:{}{}'.format('A', row_int, c, row_int)
+        excel_range = ws.Range(a)
 
-        row = ws.Range('{}{}:{}{}'.format(first_c, row_num, last_c, row_num))
-        row = next(gen_range_rows(row))
-        row = [str(v) for v in row]
-        if not any(row):
-            return OrderedDict()
-
-        first_c = col_number(first_c)
-        headers = index_sequence(row, start=first_c)
-        headers = OrderedDict((h, col_letter(v)) for h, v in headers.items())
-
-        return headers
+        return cls.__index_row_headers(excel_range)
 
     def __index_headers(self, row_ref):
         a = '*f {} :*l {}'.format(row_ref, row_ref)
-        row = self.excel_range(a)
-        row = next(gen_range_rows(row))
-        row = [str(v) for v in row]
-        if not any(row):
-            return OrderedDict()
+        excel_range = self.excel_range(a)
 
-        first_c = col_number(self.first_c)
-        headers = index_sequence(row, start=first_c)
+        return self.__index_row_headers(excel_range)
+
+    @classmethod
+    def __index_row_headers(cls, excel_range):
+        row = next(gen_range_rows(excel_range))
+
+        start = excel_range.Column
+        headers = index_sequence(row, start)
         headers = OrderedDict((h, col_letter(v)) for h, v in headers.items())
 
         return headers
@@ -280,7 +274,7 @@ class excel_levity_cls:
         try:
             if ref not in self._named_ranges:
                 a = self.excel_address(ref)
-                excel_range = self.sheet.Range(a)
+                excel_range = self.ws.Range(a)
             else:
                 named_range = self._named_ranges[ref]
                 a = '{}!{}'.format(named_range.tab_name, named_range.address)
@@ -376,15 +370,49 @@ class excel_levity_cls:
             a = '${}${}:${}${}'.format(c_1, r, c_2, r)
             yield lev_row_cls(headers, row, a)
 
+    def __validate_destination_size(self, m, c_1, r_1):
+        """
+        m = [['w', 'q']]
+        lev = worksheet_to_lev(ws, c_1='D', c_2='D')
+
+        wont fit; only one column allowed
+
+        TODO: IndexError message
+        """
+        num_cols = len(m[0])
+        num_rows = len(m)
+
+        first_c, last_c = self._fixed_columns
+        first_r, last_r = self._fixed_rows
+
+        if last_c is not None:
+            first_c = first_c or c_1
+            col_max = (col_number(last_c) - col_number(first_c)) + 1
+
+            if num_cols > col_max:
+                raise IndexError('num columns in matrix exceeds fixed column size of lev')
+
+        if last_r:
+            first_r = first_r or r_1
+            row_max = (last_r - first_r) + 1
+
+            if num_rows > row_max:
+                raise IndexError('...too many rows...')
+
     def __getitem__(self, ref):
         return self.excel_range(ref)
 
     def __setitem__(self, ref, v):
         """ write value(s) to excel range """
         excel_range = self.excel_range(ref)
-        write_to_excel_range(v, excel_range)
+        m = modify_iteration_depth(v, 2)
 
+        c = excel_range.Column
         r = excel_range.Row
+        self.__validate_destination_size(m, c, r)
+
+        write_to_excel_range(m, excel_range)
+
         index_meta   = (r <= self.meta_r)
         index_header = (r <= self.header_r)
         self.set_range_boundaries(index_meta, index_header)
@@ -397,11 +425,15 @@ class excel_levity_cls:
             yield row
 
     def __repr__(self):
-        return "'{}' {}{}:{}{}".format(self.sheet_name,
-                                       self.first_c,
-                                       self.header_r,
-                                       self.last_c,
-                                       self.last_r)
+        if self.first_c and self.last_c:
+            a = " {}{}:{}{}".format(self.first_c,
+                                    self.header_r,
+                                    self.last_c,
+                                    self.last_r)
+        else:
+            a = ' {unknown address}'
+
+        return "'{}'{}".format(self.ws_name, a)
 
 
 def _set_named_ranges(wb):

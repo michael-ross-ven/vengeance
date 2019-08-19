@@ -8,26 +8,68 @@ from collections import Iterable
 
 def print_runtime(f):
     def runtime_wrapper(*args, **kwargs):
-        f_name = f.__module__.split('.')[-1]
-        f_name = '{}.{}'.format(f_name, f.__name__)
-
         tic = default_timer() * 1000
-
-        if kwargs:
-            result = f(*args, **kwargs)
-        elif args:
-            result = f(*args)
-        else:
-            result = f()
-
+        result = f(*args, **kwargs)
         toc = default_timer() * 1000
-        elapsed = -(tic - toc)
 
-        print_unicode('   τ: @{}: {}'.format(f_name, format_ms(elapsed)))
+        elapsed = -(tic - toc)
+        print_unicode('\tτ: @{}: {}'.format(function_name(f), format_ms(elapsed)))
 
         return result
 
     return runtime_wrapper
+
+
+def print_performance(f=None, *, repeat=3):
+    """
+    stolen and modified from
+    https://github.com/realpython/materials/blob/master/pandas-fast-flexible-intuitive/tutorial/timer.py
+    """
+    import gc
+    import functools
+    import itertools
+
+    functools_repeat = functools.partial(itertools.repeat, None)
+
+    def performance_wrapper(_f_):
+
+        @functools.wraps(_f_)
+        def functools_wrapper(*args, **kwargs):
+            gcold = gc.isenabled()
+            gc.disable()
+
+            result = None
+            best   = None
+            total  = 0
+
+            try:
+                for _ in functools_repeat(repeat):
+                    tic = default_timer() * 1000
+                    result = _f_(*args, **kwargs)
+                    toc = default_timer() * 1000
+
+                    elapsed = -(tic - toc)
+                    if best is None:
+                        best = elapsed
+                    else:
+                        best = min(best, elapsed)
+
+                    total += elapsed
+
+                average = total / repeat
+                print_unicode('\tτ: @{}\n\t\taverage:   {}\n\t\tbest:      {}\n'
+                              .format(function_name(_f_), format_ms(average), format_ms(best)))
+            finally:
+                if gcold:
+                    gc.enable()
+
+            return result
+        return functools_wrapper
+
+    if f is None:
+        return performance_wrapper
+    else:
+        return performance_wrapper(f)
 
 
 def format_ms(ms):
@@ -50,67 +92,8 @@ def format_ms(ms):
     return f_ms
 
 
-def print_performance(f=None, *, repeat=3, number=100):
-    """
-    stolen and modified from
-    https://github.com/realpython/materials/blob/master/pandas-fast-flexible-intuitive/tutorial/timer.py
-    """
-    import gc
-    import functools
-    import itertools
-
-    _repeat = functools.partial(itertools.repeat, None)
-
-    def wrap(func):
-        @functools.wraps(func)
-        def performance_wrapper(*args, **kwargs):
-
-            # Temporarily turn off garbage collection
-            gcold = gc.isenabled()
-            gc.disable()
-
-            result = None
-            best = None
-            total = 0
-
-            try:
-                for _ in _repeat(repeat):
-                    total = 0
-
-                    for _ in _repeat(number):  # number of trials within each repeat.
-                        tic = default_timer() * 1000
-                        result = func(*args, **kwargs)
-                        toc = default_timer() * 1000
-                        elapsed = -(tic - toc)
-
-                        if best is None:
-                            best = elapsed
-                        else:
-                            best = min(best, elapsed)
-
-                        total += elapsed
-
-                average = total / number
-
-                f_name = func.__module__.split('.')[-1]
-                f_name = '{}.{}'.format(f_name, func.__name__)
-
-                print_unicode('   τ: @{}: {} (average), {} (best)'.format(f_name,
-                                                                          format_ms(average),
-                                                                          format_ms(best), ))
-
-            finally:
-                if gcold:
-                    gc.enable()
-
-            return result
-
-        return performance_wrapper
-
-    if f is None:
-        return wrap
-    else:
-        return wrap(f)
+def function_name(f):
+    return '{}.{}'.format(f.__module__.split('.')[-1], f.__name__)
 
 
 def repr_(sequence, concat=', ', quotes=False, wrap=True):

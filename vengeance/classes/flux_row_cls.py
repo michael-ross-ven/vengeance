@@ -70,11 +70,6 @@ class flux_row_cls:
     def __getitem__(self, name):
         """ eg:
             v = row['column']
-
-        name is converted to an integer, which is then used to reference self.values
-
-        (if name is already an integer, it's faster to use row.values[i])
-        (if name is a slice, it should be called directly on row.values)
         """
         try:
             i = self._headers.get(name, name)
@@ -95,23 +90,12 @@ class flux_row_cls:
     def __setitem__(self, name, value):
         """ eg:
             row['column'] = v
-
-        name is converted to an integer, which is then used to reference self.values
-
-        (if name is already an integer, it's faster to use row.values[i])
-        (if name is a slice, it should be called directly on row.values)
         """
         try:
             i = self._headers.get(name, name)
             self.values[i] = value
         except (TypeError, IndexError) as e:
             raise AttributeError(self.__attr_err_msg(name)) from e
-
-    def __getstate__(self):
-        return self.__dict__
-
-    def __setstate__(self, d):
-        super().__setattr__('__dict__', d)
 
     def __attr_err_msg(self, name):
         if isinstance(name, slice):
@@ -120,11 +104,26 @@ class flux_row_cls:
         names = '\n\t'.join(self.names)
         return "No flux_row_cls column named '{}'\navailable columns:\n\t{}".format(name, names)
 
+    def __getstate__(self):
+        return self.__dict__
+
+    def __setstate__(self, d):
+        super().__setattr__('__dict__', d)
+
     def __len__(self):
         return len(self.values)
 
     def __iter__(self):
         return iter(self.values)
+
+    def __eq__(self, other):
+        return hash(self) == hash(other)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        return id(self._headers) + hash(tuple(self.values))
 
     def __repr__(self):
         i = self.__dict__.get('i')

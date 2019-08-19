@@ -9,13 +9,11 @@ import shutil
 from datetime import datetime
 from glob import glob
 
-from .iter import assert_iteration_depth
-from .iter import generator_to_list
 from .text import p_json_dumps
 from .text import repr_
 
 
-def read_file(path, encoding=None):
+def read_file(path, encoding=None, mode='r'):
     """
     explicitly handled file extensions:
         .csv
@@ -33,22 +31,25 @@ def read_file(path, encoding=None):
 
     extn = file_extension(path)
     if extn == '.csv':
-        with open(path, 'r', encoding=encoding) as f:
+        with open(path, mode, encoding=encoding) as f:
             return list(csv.reader(f))
 
     if extn == '.json':
-        with open(path, 'r', encoding=encoding) as f:
+        with open(path, mode, encoding=encoding) as f:
             return json.load(f)
 
     if extn in {'.flux', '.pkl', '.pickle'}:
-        with open(path, 'rb') as f:
+        if not mode.endswith('b'):
+            mode += 'b'
+
+        with open(path, mode) as f:
             return cpickle.load(f)
 
-    with open(path, 'r', encoding=encoding) as f:
+    with open(path, mode, encoding=encoding) as f:
         return f.read()
 
 
-def write_file(path, data, mode='w', encoding=None):
+def write_file(path, data, encoding=None, mode='w'):
     """
     explicitly handled file extensions:
         .csv
@@ -62,29 +63,32 @@ def write_file(path, data, mode='w', encoding=None):
     extn = file_extension(path)
 
     if extn == '.csv':
-        data = generator_to_list(data, recurse=True)
-        assert_iteration_depth(data, 2)
         with open(path, mode, encoding=encoding) as f:
             csv.writer(f, lineterminator='\n').writerows(data)
-
         return
 
     if extn == '.json':
         if not isinstance(data, str):
             data = p_json_dumps(data, ensure_ascii=(encoding is None))
+
         with open(path, mode, encoding=encoding) as f:
             f.write(data)
 
         return
 
     if extn in {'.flux', '.pkl', '.pickle'}:
-        with open(path, mode + 'b') as f:
+        if not mode.endswith('b'):
+            mode += 'b'
+
+        with open(path, mode) as f:
             cpickle.dump(data, f)
 
         return
 
+    # f.write() is soooo much faster than f.writelines()
     if not isinstance(data, str):
         data = repr_(data, concat='\n', quotes=False, wrap=False)
+
     with open(path, mode, encoding=encoding) as f:
         f.write(data)
 
@@ -149,10 +153,10 @@ def standardize_dir(f_dir, pathsep='/'):
     """ lowercase and make sure directory follows predictable pattern
     pathsep=os.path.sep?
     """
-    f_dir = (f_dir.lower()
-                  .replace('\\', pathsep)
+    f_dir = (f_dir.replace('\\', pathsep)
                   .replace('/', pathsep)
-                  .strip(' \n'))
+                  .lower()
+                  .strip())
 
     if not f_dir.endswith(pathsep):
         f_dir += pathsep
@@ -161,12 +165,12 @@ def standardize_dir(f_dir, pathsep='/'):
 
 
 def standardize_file_name(f_name):
-    return (f_name.lower()
-                  .strip(' \n'))
+    return f_name.lower().strip()
 
 
 def standardize_path(path):
     f_dir, f_name = parse_path(path)
+
     f_dir  = standardize_dir(f_dir)
     f_name = standardize_file_name(f_name)
 
@@ -174,9 +178,12 @@ def standardize_path(path):
 
 
 def sanatize_file_name(f_name):
-    if not f_name:
-        raise IOError("file name is blank: '{}'".format(f_name))
+    """
+    replace illegal Windows file name characters with '-'
 
+    (there's an additional set of path characters that are
+     illegal for Windows' built-in compression)
+    """
     invalid_chrs = {'\\': '-',
                     '/':  '-',
                     ':':  '-',
@@ -185,19 +192,14 @@ def sanatize_file_name(f_name):
                     '<':  '-',
                     '>':  '-',
                     '|':  '-',
-                    '–':  '-',
-                    '\n': '-',
-                    '\t': '-',
-                    '"':  '-',
-                    '“':  '-',
-                    '”':  '-',
-                    "'":  '-',
-                    "‘":  '-',
-                    "’":  '-',
-                    chr(160): ' '}      # non-breaking html space
+                    '"':  '-'}
 
     for k, v in invalid_chrs.items():
         f_name = f_name.replace(k, v)
+
+    f_name = f_name.strip()
+    if not f_name:
+        raise IOError('file name is blank')
 
     return f_name
 
@@ -238,19 +240,18 @@ def file_extension(f_name, include_dot=True):
     if include_dot is False:
         extn = extn.replace('.', '')
 
-    return extn.lower()
+    extn = extn.lower().strip()
+
+    return extn
 
 
 def apply_file_extension(f_name, extn):
-    if f_name.endswith(extn):
-        return f_name
-
     if not extn.startswith('.'):
         extn = '.' + extn
 
-    if not f_name.endswith(extn):
-        f_name = f_name + extn
+    if f_name.endswith(extn):
+        return f_name
 
-    return f_name
+    return f_name + extn
 
 

@@ -176,7 +176,7 @@ $release 20
 
 
 2019-08-08
-$release 28
+$release 21
 	flux_cls.insert_columns() and flux_cls.append_columns() will raise error if non-unique column names submitted
 	flux_cls.bind() and flux_cls.unbind() methods removed
 	performance optimization (~2x faster) to flux_cls.__getitem__, when parameter is a slice
@@ -184,10 +184,16 @@ $release 28
 
 	flux_row_cls.class_names expanded to include 'names', 'dict' and 'namedtuples'
 	
+	'.pickle' extension added to read_file() / write_file()
 
 
 
+2019-08-19
+$release 22
+	flux_cls.contiguous_rows() method added
+	flux_cls.contiguous_indices() method added
 
+	added flux_row_cls.__hash__()
 
 
 
