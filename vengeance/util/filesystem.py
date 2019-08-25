@@ -15,21 +15,19 @@ from .text import repr_
 
 def read_file(path, encoding=None, mode='r'):
     """
-    explicitly handled file extensions:
+    assumes text file unless extension is in these specialized formats:
         .csv
         .json
         .flux
         .pkl
         .pickle
-
-    TODO:
-        add .xls, .xlsx, .xlsm, .xlsb, .7z, .gzip, .hd5
-
-    (assumes text file if extension not otherwise specified)
     """
     assert_path_exists(path)
 
-    extn = file_extension(path)
+    extn = file_extension(path, include_dot=True)
+    if extn.startswith('.xls') or extn in {'.7z', '.gzip', '.hd5'}:
+        raise NotImplementedError
+
     if extn == '.csv':
         with open(path, mode, encoding=encoding) as f:
             return list(csv.reader(f))
@@ -41,7 +39,6 @@ def read_file(path, encoding=None, mode='r'):
     if extn in {'.flux', '.pkl', '.pickle'}:
         if not mode.endswith('b'):
             mode += 'b'
-
         with open(path, mode) as f:
             return cpickle.load(f)
 
@@ -51,16 +48,16 @@ def read_file(path, encoding=None, mode='r'):
 
 def write_file(path, data, encoding=None, mode='w'):
     """
-    explicitly handled file extensions:
+    assumes text file unless extension is in these specialized formats:
         .csv
         .json
         .flux
         .pkl
         .pickle
-
-    (assumes text file if extension not otherwise specified)
     """
-    extn = file_extension(path)
+    extn = file_extension(path, include_dot=True)
+    if extn.startswith('.xls') or extn in {'.7z', '.gzip', '.hd5'}:
+        raise NotImplementedError
 
     if extn == '.csv':
         with open(path, mode, encoding=encoding) as f:
@@ -85,7 +82,7 @@ def write_file(path, data, encoding=None, mode='w'):
 
         return
 
-    # f.write() is soooo much faster than f.writelines()
+    # f.write() is much faster than f.writelines(); make sure data is string
     if not isinstance(data, str):
         data = repr_(data, concat='\n', quotes=False, wrap=False)
 

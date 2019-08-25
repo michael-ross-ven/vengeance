@@ -46,45 +46,27 @@ class excel_levity_cls:
                        last_r=0):
 
         self.ws = ws
-        self.ws_name = ws.Name
 
-        self.headers      = OrderedDict()
-        self.meta_headers = OrderedDict()
+        self.headers   = OrderedDict()
+        self.m_headers = OrderedDict()      # "meta" row headers
 
-        self.first_c = first_c
-        self.last_c  = last_c
+        self._fixed_columns = (first_c, last_c)
+        self._fixed_rows    = (first_r, last_r)
 
+        self.first_c  = first_c
+        self.last_c   = last_c
         self.meta_r   = meta_r
         self.header_r = header_r
         self.first_r  = first_r
         self.last_r   = last_r
 
-        self._named_ranges  = _set_named_ranges(self.workbook)
-        self._fixed_columns = (first_c, last_c)
-        self._fixed_rows    = (first_r, last_r)
-
         self.num_cols = 0
         self.num_rows = 0
-
         self.is_empty = None
 
-        # be aware: self.set_range_boundaries() always invokes clear_worksheet_filter()
+        self._named_ranges = _set_named_ranges(self.workbook)
+
         self.set_range_boundaries(index_meta=True, index_header=True)
-
-    @property
-    def header_values(self):
-        return list(self.headers.keys())
-
-    @property
-    def meta_header_values(self):
-        return list(self.meta_headers.keys())
-
-    @property
-    def has_headers(self):
-        if self.is_empty:
-            return False
-
-        return bool(self.headers) and bool(self.meta_headers)
 
     @property
     def application(self):
@@ -95,12 +77,39 @@ class excel_levity_cls:
         return self.ws.Parent
 
     @property
+    def named_ranges(self):
+        return {name: self.excel_range(name) for name in self._named_ranges.keys()}
+
+    @property
     def worksheet(self):
         return self.ws
 
     @property
-    def named_ranges(self):
-        return {name: self.excel_range(name) for name in self._named_ranges.keys()}
+    def worksheet_name(self):
+        return self.ws.Name
+
+    @property
+    def ws_name(self):
+        return self.ws.Name
+
+    @property
+    def header_values(self):
+        return list(self.headers.keys())
+
+    @property
+    def meta_headers(self):
+        return self.m_headers
+
+    @property
+    def meta_header_values(self):
+        return list(self.m_headers.keys())
+
+    @property
+    def has_headers(self):
+        if self.is_empty:
+            return False
+
+        return bool(self.headers) and bool(self.m_headers)
 
     @property
     def has_filter(self):
@@ -186,10 +195,10 @@ class excel_levity_cls:
     def set_range_boundaries(self, index_meta=True, index_header=True):
         """ find the edges of data in worksheet
 
-        worksheet filter MUST be cleared in order to correctly
-        determine these boundaries
+        worksheet filter MUST be cleared in order to correctly determine these boundaries
         """
         clear_worksheet_filter(self.ws)
+
         self.__find_range_boundaries()
 
         if index_meta:
@@ -259,7 +268,7 @@ class excel_levity_cls:
         if self.meta_r == 0:
             return
 
-        self.meta_headers = self.__index_headers('meta_r')
+        self.m_headers = self.__index_headers('meta_r')
 
     def __index_header_columns(self):
         if self.header_r == 0:
@@ -324,8 +333,8 @@ class excel_levity_cls:
     def __levity_reference(self, ref):
         if ref in self.headers:
             literal = self.headers[ref]
-        elif ref in self.meta_headers:
-            literal = self.meta_headers[ref]
+        elif ref in self.m_headers:
+            literal = self.m_headers[ref]
         elif ref in self.__dict__:
             literal = self.__dict__[ref]
         elif ref in self.__class__.__dict__:
@@ -353,15 +362,14 @@ class excel_levity_cls:
 
         if self.headers:
             headers = index_sequence(self.headers.keys())
-        elif self.meta_headers:
-            headers = index_sequence(self.meta_headers.keys())
+        elif self.m_headers:
+            headers = index_sequence(self.m_headers.keys())
         else:
-            headers = self.__index_headers('*f')
+            headers = {}
 
         reserved = headers.keys() & lev_row_cls.class_names
         if reserved:
-            raise NameError("reserved name(s) {} found in header row {}"
-                            .format(list(reserved), list(headers.keys())))
+            raise NameError("reserved name(s) {} found in header row {}".format(list(reserved), list(headers.keys())))
 
         r_1 = excel_range.Row
         c_1, c_2 = self.first_c, self.last_c
@@ -372,12 +380,8 @@ class excel_levity_cls:
 
     def __validate_destination_size(self, m, c_1, r_1):
         """
-        m = [['w', 'q']]
-        lev = worksheet_to_lev(ws, c_1='D', c_2='D')
-
-        wont fit; only one column allowed
-
-        TODO: IndexError message
+        if lev has fixed columns or rows, these should not be exceeded
+        make sure matrix fits in allowed destination space
         """
         num_cols = len(m[0])
         num_rows = len(m)
@@ -385,19 +389,21 @@ class excel_levity_cls:
         first_c, last_c = self._fixed_columns
         first_r, last_r = self._fixed_rows
 
-        if last_c is not None:
-            first_c = first_c or c_1
-            col_max = (col_number(last_c) - col_number(first_c)) + 1
+        if last_c:
+            first_c = col_number(first_c) or col_number(c_1)
+            last_c  = col_number(last_c)
+            col_max = (last_c - first_c) + 1
 
             if num_cols > col_max:
-                raise IndexError('num columns in matrix exceeds fixed column size of lev')
+                raise ValueError('Number of columns in data exceeds fixed destination range')
 
         if last_r:
-            first_r = first_r or r_1
+            first_r = int(first_r) or int(r_1)
+            last_r  = int(last_r)
             row_max = (last_r - first_r) + 1
 
             if num_rows > row_max:
-                raise IndexError('...too many rows...')
+                raise ValueError('Number of rows in data exceeds fixed destination range')
 
     def __getitem__(self, ref):
         return self.excel_range(ref)
@@ -438,7 +444,7 @@ class excel_levity_cls:
 
 def _set_named_ranges(wb):
     named_ranges = {}
-    named_range  = namedtuple('named_range', ('tab_name', 'address'))
+    named_range_ntc = namedtuple('named_range_ntc', ('tab_name', 'address'))
 
     for nr in wb.Names:
         name = nr.Name.lower()
@@ -457,7 +463,7 @@ def _set_named_ranges(wb):
                 a = a.replace(wb_name, '')
 
             tab_name, a = a.split('!')
-            named_ranges.update({nr.Name: named_range(tab_name, a.upper())})
+            named_ranges[nr.Name] = named_range_ntc(tab_name, a.upper())
 
     return named_ranges
 

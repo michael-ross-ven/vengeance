@@ -26,7 +26,7 @@ def get_worksheet(wb,
         return ws
 
     if wb is None:
-        raise AssertionError("Excel workbook has not been initialized! Cannot retrieve tab: '{}'".format(ws))
+        raise AssertionError("Excel workbook has not been set, cannot retrieve worksheet: '{}'".format(ws))
 
     try:
         ws = wb.Sheets[ws]

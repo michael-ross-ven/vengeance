@@ -245,6 +245,9 @@ def __excel_app_from_hwnd(window_h):
     as an Excel process, like "print driver host for applications"
 
     these will fail to return a valid excel7_wnd for FindWindowEx
+
+    obj_ptr = POINTER(IDispatch)()
+    IDispatch: expected type Type[_CT]?
     """
     global corrupt_hwnds
 
@@ -256,12 +259,13 @@ def __excel_app_from_hwnd(window_h):
 
     if excel7_wnd == 0:
         corrupt_hwnds.add(window_h)
-        # vengeance_message('(corrupt Excel application detected)')
+        vengeance_message('(corrupt Excel application detected)')
 
         return None
 
-    cls_id  = GUID.from_progid(xl_clsid)
+    # noinspection PyTypeChecker
     obj_ptr = POINTER(IDispatch)()
+    cls_id  = GUID.from_progid(xl_clsid)
     AccessibleObjectFromWindow(excel7_wnd,
                                native_om,
                                byref(cls_id),
@@ -269,7 +273,7 @@ def __excel_app_from_hwnd(window_h):
     window = Dispatch(obj_ptr)
 
     try:
-        com_ptr = window.Application
+        com_ptr   = window.Application
         excel_app = __comtype_to_pywin_obj(com_ptr, IDispatch)
         excel_app = pywin_dispatch(excel_app)
 
@@ -293,8 +297,11 @@ def __comtype_to_pywin_obj(ptr, interface):
     """
     com_obj = PyDLL(pythoncom.__file__).PyCom_PyObjectFromIUnknown
 
-    com_obj.restype  = ctypes.py_object
-    com_obj.argtypes = (ctypes.POINTER(IUnknown), ctypes.c_void_p, BOOL)
+    # noinspection PyTypeChecker
+    com_obj.argtypes = (ctypes.POINTER(IUnknown),
+                        ctypes.c_void_p,
+                        BOOL)
+    com_obj.restype = ctypes.py_object
 
     # noinspection PyProtectedMember
     return com_obj(ptr._comobj, byref(interface._iid_), True)

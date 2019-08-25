@@ -195,5 +195,12 @@ $release 22
 
 	added flux_row_cls.__hash__()
 
+	added excel_levity_cls.__validate_destination_size()
+
+
+
+2019-08-25
+$release 23
+	bug fix in excel_levity_cls.__validate_destination_size()
 
 
