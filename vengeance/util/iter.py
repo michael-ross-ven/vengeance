@@ -27,7 +27,7 @@ def modify_iteration_depth(v, depth=0):
             if _is_subscriptable(v) and len(v) == 1:
                 v = v[0]
 
-    # add additional nesting
+    # apply additional nesting
     elif nd < depth:
         for _ in range(depth - nd):
             v = [v]

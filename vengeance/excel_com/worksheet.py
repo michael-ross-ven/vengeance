@@ -220,25 +220,30 @@ def __convert_excel_errors(excel_range):
 
 
 def __excel_friendly_matrix(m):
-    """ modify matrix values so they can be written to an excel range without error """
+    """ modify matrix values so they can be written to an Excel range without error
+    TODO:
+        profile / optimize function
+        convert date to datetime?
+    """
     num_cols = len(m[0])
+    num_rows = len(m)
 
     if num_cols > excel_max_cols:
         raise ValueError("number of columns ({:,}) exceeds Excel's column limit\n"
                          "(did you mean to transpose this matrix?)".format(num_cols))
 
-    if len(m) > excel_max_rows:
-        raise ValueError("number of rows ({:,}) exceeds Excel's row limit".format(len(m)))
+    if num_rows > excel_max_rows:
+        raise ValueError("number of rows ({:,}) exceeds Excel's row limit".format(num_rows))
 
     for r, row in enumerate(m):
         if len(row) != num_cols:
-            _m_ = [repr(_row_) for _row_ in m[r-1:r+2]]
-            _m_ = '\n\t'.join(_m_)
-            raise ValueError('jagged columns at row {:,} cannot write to Excel\n\n\t{}'.format(r, _m_))
+            _m_ = '\n\t'.join([repr(_row_) for _row_ in m[r - 1:r + 2]])
+            raise ValueError('cannot write to Excel, jagged column in matrix'
+                             '\nrow {:,}\n\n\t{}'.format(r, _m_))
 
         _row_ = []
         for c, v in enumerate(row):
-            if isinstance(v, (bool, int, float, str)) or v is None:
+            if (v is None) or isinstance(v, (bool, int, float, str)):
                 pass
             elif isinstance(v, date):
                 v = datetime(v.year, v.month, v.day)

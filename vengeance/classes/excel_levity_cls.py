@@ -45,11 +45,13 @@ class excel_levity_cls:
                        first_r=0,
                        last_r=0):
 
-        self.ws = ws
+        self.ws      = ws
+        self.ws_name = ws.Name
 
         self.headers   = OrderedDict()
-        self.m_headers = OrderedDict()      # "meta" row headers
+        self.m_headers = OrderedDict()
 
+        self._named_ranges  = _named_ranges_in_workbook(self.workbook)
         self._fixed_columns = (first_c, last_c)
         self._fixed_rows    = (first_r, last_r)
 
@@ -63,8 +65,6 @@ class excel_levity_cls:
         self.num_cols = 0
         self.num_rows = 0
         self.is_empty = None
-
-        self._named_ranges = _set_named_ranges(self.workbook)
 
         self.set_range_boundaries(index_meta=True, index_header=True)
 
@@ -86,11 +86,7 @@ class excel_levity_cls:
 
     @property
     def worksheet_name(self):
-        return self.ws.Name
-
-    @property
-    def ws_name(self):
-        return self.ws.Name
+        return self.ws_name
 
     @property
     def header_values(self):
@@ -195,7 +191,7 @@ class excel_levity_cls:
     def set_range_boundaries(self, index_meta=True, index_header=True):
         """ find the edges of data in worksheet
 
-        worksheet filter MUST be cleared in order to correctly determine these boundaries
+        worksheet filter MUST be cleared from worksheet to correctly determine these boundaries
         """
         clear_worksheet_filter(self.ws)
 
@@ -233,8 +229,8 @@ class excel_levity_cls:
         if self.last_r > self.first_r:
             self.is_empty = False
         else:
-            header_r = self.header_r or self.meta_r or self.first_r
-            a = '{}{}:{}{}'.format(self.first_c, header_r, self.last_c, header_r)
+            r = self.header_r or self.meta_r or self.first_r
+            a = '{}{}:{}{}'.format(self.first_c, r, self.last_c, r)
             self.is_empty = is_range_empty(self.ws.Range(a))
 
     @classmethod
@@ -439,10 +435,14 @@ class excel_levity_cls:
         else:
             a = ' {unknown address}'
 
+        # b = self._ws_name
+        # c = self.ws_name
+        # d = b == c
+
         return "'{}'{}".format(self.ws_name, a)
 
 
-def _set_named_ranges(wb):
+def _named_ranges_in_workbook(wb):
     named_ranges = {}
     named_range_ntc = namedtuple('named_range_ntc', ('tab_name', 'address'))
 

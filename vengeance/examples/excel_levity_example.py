@@ -98,7 +98,7 @@ def instantiate_lev(tab_name):
 
     a = repr(lev)
 
-    a = lev.is_empty        # if worksheet is totally blank (not even headers)
+    a = lev.is_empty
     a = lev.has_filter
 
     a = lev.num_cols

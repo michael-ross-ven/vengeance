@@ -204,3 +204,7 @@ $release 23
 	bug fix in excel_levity_cls.__validate_destination_size()
 
 
+
+2019-08-28
+$release 24
+	bug fix in workbook.open_workbook() (unhashable set for excel_instance not in {'any', None})

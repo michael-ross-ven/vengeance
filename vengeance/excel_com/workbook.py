@@ -5,7 +5,6 @@ from ctypes import PyDLL
 from ctypes import byref
 from ctypes.wintypes import BOOL
 
-import pythoncom
 from comtypes import COMError
 from comtypes import GUID
 from comtypes import IUnknown
@@ -13,21 +12,30 @@ from comtypes.automation import IDispatch
 from comtypes.client import CreateObject
 from comtypes.client.dynamic import Dispatch
 
+import pythoncom
 # noinspection PyUnresolvedReferences
 from pythoncom import com_error
 
 from win32com.client import Dispatch as pywin_dispatch                      # late-bound reference
 # from win32com.client.gencache import EnsureDispatch as pywin_dispatch     # early-bound reference
 
-from .excel_constants import *
 from ..util.filesystem import assert_path_exists
 from ..util.filesystem import standardize_path
 from ..util.text import vengeance_message
 
-AccessibleObjectFromWindow = ctypes.oledll.oleacc.AccessibleObjectFromWindow
+from .excel_constants import xlMaximized
+
 FindWindowEx               = ctypes.windll.user32.FindWindowExA
+AccessibleObjectFromWindow = ctypes.oledll.oleacc.AccessibleObjectFromWindow
 
 corrupt_hwnds = set()
+
+# utf-encoded strings cause issues wtih C++ safearray strings in FindWindowEx()
+xl_class_name   = 'XLMAIN'.encode('ascii')
+xl_desk_class   = 'XLDESK'.encode('ascii')
+xl_excel7_class = 'EXCEL7'.encode('ascii')
+xl_clsid        = '{00020400-0000-0000-C000-000000000046}'
+native_om       = -16
 
 
 def open_workbook(path,
@@ -57,7 +65,7 @@ def open_workbook(path,
                                        update_links,
                                        read_only)
 
-    elif excel_instance not in {'any', None}:
+    elif excel_instance not in ('any', None):
         if wb.Application != excel_instance:
             vengeance_message("'{}' already open in another Excel instance".format(wb.Name))
             print_extra_line = True
@@ -243,8 +251,12 @@ def __excel_app_from_hwnd(window_h):
 
     sometimes, non-Excel applications are running under the same window_h
     as an Excel process, like "print driver host for applications"
-
     these will fail to return a valid excel7_wnd for FindWindowEx
+
+    xl_desk_class, xl_excel7_class
+
+
+    Excel's clsid: found in HKEY_CLASSES_ROOT
 
     obj_ptr = POINTER(IDispatch)()
     IDispatch: expected type Type[_CT]?
@@ -260,12 +272,12 @@ def __excel_app_from_hwnd(window_h):
     if excel7_wnd == 0:
         corrupt_hwnds.add(window_h)
         vengeance_message('(corrupt Excel application detected)')
-
         return None
 
     # noinspection PyTypeChecker
     obj_ptr = POINTER(IDispatch)()
-    cls_id  = GUID.from_progid(xl_clsid)
+
+    cls_id = GUID.from_progid(xl_clsid)
     AccessibleObjectFromWindow(excel7_wnd,
                                native_om,
                                byref(cls_id),
