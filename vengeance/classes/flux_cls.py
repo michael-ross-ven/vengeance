@@ -27,9 +27,8 @@ class flux_cls:
 
     def __init__(self, matrix=None):
         self._num_cols = None
-
-        self.headers = OrderedDict()
-        self.matrix  = self._to_flux_rows(matrix)
+        self.headers   = OrderedDict()
+        self.matrix    = self._to_flux_rows(matrix)
 
     @property
     def header_values(self):
@@ -53,7 +52,7 @@ class flux_cls:
     def is_jagged(self):
         num_cols = len(self.header_values)
 
-        for row in self.matrix[1:]:
+        for row in self:
             if len(row.values) != num_cols:
                 return True
 
@@ -504,7 +503,7 @@ class flux_cls:
 
     def replace_matrix(self, m):
         self._num_cols = None
-        self.headers.clear()
+        self.headers   = None
 
         self.matrix = self._to_flux_rows(m)
 
@@ -731,13 +730,12 @@ class flux_cls:
         return len(self.matrix)
 
     def __getitem__(self, row_or_col):
-        """ returns flux_row(s) or values from specified column
+        """ returns flux_row, flux_rows slice, or column values
         eg:
             flux_row  = flux[3]
             flux_rows = flux[3:5]
             values    = flux['col']
         """
-
         # flux_row
         if isinstance(row_or_col, int):
             return self.matrix[row_or_col]
@@ -792,10 +790,10 @@ class flux_cls:
         return iter(islice(self.matrix, 1, None))
 
     def __add__(self, flux_b):
-        flux_c = self.copy()
-        flux_c.append_rows(flux_b)
+        flux_final = self.copy()
+        flux_final.append_rows(flux_b)
 
-        return flux_c
+        return flux_final
 
     def __repr__(self):
         if self.is_empty:

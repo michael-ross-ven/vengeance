@@ -208,3 +208,11 @@ $release 23
 2019-08-28
 $release 24
 	bug fix in workbook.open_workbook() (unhashable set for excel_instance not in {'any', None})
+
+
+
+2019-08-31
+$release 25
+	iter.index_sequence() skips '' and None values
+
+

@@ -31,7 +31,7 @@ def main():
     iterate_flux_rows(flux)
 
     flux_sort_filter(flux)
-    flux_values()
+    flux_data()
 
     flux_subclass()
 
@@ -318,7 +318,7 @@ def flux_sort_filter(flux):
     pass
 
 
-def flux_values():
+def flux_data():
     m = [['name_a', 'name_b', 'val']]
     m.extend([['a', 'b', 10]] * 10)
     m.extend([['c', 'd', 20]] * 10)
@@ -331,7 +331,7 @@ def flux_values():
 
     a = flux.namedtuples()
 
-    # .index_row ("row" singular) and .index_rows ("rows" plural)
+    # .index_row() ("row" singular) and .index_rows() ("rows" plural)
     d_1 = flux.index_row('name_a', 'name_b')
     d_2 = flux.index_rows('name_a', 'name_b')
 

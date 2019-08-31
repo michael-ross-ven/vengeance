@@ -224,7 +224,7 @@ def index_sequence(sequence, start=0):
 
     for i, v in enumerate(sequence, start):
         if v in {'', None}:
-            v = '(None)'
+            continue
 
         if v in non_unique:
             _v_ = '{} ({})'.format(v, non_unique[v] + 1)
