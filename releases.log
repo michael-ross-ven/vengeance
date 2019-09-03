@@ -1,218 +1,224 @@
 
-2019-03-21
-$release 1
-	published to pypi.org
 
 
-
-2019-03-22
-$release 2
-	correction to filesystem.copy_dir
-	removed pandas from dependencies (__parse_string_pandas)
-	removed line_profiler from dependencies
-	added python-dateutil to dependencies (__parse_string_dateutil)
-	updated setup.py with packages=setuptools.find_packages()
-
-
-
-2019-03-28
-$release 3
-	added flux_cls.unbind()
-	added flux_row_cls.unbind()
-	modified util.iter methods for recursive conversion
-
-
-
-2019-03-29
-$release 4
-	minor edits to documentation
-	clear_worksheet_filter() now always called as a part of excel_levity_cls.set_range_boundaries()
-
-
-
-2019-04-01
-$release 5
-	added ValueError exception to flux_cls.namedtuples and flux_row_cls.namedtuples
-	fixed bug in repr_
-
-
-
-2019-04-05
-$release 6
-	added optional d_format param to to_datetime
-	new print_timeit() function 
-		(stolen from https://github.com/realpython/materials/blob/master/pandas-fast-flexible-intuitive/tutorial/timer.py)
-
-	added append_c property to excel_levity_cls
-	changed flux_cls._matrix to flux_cls.matrix
-	updated README.md
-
-
-
-2019-04-11
-$release 7
-	added optional encoding='utf-8' param to filesystem.read_file 
-	added optional encoding='utf-8' param to filesystem.write_file
-
-	flux_cls accepts matrix as optional param in constructor
-	flux_cls.is_empty property renamed to has_data
-	added flux_cls.is_empty attribute
-
-	flux_cls.__to_flux_rows() now returns a matrix instead of setting self.matrix
-
-	simplified flux_cls.append_rows()
-	simplified flux_cls.insert_rows()
-	forced paths to have appropriate file extension in flux_cls.to_csv() / flux_cls.from_csv()
-	forced paths to have appropriate file extension in flux_cls.to_json() / flux_cls.from_json()
-
-
-
-2019-04-11
-$release 8
-	jagged column check in worksheet.__excel_friendly_matrix()
-	added max_row check in worksheet.__excel_friendly_matrix()
-	
-	fixed bug in modify_iteration_depth()
-
-	fixed bug in flux_cls.__validate_row_accessor()
-
-	if excel_levity_cls.is_empty, will return [[]] for .rows() and .flux_rows()
-
-
-
-2019-04-19
-$release 9
-	added flux_row_cls.__getstate__()
-	added flux_row_cls.__setstate__()
-
-	fixed iteration depth bug in flux_cls.__to_flux_rows()
-
-
-
-2019-04-24
-$release 10
-	minor correction to flux_cls constructor when matrix is None
-	changed flux_cls.is_empty to property
-
-
-
-2019-05-01
-$release 11
-	fixed bug in get_worksheet(), when tab name does not exist
-	small performance optimization (~10% faster) in flux_row_cls.__getitem__() and flux_row_cls.__setitem__()
-	by removing self.__dict__ attributes
-
-
-
-2019-05-07
-$release 12
-	flux.apply_row_indices() method added
-	fixed bug in flux_cls.matrix_by_headers() when num_rows is 0
-
-	additional performance optimization (~10% faster) flux_row_cls.__getattr__() and flux_row_cls.__setattr__()
-	by eliminating function call overhead to flux_row_cls.__getitem__() and flux_row_cls.__setitem__()
-
-
-
-2019-05-14
-$release 13
-	__kill_process() no longer called when corrupt Excel applications detected
-
-
-
-2019-05-14
-$release 14
-	fixed release script to call setup.py before publishing to githib (so it uploads updated version.py file correctly)
-
-
-
-2019-05-14
-$release 15
-	updated README.md
-
-
-
-2019-05-19
-$release 16
-	updated README.md
-
-	fixed bug in in flux_cls.matrix_by_headers() (needed to reset self._num_cols back to None)
-	
-	'.pkl' extension added to read_file() / write_file()
-
-
-
-2019-05-19
-$release 17
-	updated README.md
-
-	performance optimization (~10% faster) in flux_cls.__to_flux_rows()
-	(for a matrix with 3 columns, flux_cls instantiation now only takes about 1 sec per 1,000,000 rows)
-
-
-
-2019-05-24
-$release 18
-	renamed internal / private methods in flux_cls
-	flux_cls._num_cols is set to None in flux_cls.insert_columns(), flux_cls.append_columns(), flux_cls.delete_columns()
-
-
-
-2019-05-29
-$release 19
-	removed flux_cls.has_data attribute
-	fixed bug in flux_cls.copy()
-
-	performance optimization (~10% faster) to transpose()
-	allow 'any' as excel_instance param for open_workbook() function 
-	added cached levs to excel_project_template.py
-
-
-
-2019-06-27
-$release 20
-	minor updates to util.filesystem
-
-
-
-2019-08-08
-$release 21
-	flux_cls.insert_columns() and flux_cls.append_columns() will raise error if non-unique column names submitted
-	flux_cls.bind() and flux_cls.unbind() methods removed
-	performance optimization (~2x faster) to flux_cls.__getitem__, when parameter is a slice
-		
-
-	flux_row_cls.class_names expanded to include 'names', 'dict' and 'namedtuples'
-	
-	'.pickle' extension added to read_file() / write_file()
-
-
-
-2019-08-19
-$release 22
-	flux_cls.contiguous_rows() method added
-	flux_cls.contiguous_indices() method added
-
-	added flux_row_cls.__hash__()
-
-	added excel_levity_cls.__validate_destination_size()
-
-
-
-2019-08-25
-$release 23
-	bug fix in excel_levity_cls.__validate_destination_size()
-
-
-
-2019-08-28
-$release 24
-	bug fix in workbook.open_workbook() (unhashable set for excel_instance not in {'any', None})
+2019-09-03
+$release 26
+	iter.index_sequence() {'', None} values are converted to '_None_', no longer skipped (skipping causes a mismatch between length of mappewd indices and length of sequence)
 
 
 
 2019-08-31
 $release 25
-	iter.index_sequence() skips '' and None values
+    iter.index_sequence() skips {'', None} values
 
 
+
+2019-08-28
+$release 24
+    bug fix in workbook.open_workbook() (unhashable set for excel_instance not in {'any', None})
+
+
+
+2019-08-25
+$release 23
+    bug fix in excel_levity_cls.__validate_destination_size()
+
+
+
+2019-08-19
+$release 22
+    flux_cls.contiguous_rows() method added
+    flux_cls.contiguous_indices() method added
+
+    added flux_row_cls.__hash__()
+
+    added excel_levity_cls.__validate_destination_size()
+
+
+
+2019-08-08
+$release 21
+    flux_cls.insert_columns() and flux_cls.append_columns() will raise error if non-unique column names submitted
+    flux_cls.bind() and flux_cls.unbind() methods removed
+    performance optimization (~2x faster) to flux_cls.__getitem__, when parameter is a slice
+        
+
+    flux_row_cls.class_names expanded to include 'names', 'dict' and 'namedtuples'
+    
+    '.pickle' extension added to read_file() / write_file()
+
+
+
+2019-06-27
+$release 20
+    minor updates to util.filesystem
+
+
+
+2019-05-29
+$release 19
+    removed flux_cls.has_data attribute
+    fixed bug in flux_cls.copy()
+
+    performance optimization (~10% faster) to transpose()
+    allow 'any' as excel_instance param for open_workbook() function 
+    added cached levs to excel_project_template.py
+
+
+
+2019-05-24
+$release 18
+    renamed internal / private methods in flux_cls
+    flux_cls._num_cols is set to None in flux_cls.insert_columns(), flux_cls.append_columns(), flux_cls.delete_columns()
+
+
+
+2019-05-19
+$release 17
+    updated README.md
+
+    performance optimization (~10% faster) in flux_cls.__to_flux_rows()
+    (for a matrix with 3 columns, flux_cls instantiation now only takes about 1 sec per 1,000,000 rows)
+
+
+
+2019-05-19
+$release 16
+    updated README.md
+
+    fixed bug in in flux_cls.matrix_by_headers() (needed to reset self._num_cols back to None)
+    
+    '.pkl' extension added to read_file() / write_file()
+
+
+
+2019-05-14
+$release 15
+    updated README.md
+
+
+
+2019-05-14
+$release 14
+    fixed release script to call setup.py before publishing to githib (so it uploads updated version.py file correctly)
+
+
+
+2019-05-14
+$release 13
+    __kill_process() no longer called when corrupt Excel applications detected
+
+
+
+2019-05-07
+$release 12
+    flux.apply_row_indices() method added
+    fixed bug in flux_cls.matrix_by_headers() when num_rows is 0
+
+    additional performance optimization (~10% faster) flux_row_cls.__getattr__() and flux_row_cls.__setattr__()
+    by eliminating function call overhead to flux_row_cls.__getitem__() and flux_row_cls.__setitem__()
+
+
+
+2019-05-01
+$release 11
+    fixed bug in get_worksheet(), when tab name does not exist
+    small performance optimization (~10% faster) in flux_row_cls.__getitem__() and flux_row_cls.__setitem__()
+    by removing self.__dict__ attributes
+
+
+
+2019-04-24
+$release 10
+    minor correction to flux_cls constructor when matrix is None
+    changed flux_cls.is_empty to property
+
+
+
+2019-04-19
+$release 9
+    added flux_row_cls.__getstate__()
+    added flux_row_cls.__setstate__()
+
+    fixed iteration depth bug in flux_cls.__to_flux_rows()
+
+
+
+2019-04-11
+$release 8
+    jagged column check in worksheet.__excel_friendly_matrix()
+    added max_row check in worksheet.__excel_friendly_matrix()
+    
+    fixed bug in modify_iteration_depth()
+
+    fixed bug in flux_cls.__validate_row_accessor()
+
+    if excel_levity_cls.is_empty, will return [[]] for .rows() and .flux_rows()
+
+
+
+2019-04-11
+$release 7
+    added optional encoding='utf-8' param to filesystem.read_file 
+    added optional encoding='utf-8' param to filesystem.write_file
+
+    flux_cls accepts matrix as optional param in constructor
+    flux_cls.is_empty property renamed to has_data
+    added flux_cls.is_empty attribute
+
+    flux_cls.__to_flux_rows() now returns a matrix instead of setting self.matrix
+
+    simplified flux_cls.append_rows()
+    simplified flux_cls.insert_rows()
+    forced paths to have appropriate file extension in flux_cls.to_csv() / flux_cls.from_csv()
+    forced paths to have appropriate file extension in flux_cls.to_json() / flux_cls.from_json()
+
+
+
+2019-04-05
+$release 6
+    added optional d_format param to to_datetime
+    new print_timeit() function 
+        (stolen from https://github.com/realpython/materials/blob/master/pandas-fast-flexible-intuitive/tutorial/timer.py)
+
+    added append_c property to excel_levity_cls
+    changed flux_cls._matrix to flux_cls.matrix
+    updated README.md
+
+
+
+2019-04-01
+$release 5
+    added ValueError exception to flux_cls.namedtuples and flux_row_cls.namedtuples
+    fixed bug in repr_
+
+
+
+2019-03-29
+$release 4
+    minor edits to documentation
+    clear_worksheet_filter() now always called as a part of excel_levity_cls.set_range_boundaries()
+
+
+
+2019-03-28
+$release 3
+    added flux_cls.unbind()
+    added flux_row_cls.unbind()
+    modified util.iter methods for recursive conversion
+
+
+
+2019-03-22
+$release 2
+    correction to filesystem.copy_dir
+    removed pandas from dependencies (__parse_string_pandas)
+    removed line_profiler from dependencies
+    added python-dateutil to dependencies (__parse_string_dateutil)
+    updated setup.py with packages=setuptools.find_packages()
+
+
+
+2019-03-21
+$release 1
+    published to pypi.org

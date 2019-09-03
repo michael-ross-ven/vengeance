@@ -23,8 +23,8 @@ def read_file(path, encoding=None, mode='r'):
         .pickle
     """
     assert_path_exists(path)
-
     extn = file_extension(path, include_dot=True)
+
     if extn.startswith('.xls') or extn in {'.7z', '.gzip', '.hd5'}:
         raise NotImplementedError
 
@@ -56,6 +56,7 @@ def write_file(path, data, encoding=None, mode='w'):
         .pickle
     """
     extn = file_extension(path, include_dot=True)
+
     if extn.startswith('.xls') or extn in {'.7z', '.gzip', '.hd5'}:
         raise NotImplementedError
 
@@ -223,6 +224,7 @@ def assert_path_exists(path):
 
 
 def parse_path(path):
+
     if os.path.isdir(path):
         f_dir  = path
         f_name = ''

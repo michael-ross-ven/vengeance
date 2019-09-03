@@ -47,15 +47,20 @@ class flux_row_cls:
     def dict(self):
         return OrderedDict(zip(self.names, self.values))
 
-    def namedtuples(self):
+    def namedtuples(self, nt_cls=None):
         try:
-            nt_cls = namedtuple('flux_row_nt', self.names)
+            if nt_cls is None:
+                nt_cls = namedtuple('flux_row_nt', self.names)
+
             return nt_cls(*self.values)
         except ValueError as e:
             import re
-            names = [n for n in self.names if re.search('^[^a-z]|[ ]', n, re.IGNORECASE)]
 
-            raise ValueError("invalid headers for namedtuple: {}".format(names)) from e
+            names = [n for n in self.names if re.search('^[^a-z]|[ ]', str(n), re.I)]
+            if names:
+                raise ValueError('invalid field(s) for namedtuple constructor: {}'.format(names)) from e
+            else:
+                raise e
 
     def __getattr__(self, name):
         """  eg:
@@ -113,6 +118,9 @@ class flux_row_cls:
     def __len__(self):
         return len(self.values)
 
+    def __bool__(self):
+        return bool(self.values)
+
     def __iter__(self):
         return iter(self.values)
 
@@ -126,13 +134,11 @@ class flux_row_cls:
         return id(self._headers) + hash(tuple(self.values))
 
     def __repr__(self):
-        i = self.__dict__.get('i')
-        if i is not None:
+        i = self.__dict__.get('i', '')
+        if i != '':
             i = '({:,})  '.format(i)
-        else:
-            i = ''
 
-        return 'flux_row  {}{}'.format(i, repr(self.values))
+        return '{}{}'.format(i, repr(self.values))
 
 
 class lev_row_cls(flux_row_cls):
@@ -149,4 +155,5 @@ class lev_row_cls(flux_row_cls):
         self.__dict__['address'] = address
 
     def __repr__(self):
-        return self.address + ' ' + repr(self.values)
+        return '{} {}'.format(self.address, repr(self.values))
+

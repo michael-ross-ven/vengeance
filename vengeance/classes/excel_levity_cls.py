@@ -35,6 +35,18 @@ from . flux_row_cls import lev_row_cls
 class excel_levity_cls:
 
     allow_focus = False
+    
+    @staticmethod
+    def col_letter_offset(col_str, offset):
+        return col_letter_offset(col_str, offset)
+    
+    @staticmethod
+    def col_letter(col_int):
+        return col_letter(col_int)
+
+    @staticmethod
+    def col_number(col_str):
+        return col_number(col_str)
 
     def __init__(self, ws,
                        *,
@@ -52,8 +64,8 @@ class excel_levity_cls:
         self.m_headers = OrderedDict()
 
         self._named_ranges  = _named_ranges_in_workbook(self.workbook)
-        self._fixed_columns = (first_c, last_c)
-        self._fixed_rows    = (first_r, last_r)
+        self._fixed_columns = first_c, last_c
+        self._fixed_rows    = first_r, last_r
 
         self.first_c  = first_c
         self.last_c   = last_c
@@ -89,12 +101,12 @@ class excel_levity_cls:
         return self.ws_name
 
     @property
-    def header_values(self):
-        return list(self.headers.keys())
-
-    @property
     def meta_headers(self):
         return self.m_headers
+
+    @property
+    def header_values(self):
+        return list(self.headers.keys())
 
     @property
     def meta_header_values(self):
@@ -171,11 +183,11 @@ class excel_levity_cls:
     def calculate(self):
         self.excel_range('*f *h: *l *l').Calculate()
 
-    def clear(self, ref,
+    def clear(self, reference,
                     clear_values=True,
                     clear_colors=False):
 
-        excel_range = self.excel_range(ref)
+        excel_range = self.excel_range(reference)
         _, r_1, _, r_2 = parse_range(excel_range)
 
         if clear_values:
@@ -255,7 +267,7 @@ class excel_levity_cls:
         row = next(gen_range_rows(excel_range))
 
         start = excel_range.Column
-        headers = index_sequence(row, start)
+        headers = index_sequence(row, start, as_strings=True)
         headers = OrderedDict((h, col_letter(v)) for h, v in headers.items())
 
         return headers
@@ -272,73 +284,42 @@ class excel_levity_cls:
 
         self.headers = self.__index_headers('header_r')
 
-    def excel_range(self, ref):
+    def excel_range(self, reference):
         a = None
         excel_range = None
 
         try:
-            if ref not in self._named_ranges:
-                a = self.excel_address(ref)
+            if reference not in self._named_ranges:
+                a = self.excel_address(reference)
                 excel_range = self.ws.Range(a)
             else:
-                named_range = self._named_ranges[ref]
+                named_range = self._named_ranges[reference]
                 a = '{}!{}'.format(named_range.tab_name, named_range.address)
                 excel_range = self.workbook.Sheets(named_range.tab_name).Range(named_range.address)
         except com_error:
             pass
 
         if excel_range is None:
-            raise ValueError("'{}' resolved to an invalid Excel address: '{}'".format(ref, a))
+            a = (str(a).replace('NoneNone', 'None')
+                       .replace('None', ' None ')
+                       .strip())
+            raise ValueError("Range reference '{}' resolved to an invalid Excel address: '{}'"
+                             .format(reference, a))
 
         return excel_range
 
-    def excel_address(self, ref):
-        if ':' in ref:
-            a_1, a_2 = ref.split(':')
+    def excel_address(self, reference):
+        if ':' in reference:
+            a_1, a_2 = reference.split(':')
+            c_1, r_1 = _reference_to_col_row(self, a_1)
+            c_2, r_2 = _reference_to_col_row(self, a_2)
 
-            c_1, r_1 = self.__reference_to_col_row(a_1)
-            c_2, r_2 = self.__reference_to_col_row(a_2)
             a = '{}{}:{}{}'.format(c_1, r_1, c_2, r_2)
         else:
-            c_1, r_1 = self.__reference_to_col_row(ref)
+            c_1, r_1 = _reference_to_col_row(self, reference)
             a = '{}{}'.format(c_1, r_1)
 
         return a
-
-    def __reference_to_col_row(self, ref):
-        ref = ref.strip()
-        ref = _anchor_substitution(ref)
-
-        col, row = self.__property_reference(ref)
-        col, row = _alphanum_reference(ref, col, row)
-
-        return col, row
-
-    def __property_reference(self, ref):
-        if ' ' not in ref:
-            return None, None
-
-        ref = ' '.join(ref.split())
-        splits = ref.split(' ')
-
-        col = self.__levity_reference(splits[0])
-        row = self.__levity_reference(splits[1])
-
-        return col, row
-
-    def __levity_reference(self, ref):
-        if ref in self.headers:
-            literal = self.headers[ref]
-        elif ref in self.m_headers:
-            literal = self.m_headers[ref]
-        elif ref in self.__dict__:
-            literal = self.__dict__[ref]
-        elif ref in self.__class__.__dict__:
-            literal = getattr(self, ref)
-        else:
-            literal = None
-
-        return literal
 
     def rows(self, r_1='*h', r_2='*l'):
         if self.is_empty:
@@ -357,9 +338,9 @@ class excel_levity_cls:
         excel_range = self.excel_range(a)
 
         if self.headers:
-            headers = index_sequence(self.headers.keys())
+            headers = index_sequence(self.headers.keys(), as_strings=True)
         elif self.m_headers:
-            headers = index_sequence(self.m_headers.keys())
+            headers = index_sequence(self.m_headers.keys(), as_strings=True)
         else:
             headers = {}
 
@@ -401,12 +382,12 @@ class excel_levity_cls:
             if num_rows > row_max:
                 raise ValueError('Number of rows in data exceeds fixed destination range')
 
-    def __getitem__(self, ref):
-        return self.excel_range(ref)
+    def __getitem__(self, reference):
+        return self.excel_range(reference)
 
-    def __setitem__(self, ref, v):
+    def __setitem__(self, reference, v):
         """ write value(s) to excel range """
-        excel_range = self.excel_range(ref)
+        excel_range = self.excel_range(reference)
         m = modify_iteration_depth(v, 2)
 
         c = excel_range.Column
@@ -428,18 +409,14 @@ class excel_levity_cls:
 
     def __repr__(self):
         if self.first_c and self.last_c:
-            a = " {}{}:{}{}".format(self.first_c,
-                                    self.header_r,
-                                    self.last_c,
-                                    self.last_r)
+            a = "{}{}:{}{}".format(self.first_c,
+                                   self.header_r,
+                                   self.last_c,
+                                   self.last_r)
         else:
-            a = ' {unknown address}'
+            a = '{unknown address}'
 
-        # b = self._ws_name
-        # c = self.ws_name
-        # d = b == c
-
-        return "'{}'{}".format(self.ws_name, a)
+        return "'{}' {}".format(self.ws_name, a)
 
 
 def _named_ranges_in_workbook(wb):
@@ -468,7 +445,19 @@ def _named_ranges_in_workbook(wb):
     return named_ranges
 
 
-def _anchor_substitution(ref):
+def _reference_to_col_row(lev, reference):
+    reference = __reference_to_property_names(reference)
+    col, row  = __reference_to_property_values(lev, reference)
+    col, row  = __parse_characters_from_digits(reference, col, row)
+
+    return col, row
+
+
+def __reference_to_property_names(reference):
+    """
+    eg:
+        'header_c first_r' = __reference_to_property_names('*h *f')
+    """
     anchor_names = {'*m': 'meta',
                     '*h': 'header',
                     '*f': 'first',
@@ -480,21 +469,55 @@ def _anchor_substitution(ref):
         |(?P<row>[*][mhfla]$)
     ''', re.X | re.I)
 
-    for match in anchor_re.finditer(ref):
-        name_re = match.lastgroup
-        val_re  = match.group(0)
+    reference = reference.strip()
 
-        if name_re == 'col':
-            col = anchor_names[val_re] + '_c '
-            ref = ref.replace(val_re, col, 1)
-        elif name_re == 'row':
-            row = ' ' + anchor_names[val_re] + '_r'
-            ref = ref.replace(val_re, row, 1)
+    for match in anchor_re.finditer(reference):
+        name  = match.lastgroup
+        value = match.group(0)
 
-    return ref
+        if name == 'col':
+            col = anchor_names[value] + '_c '
+            reference = reference.replace(value, col, 1)
+        elif name == 'row':
+            row = ' ' + anchor_names[value] + '_r'
+            reference = reference.replace(value, row, 1)
+
+    # replace multiple spaces with single space
+    reference = ' '.join(reference.split())
+
+    return reference
 
 
-def _alphanum_reference(ref, col, row):
+def __reference_to_property_values(lev, reference):
+    if ' ' not in reference:
+        return None, None
+
+    # replace multiple spaces with single space
+    reference = ' '.join(reference.split())
+
+    splits = reference.split(' ')
+    col = __lookup_col_row_on_object(lev, splits[0])
+    row = __lookup_col_row_on_object(lev, splits[1])
+
+    return col, row
+
+
+def __lookup_col_row_on_object(lev, reference):
+    if reference in lev.headers:
+        literal = lev.headers[reference]
+    elif reference in lev.m_headers:
+        literal = lev.m_headers[reference]
+    elif reference in lev.__dict__:
+        literal = lev.__dict__[reference]
+    elif reference in lev.__class__.__dict__:
+        literal = getattr(lev, reference)
+    else:
+        literal = None
+
+    return literal
+
+
+def __parse_characters_from_digits(reference, col, row):
     if (col is not None) and (row is not None):
         return col, row
 
@@ -503,14 +526,14 @@ def _alphanum_reference(ref, col, row):
         |(?P<row>[$]?[\d]+$)
     ''', re.X | re.I)
 
-    for match in address_re.finditer(ref):
-        name_re = match.lastgroup
-        val_re  = match.group(0)
-        if name_re == 'col' and col is None:
-            col = val_re
-        elif name_re == 'row' and row is None:
-            row = val_re
+    for match in address_re.finditer(reference):
+        name  = match.lastgroup
+        value = match.group(0)
+
+        if (name == 'col') and (col is None):
+            col = value
+        elif (name == 'row') and (row is None):
+            row = value
 
     return col, row
-
 

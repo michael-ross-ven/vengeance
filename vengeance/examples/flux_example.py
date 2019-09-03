@@ -41,6 +41,7 @@ def main():
 
 
 def instantiate_flux(num_rows=100, num_cols=3, str_len=5):
+
     m = [['col_{}'.format(c) for c in ascii_s[:num_cols]]]
     for _ in range(num_rows):
         m.append([''.join(choice(ascii_s) for _ in range(str_len))
@@ -48,7 +49,7 @@ def instantiate_flux(num_rows=100, num_cols=3, str_len=5):
 
     flux = flux_cls(m)
 
-    a = flux.is_empty       # determine if matrix is *totally* blank (not even headers)
+    a = flux.is_empty
 
     a = flux.headers
     a = flux.header_values
@@ -140,17 +141,19 @@ def modify_columns(flux):
 
     # encapsulate insertion, deletion and rename within single function
     flux.matrix_by_headers('col_c',
+                           'col_b',
                            '(insert_a)',
                            {'col_a': 'renamed_a'},
                            '(insert_b)',
                            '(insert_c)')
 
-    # column assignment / retrieval
+    # assign values to column
     flux['renamed_a'] = [None] * flux.num_rows
-    col = flux['renamed_a']
+    # add new column and assign values
+    flux['new_col'] = ['new'] * flux.num_rows
 
-    # appends a new column named new_col
-    flux['new_col'] = ['n'] * flux.num_rows
+    # read values from column
+    col = flux['col_b']
 
     pass
 
@@ -400,21 +403,28 @@ class flux_custom_cls(flux_cls):
         self.num_unique_names = len(self.unique_values('name'))
 
 
-@print_performance(repeat=30)
+@print_performance(repeat=10)
 def attribute_access_performance(flux):
+    """
+    read values:
+        ~1.0 ms per column per 1,000 rows
+
+    modify values:
+        ~1.0 ms per column per 1,000 rows
+    """
 
     for row in flux:
-        # read row values
+        #   read row values
         # a = row.col_a
         # b = row.col_b
         # c = row.col_c
 
-        # modify row values
+        #   modify row values
         # row.col_a = 'a'
         # row.col_b = 'b'
         # row.col_c = 'c'
 
-        # read / modify row values
+        #   read / modify row values
         row.col_a = row.col_a
         row.col_b = row.col_b
         row.col_c = row.col_c

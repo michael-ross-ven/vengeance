@@ -65,7 +65,7 @@ def iteration_depth(v):
     eg:
         2 = iteration_depth([['abc'], 1, 2])
     """
-    if _is_exhaustable(v):
+    if _is_exhaustable_iterator(v):
         raise TypeError('cannot evaluate iteration depth of an exhaustable iterator')
 
     if isinstance(v, str):
@@ -218,23 +218,25 @@ def is_empty(v):
     return (num_rows == 1) and (num_cols == 0)
 
 
-def index_sequence(sequence, start=0):
-    items = OrderedDict()
-    non_unique = defaultdict(int)
+def index_sequence(sequence, start=0, as_strings=True):
+    indices   = OrderedDict()
+    nonunique = defaultdict(int)
 
     for i, v in enumerate(sequence, start):
         if v in {'', None}:
-            continue
+            v = '_None_'
 
-        if v in non_unique:
-            _v_ = '{} ({})'.format(v, non_unique[v] + 1)
+        if v in nonunique:
+            _v_ = '{} ({})'.format(v, nonunique[v] + 1)
+        elif as_strings:
+            _v_ = str(v)
         else:
             _v_ = v
 
-        items[_v_] = i
-        non_unique[v] += 1
+        indices[_v_]  = i
+        nonunique[v] += 1
 
-    return items
+    return indices
 
 
 def ordered_unique(sequence):
@@ -292,7 +294,7 @@ def _is_subscriptable(v):
     return isinstance(v, (list, tuple))
 
 
-def _is_exhaustable(v):
+def _is_exhaustable_iterator(v):
     return hasattr(v, '__next__')
 
 

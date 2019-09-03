@@ -27,12 +27,16 @@ class flux_cls:
 
     def __init__(self, matrix=None):
         self._num_cols = None
-        self.headers   = OrderedDict()
-        self.matrix    = self._to_flux_rows(matrix)
+
+        self.headers = OrderedDict()
+        self.matrix  = self._to_flux_rows(matrix)
 
     @property
     def header_values(self):
-        return self.matrix[0].values
+        """
+        (these may not necessarily be the same values as self.matrix[0].values)
+        """
+        return list(self.headers.keys())
 
     @property
     def num_rows(self):
@@ -50,7 +54,7 @@ class flux_cls:
 
     @property
     def is_jagged(self):
-        num_cols = len(self.header_values)
+        num_cols = len(self.matrix[0].values)
 
         for row in self:
             if len(row.values) != num_cols:
@@ -75,7 +79,7 @@ class flux_cls:
         self.__validate_headers(m[0])
 
         if not self.headers:
-            self.headers = index_sequence(m[0])
+            self.headers = index_sequence(m[0], as_strings=True)
 
         if self._num_cols is None:
             self._num_cols = max(map(len, m))
@@ -146,8 +150,7 @@ class flux_cls:
         return parsed
 
     def matrix_by_headers(self, *headers):
-        """ this method could be faster
-
+        """
         performance enhancements:
             convert all headers to indices first
             take values on demand
@@ -158,21 +161,20 @@ class flux_cls:
             self._num_cols does not need to be reset if length of headers
             equal to self._num_cols
         """
-        columns = transpose([row.values for row in self])
-        if not columns:
-            columns = [[]]
+        headers = modify_iteration_depth(headers, depth=1)
+        columns = transpose([row.values for row in self]) or [[]]
 
         m = []
-        for header in modify_iteration_depth(headers, 1):
+        for header in headers:
             header = self.__renamed_or_inserted_header(header)
 
+            column = [header]
             if header not in self.headers:
-                column = [None] * self.num_rows
+                column += [None] * self.num_rows
             else:
                 i = self.headers[header]
-                column = columns[i]
+                column += columns[i]
 
-            column = [header] + column
             m.append(column)
 
         m = transpose(m)
@@ -209,7 +211,7 @@ class flux_cls:
         """
         :param old_to_new_headers: a dictionary of {h_old: h_new} headers
         """
-        renamed = self.header_values
+        renamed = self.matrix[0].values
 
         for h_old, h_new in old_to_new_headers.items():
             if h_old not in self.headers:
@@ -246,7 +248,7 @@ class flux_cls:
         if invalid:
             raise ValueError('column name(s) conflict with existing headers:\n{}'.format(invalid))
 
-        header_values = self.header_values
+        header_values = self.matrix[0].values
         for before, header in inserted:
 
             i = None
@@ -316,7 +318,7 @@ class flux_cls:
             for c in indices:
                 del row.values[c]
 
-        self._reapply_header_names(self.header_values)
+        self._reapply_header_names(self.matrix[0].values)
 
     def fill_jagged_columns(self):
         """ :returns indices of rows whose columns were extended """
@@ -386,7 +388,7 @@ class flux_cls:
             flux = flux.sorted('col_a', 'col_b', 'col_c',
                                reverse=[True, True, True])
         """
-        m = [self.header_values.copy()]
+        m = [self.matrix[0].values.copy()]
         m.extend([row.values.copy() for row in self.__sort_rows(f, reverse)])
 
         flux = self.__class__()
@@ -430,7 +432,7 @@ class flux_cls:
 
     def filtered(self, f):
         """ return new flux """
-        m = [self.header_values.copy()]
+        m = [self.matrix[0].values.copy()]
         m.extend([row.values.copy() for row in self if f(row)])
 
         flux = self.__class__()
@@ -525,19 +527,21 @@ class flux_cls:
 
     def namedtuples(self):
         try:
-            nt_cls = namedtuple('flux_row_nt', self.header_values)
+            nt_cls = namedtuple('flux_row_nt', self.headers.keys())
             return [nt_cls(*row.values) for row in self]
         except ValueError as e:
             import re
 
-            names = [n for n in self.header_values
-                       if re.search('^[^a-z]|[ ]', n, re.IGNORECASE)]
-            raise ValueError("invalid headers for namedtuple: {}".format(names)) from e
+            names = [n for n in self.headers.keys() if re.search('^[^a-z]|[ ]', str(n), re.I)]
+            if names:
+                raise ValueError('invalid field(s) for namedtuple constructor: {}'.format(names)) from e
+            else:
+                raise e
 
     def enumerate_rows(self, start=0):
         """ to assist with debugging """
         if 'i' in self.headers:
-            raise NotImplementedError
+            raise AssertionError("column 'i' already exists as a header name")
 
         for i, row in enumerate(self.matrix, start):
             row.__dict__['i'] = i
@@ -787,7 +791,7 @@ class flux_cls:
             row.values[i] = v
 
     def __iter__(self):
-        return iter(islice(self.matrix, 1, None))
+        return islice(self.matrix, 1, None)
 
     def __add__(self, flux_b):
         flux_final = self.copy()
@@ -797,7 +801,7 @@ class flux_cls:
 
     def __repr__(self):
         if self.is_empty:
-            return '(0)'
+            return '(empty)'
 
         headers = list(self.headers.keys())
         headers = str(headers).replace("'", '')
