@@ -11,8 +11,6 @@ from logging import DEBUG
 
 from concurrent.futures import ProcessPoolExecutor
 
-from .. util.filesystem import make_dirs
-
 
 class log_cls(Logger):
 
@@ -75,7 +73,8 @@ class log_cls(Logger):
         if f_dir is None:
             return
 
-        make_dirs(f_dir)
+        if not os.path.exists(f_dir):
+            os.makedirs(f_dir)
 
         f_name = self.name
         if not f_name.endswith('.log'):

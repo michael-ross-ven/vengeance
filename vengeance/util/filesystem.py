@@ -83,18 +83,12 @@ def write_file(path, data, encoding=None, mode='w'):
 
         return
 
-    # f.write() is much faster than f.writelines(); make sure data is string
     if not isinstance(data, str):
+        # convert data to string: f.write() is much faster than f.writelines()
         data = repr_(data, concat='\n', quotes=False, wrap=False)
 
     with open(path, mode, encoding=encoding) as f:
         f.write(data)
-
-
-def make_dirs(f_dir):
-    if not os.path.isdir(f_dir):
-        if not os.path.exists(f_dir):
-            os.makedirs(f_dir)
 
 
 def clear_dir(f_dir, allow_not_exist=False):

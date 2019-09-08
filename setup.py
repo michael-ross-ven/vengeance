@@ -7,13 +7,12 @@ from setuptools import setup
 from textwrap import dedent
 
 
-__version__ = '1.0.33'
-__release__ = '$release 26'
+__version__ = '1.0.34'
+__release__ = '$release 27'
 
 dependencies = ('comtypes',
                 'pypiwin32',
-                'python-dateutil',
-                'pyodbc')
+                'python-dateutil')
 
 
 long_description = '(fill this out later)\nhttps://github.com/michael-ross-ven/vengeance/blob/master/README.md'

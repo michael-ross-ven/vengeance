@@ -271,7 +271,6 @@ def __excel_app_from_hwnd(window_h):
 
     if excel7_wnd == 0:
         corrupt_hwnds.add(window_h)
-        vengeance_message('(corrupt Excel application detected)')
         return None
 
     # noinspection PyTypeChecker

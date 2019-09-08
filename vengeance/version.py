@@ -1,6 +1,6 @@
 
 # generated from setup.py
-__version__ = '1.0.33'
-__release__ = '$release 26'
+__version__ = '1.0.34'
+__release__ = '$release 27'
 
-dependencies = ('comtypes', 'pypiwin32', 'python-dateutil', 'pyodbc')
+dependencies = ('comtypes', 'pypiwin32', 'python-dateutil')
