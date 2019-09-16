@@ -218,7 +218,7 @@ def is_empty(v):
     return (num_rows == 1) and (num_cols == 0)
 
 
-def index_sequence(sequence, start=0, as_strings=True):
+def index_sequence(sequence, start=0):
     indices   = OrderedDict()
     nonunique = defaultdict(int)
 
@@ -228,10 +228,8 @@ def index_sequence(sequence, start=0, as_strings=True):
 
         if v in nonunique:
             _v_ = '{} ({})'.format(v, nonunique[v] + 1)
-        elif as_strings:
-            _v_ = str(v)
         else:
-            _v_ = v
+            _v_ = str(v)
 
         indices[_v_]  = i
         nonunique[v] += 1
@@ -287,7 +285,10 @@ def _is_iterable(v):
         False = is_iterable('mike')
         True  = is_iterable(['m', 'i' 'k' 'e'])
     """
-    return isinstance(v, Iterable) and not isinstance(v, str)
+    is_iter   = isinstance(v, Iterable)
+    is_string = isinstance(v, str)
+
+    return is_iter and not is_string
 
 
 def _is_subscriptable(v):
@@ -301,6 +302,7 @@ def _is_exhaustable_iterator(v):
 class OrderedDefaultDict(OrderedDict):
 
     def __init__(self, default_factory=None, *args, **kwargs):
+
         if default_factory and (not callable(default_factory)):
             raise TypeError('first argument must be callable')
 

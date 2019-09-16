@@ -4,7 +4,6 @@ import re
 # noinspection PyUnresolvedReferences
 from pythoncom import com_error
 
-from collections import namedtuple
 from collections import OrderedDict
 
 from .. excel_com.worksheet import activate_sheet
@@ -27,7 +26,6 @@ from .. excel_com.excel_constants import *
 
 from .. util.iter import index_sequence
 from .. util.iter import modify_iteration_depth
-from .. util.text import between
 
 from . flux_row_cls import lev_row_cls
 
@@ -63,7 +61,7 @@ class excel_levity_cls:
         self.headers   = OrderedDict()
         self.m_headers = OrderedDict()
 
-        self._named_ranges  = _named_ranges_in_workbook(self.workbook)
+        self._named_ranges  = {}
         self._fixed_columns = first_c, last_c
         self._fixed_rows    = first_r, last_r
 
@@ -90,7 +88,10 @@ class excel_levity_cls:
 
     @property
     def named_ranges(self):
-        return {name: self.excel_range(name) for name in self._named_ranges.keys()}
+        if not self._named_ranges:
+            self._named_ranges = _named_ranges_in_workbook(self.workbook)
+
+        return self._named_ranges
 
     @property
     def worksheet(self):
@@ -265,9 +266,11 @@ class excel_levity_cls:
     @classmethod
     def __index_row_headers(cls, excel_range):
         row = next(gen_range_rows(excel_range))
+        if not any(row):
+            return OrderedDict()
 
         start = excel_range.Column
-        headers = index_sequence(row, start, as_strings=True)
+        headers = index_sequence(row, start)
         headers = OrderedDict((h, col_letter(v)) for h, v in headers.items())
 
         return headers
@@ -285,26 +288,15 @@ class excel_levity_cls:
         self.headers = self.__index_headers('header_r')
 
     def excel_range(self, reference):
-        a = None
-        excel_range = None
 
         try:
-            if reference not in self._named_ranges:
-                a = self.excel_address(reference)
-                excel_range = self.ws.Range(a)
-            else:
-                named_range = self._named_ranges[reference]
-                a = '{}!{}'.format(named_range.tab_name, named_range.address)
-                excel_range = self.workbook.Sheets(named_range.tab_name).Range(named_range.address)
+            a = self.excel_address(reference)
+            excel_range = self.ws.Range(a)
         except com_error:
-            pass
+            excel_range = self.named_ranges.get(reference)
 
         if excel_range is None:
-            a = (str(a).replace('NoneNone', 'None')
-                       .replace('None', ' None ')
-                       .strip())
-            raise ValueError("Range reference '{}' resolved to an invalid Excel address: '{}'"
-                             .format(reference, a))
+            raise ValueError("Invalid Range reference '{}'".format(reference))
 
         return excel_range
 
@@ -338,9 +330,9 @@ class excel_levity_cls:
         excel_range = self.excel_range(a)
 
         if self.headers:
-            headers = index_sequence(self.headers.keys(), as_strings=True)
+            headers = index_sequence(self.headers.keys())
         elif self.m_headers:
-            headers = index_sequence(self.m_headers.keys(), as_strings=True)
+            headers = index_sequence(self.m_headers.keys())
         else:
             headers = {}
 
@@ -421,26 +413,13 @@ class excel_levity_cls:
 
 def _named_ranges_in_workbook(wb):
     named_ranges = {}
-    named_range_ntc = namedtuple('named_range_ntc', ('tab_name', 'address'))
 
     for nr in wb.Names:
-        name = nr.Name.lower()
-        full_addr = nr.RefersTo.lower()
-
-        if ('!' not in name
-          and '_xl' not in name
-          and '#ref' not in full_addr):
-
-            a = full_addr.split('\\')[-1]
-            a = a.replace("'", '')
-            a = a.replace('=', '')
-
-            if '[' in a and ']' in a:
-                wb_name = '[' + between(a, '[', ']') + ']'          # [workbook.xlsx]tab_name!address
-                a = a.replace(wb_name, '')
-
-            tab_name, a = a.split('!')
-            named_ranges[nr.Name] = named_range_ntc(tab_name, a.upper())
+        if nr.Visible:
+            try:
+                named_ranges[nr.Name] = nr.RefersToRange
+            except com_error:
+                continue
 
     return named_ranges
 

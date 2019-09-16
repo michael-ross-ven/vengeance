@@ -16,7 +16,6 @@ from .. util.iter import modify_iteration_depth
 from .. util.iter import transpose
 from .. util.iter import index_sequence
 from .. util.iter import ordered_unique
-from .. util.iter import is_vengeance_class
 from .. util.iter import is_flux_row_class
 from .. util.text import p_json_dumps
 
@@ -33,9 +32,6 @@ class flux_cls:
 
     @property
     def header_values(self):
-        """
-        (these may not necessarily be the same values as self.matrix[0].values)
-        """
         return list(self.headers.keys())
 
     @property
@@ -64,7 +60,6 @@ class flux_cls:
 
     @property
     def is_empty(self):
-        """ determine if matrix has any values """
         for row in self.matrix:
             if row.values:
                 return False
@@ -79,7 +74,7 @@ class flux_cls:
         self.__validate_headers(m[0])
 
         if not self.headers:
-            self.headers = index_sequence(m[0], as_strings=True)
+            self.headers = index_sequence(m[0])
 
         if self._num_cols is None:
             self._num_cols = max(map(len, m))
@@ -92,7 +87,8 @@ class flux_cls:
     def _reapply_header_names(self, headers):
         """
         re-assigning self.headers will de-reference flux_row_cls._headers
-        instead, self.headers.clear() must be called, followed by addition of items
+        instead, self.headers.clear() must be called, followed by addition of new
+        items
         """
         if len(headers) != self._num_cols:
             self._num_cols = None
@@ -103,6 +99,7 @@ class flux_cls:
 
     def execute_commands(self, commands, profile=False):
         if profile:
+            # noinspection PyUnresolvedReferences
             from line_profiler import LineProfiler
             profiler = LineProfiler()
         else:
@@ -127,14 +124,15 @@ class flux_cls:
 
     def __parse_commands(self, commands):
         parsed = []
-        nt_cls = namedtuple('command_nt', ['name',
+        nt_cls = namedtuple('command_nt', ('name',
                                            'method',
                                            'args',
-                                           'num_args'])
+                                           'num_args'))
 
         for command in commands:
             if isinstance(command, (list, tuple)):
                 name, args = command
+
                 if isinstance(args, str):
                     num_args = 1
                 else:
@@ -250,23 +248,17 @@ class flux_cls:
 
         header_values = self.matrix[0].values
         for before, header in inserted:
-
-            i = None
             if isinstance(before, int):
                 i = before
-            elif isinstance(before, str):
-                if before == '*f':
-                    i = 0
-                elif before == '*l':
-                    i = len(header_values)
-                else:
-                    try:
-                        i = header_values.index(before)
-                    except ValueError as e:
-                        raise ValueError("header '{}' does not exist".format(before)) from e
-
-            if i is None:
-                raise KeyError("insertion header '{}' does not exist".format(before))
+            elif before == '*f':
+                i = 0
+            elif before == '*l':
+                i = len(header_values)
+            else:
+                try:
+                    i = header_values.index(before)
+                except ValueError as e:
+                    raise ValueError("header '{}' does not exist".format(before)) from e
 
             header_values.insert(i, header)
 
@@ -275,7 +267,6 @@ class flux_cls:
             indices.append(header_values.index(header))
 
         indices.sort()
-
         for i in indices:
             for row in self:
                 row.values.insert(i, None)
@@ -345,24 +336,17 @@ class flux_cls:
         if i == 0:
             self.headers.clear()
             del self.matrix[0]
-        elif is_vengeance_class(rows):
-            rows = list(rows.rows())[1:]
-
-        self.matrix[i:i] = self._to_flux_rows(rows)
 
         self._num_cols = None
+        self.matrix[i:i] = self._to_flux_rows(rows)
 
     def append_rows(self, rows):
         if self.is_empty:
             self.matrix = self._to_flux_rows(rows)
             return
 
-        if is_vengeance_class(rows):
-            rows = list(rows.rows())[1:]
-
-        self.matrix.extend(self._to_flux_rows(rows))
-
         self._num_cols = None
+        self.matrix.extend(self._to_flux_rows(rows))
 
     def sort(self, *f, reverse=None):
         """ in-place sort
@@ -399,9 +383,7 @@ class flux_cls:
 
     def __sort_rows(self, f, order):
         """
-        since sort priority of columns proceeds from left to right, (the first
-        column specified is the last one sorted), sort functions and sort orders
-        must be reversed
+        sort priority of columns proceeds from left to right
         """
         if isinstance(order, bool):
             order = [order]
@@ -409,17 +391,16 @@ class flux_cls:
             order = order or []
 
         if not isinstance(order, (list, tuple)):
-            raise TypeError('reverse must be either a list of boolean')
+            raise TypeError('reverse must be a list of booleans')
 
         f = modify_iteration_depth(f, 1)
-
         for _ in range(len(f) - len(order)):
             order.append(False)
 
-        o = reversed(order)
-        f = reversed(f)
-
         m = self.matrix[1:]
+
+        f = reversed(f)
+        o = reversed(order)
         for _f_, _o_ in zip(f, o):
             _f_ = self.__row_values_accessor(_f_)
             m.sort(key=_f_, reverse=_o_)
@@ -431,7 +412,7 @@ class flux_cls:
         self.matrix[1:] = [row for row in self if f(row)]
 
     def filtered(self, f):
-        """ return new flux """
+        """ returns new flux """
         m = [self.matrix[0].values.copy()]
         m.extend([row.values.copy() for row in self if f(row)])
 
@@ -468,46 +449,6 @@ class flux_cls:
         """ :return: list of unique values within column(s), original order is preserved """
         f = self.__row_values_accessor(f)
         return ordered_unique(f(row) for row in self)
-
-    def contiguous_rows(self, *f):
-        """ :return: list of rows where values are contiguous """
-        rows = []
-        for i_1, i_2 in self.contiguous_indices(f):
-            rows.append(self.matrix[i_1:i_2])
-
-        return rows
-
-    def contiguous_indices(self, *f):
-        """ :return: list of (i_1, i_2) row indices where values are contiguous
-        eg:
-            for i_1, i_2 in flux.contiguous_indices('col_a', 'col_b'):
-                rows = flux[i_1:i_2]
-        """
-        if self.num_rows == 0:
-            return []
-
-        f = self.__row_values_accessor(f)
-
-        rows = iter(self)
-        v_p  = f(next(rows))
-
-        indices = [1]
-        for i, row in enumerate(rows, 2):
-            v = f(row)
-            if v != v_p:
-                indices.append(i)
-                v_p = v
-
-        indices.append(len(self.matrix))
-        indices = [(i_1, i_2) for i_1, i_2 in zip(indices, indices[1:])]
-
-        return indices
-
-    def replace_matrix(self, m):
-        self._num_cols = None
-        self.headers   = None
-
-        self.matrix = self._to_flux_rows(m)
 
     def index_row(self, *f):
         """ dictionary of {f(row): row}
@@ -558,6 +499,64 @@ class flux_cls:
 
         return flux
 
+    def rows(self, r_1='*h', r_2='*l'):
+        r_1 = self._matrix_index(r_1)
+        r_2 = self._matrix_index(r_2)
+
+        return (row.values for row in islice(self.matrix, r_1, r_2 + 1))
+
+    def flux_rows(self, r_1='*h', r_2='*l'):
+        r_1 = self._matrix_index(r_1)
+        r_2 = self._matrix_index(r_2)
+
+        return iter(islice(self.matrix, r_1, r_2 + 1))
+
+    def contiguous_rows(self, *f):
+        """ :return: list of rows where values are contiguous """
+        rows = []
+        for i_1, i_2 in self.contiguous_indices(f):
+            rows.append(self.matrix[i_1:i_2])
+
+        return rows
+
+    def contiguous_indices(self, *f):
+        """ :return: list of (i_1, i_2) row indices where values are contiguous
+        eg:
+            for i_1, i_2 in flux.contiguous_indices('col_a', 'col_b'):
+                rows = flux[i_1:i_2]
+        """
+        if self.num_rows == 0:
+            return []
+
+        f = self.__row_values_accessor(f)
+
+        rows = iter(self)
+        row = next(rows)
+        v_prev = f(row)
+
+        i = 1
+        indices = [i]
+        i += 1
+
+        for _i_, row in enumerate(rows, i):
+            v = f(row)
+
+            if v != v_prev:
+                indices.append(_i_)
+                v_prev = v
+
+        indices.append(len(self.matrix))
+        indices = [(i_1, i_2) for i_1, i_2 in zip(indices, indices[1:])]
+
+        return indices
+
+    def replace_matrix(self, m):
+        self._num_cols = None
+
+        self.headers = None
+        self.matrix = self._to_flux_rows(m)
+
+
     def to_csv(self, path, encoding=None):
         m = list(self.rows())
 
@@ -566,7 +565,6 @@ class flux_cls:
 
     @classmethod
     def from_csv(cls, path, encoding=None):
-        path = apply_file_extension(path, '.csv')
         m = read_file(path, encoding=encoding)
 
         return cls(m)
@@ -583,7 +581,6 @@ class flux_cls:
 
     @classmethod
     def from_json(cls, path, encoding=None):
-        path = apply_file_extension(path, '.json')
 
         rows = read_file(path, encoding=encoding)
         if rows:
@@ -596,7 +593,7 @@ class flux_cls:
 
     def serialize(self, path):
         """
-        while convenient, using pickle also introduces significant security flaws
+        using pickle, while convenient,  also introduces significant security flaws
         you should be sure no malicious actors have access to the location of these files
         """
         path = apply_file_extension(path, '.flux')
@@ -605,23 +602,11 @@ class flux_cls:
     @classmethod
     def deserialize(cls, path):
         """
-        while convenient, using pickle also introduces significant security flaws
+        using pickle, while convenient, also introduces significant security flaws
         you should be sure no malicious actors have access to the location of these files
         """
         path = apply_file_extension(path, '.flux')
         return read_file(path)
-
-    def rows(self, r_1='*h', r_2='*l'):
-        r_1 = self._matrix_index(r_1)
-        r_2 = self._matrix_index(r_2)
-
-        return (row.values for row in islice(self.matrix, r_1, r_2 + 1))
-
-    def flux_rows(self, r_1='*h', r_2='*l'):
-        r_1 = self._matrix_index(r_1)
-        r_2 = self._matrix_index(r_2)
-
-        return iter(islice(self.matrix, r_1, r_2 + 1))
 
     def _matrix_index(self, reference):
         if isinstance(reference, (int, float)):
@@ -638,7 +623,7 @@ class flux_cls:
         return r_i
 
     def __row_values_accessor(self, f):
-        """ convert f into a function that can retrieve values for each row in self.matrix """
+        """ convert f into a function that can retrieve values for each flux_row_cls """
 
         def row_values(row):
             """ return muliple values (as tuple) from each row """
@@ -649,10 +634,10 @@ class flux_cls:
             return row.values[i]
 
         f = modify_iteration_depth(f, depth=0)
-        self.__validate_accessor(f)
-
         if callable(f):
             return f
+
+        self.__validate_accessor(f)
 
         if isinstance(f, (list, tuple)):
             columns = tuple(self.headers.get(n, n) for n in f)
@@ -716,9 +701,9 @@ class flux_cls:
 
     @staticmethod
     def __validate_headers(headers):
-        reserved = set(headers) & flux_row_cls.class_names
-        if reserved:
-            raise NameError('conflicting name(s) {} found in header row: {}'.format(list(reserved), headers))
+        conflicting = set(headers) & flux_row_cls.class_names
+        if conflicting:
+            raise NameError('conflicting name(s) {} found in header row: {}'.format(list(conflicting), headers))
 
     @staticmethod
     def __validate_column_names(names):

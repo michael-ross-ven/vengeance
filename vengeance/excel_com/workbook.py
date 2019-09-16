@@ -5,6 +5,7 @@ from ctypes import PyDLL
 from ctypes import byref
 from ctypes.wintypes import BOOL
 
+import pythoncom
 from comtypes import COMError
 from comtypes import GUID
 from comtypes import IUnknown
@@ -12,18 +13,16 @@ from comtypes.automation import IDispatch
 from comtypes.client import CreateObject
 from comtypes.client.dynamic import Dispatch
 
-import pythoncom
 # noinspection PyUnresolvedReferences
 from pythoncom import com_error
 
 from win32com.client import Dispatch as pywin_dispatch                      # late-bound reference
 # from win32com.client.gencache import EnsureDispatch as pywin_dispatch     # early-bound reference
 
+from .excel_constants import xlMaximized
 from ..util.filesystem import assert_path_exists
 from ..util.filesystem import standardize_path
 from ..util.text import vengeance_message
-
-from .excel_constants import xlMaximized
 
 FindWindowEx               = ctypes.windll.user32.FindWindowExA
 AccessibleObjectFromWindow = ctypes.oledll.oleacc.AccessibleObjectFromWindow
