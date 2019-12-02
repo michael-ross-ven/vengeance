@@ -1,7 +1,6 @@
 
 from . dates import to_datetime
-from . dates import attempt_to_datetime
-from . dates import is_valid_date
+from . dates import is_datetime
 
 from . filesystem import read_file
 from . filesystem import write_file
@@ -11,8 +10,7 @@ from . text import print_runtime
 
 
 __all__ = ['to_datetime',
-           'attempt_to_datetime',
-           'is_valid_date',
+           'is_datetime',
            'read_file',
            'write_file',
            'transpose',

@@ -3,21 +3,23 @@ from copy import deepcopy
 from collections import OrderedDict
 from collections import Counter
 from collections import namedtuple
-from itertools import islice
 
 from .. util.filesystem import write_file
 from .. util.filesystem import read_file
 from .. util.filesystem import apply_file_extension
+
 from .. util.iter import OrderedDefaultDict
 from .. util.iter import iterator_to_list
-from .. util.iter import base_class_names
 from .. util.iter import iteration_depth
 from .. util.iter import modify_iteration_depth
 from .. util.iter import transpose
 from .. util.iter import index_sequence
 from .. util.iter import ordered_unique
+from .. util.iter import base_class_names
 from .. util.iter import is_flux_row_class
+
 from .. util.text import p_json_dumps
+from .. util.text import print_runtime
 
 from . flux_row_cls import flux_row_cls
 
@@ -25,32 +27,54 @@ from . flux_row_cls import flux_row_cls
 class flux_cls:
 
     def __init__(self, matrix=None):
-        self._num_cols = None
+        headers, matrix = flux_cls.to_flux_rows(matrix)
 
-        self.headers = OrderedDict()
-        self.matrix  = self._to_flux_rows(matrix)
+        self.headers = headers
+        self.matrix  = matrix
+
+    @classmethod
+    def to_flux_rows(cls, matrix, headers=None):
+        matrix = matrix or [[]]
+        matrix = cls.__validate_modify_matrix(matrix)
+
+        if headers is None:
+            cls.__validate_no_reserved_headers(matrix[0])
+            headers = index_sequence(matrix[0])
+
+        matrix = [flux_row_cls(headers, row) for row in matrix]
+
+        return headers, matrix
 
     @property
     def header_values(self):
+        """
+        there may be a discrepancy between self.matrix[0].values and self.headers.keys
+            index_sequence() makes certain modifications to self.headers.keys,
+            such as coercing values to strings, modifying duplicate values, etc
+        """
         return list(self.headers.keys())
 
     @property
+    def first_five_rows(self):
+        return [row.values for row in self.matrix[:6]]
+
+    @property
     def num_rows(self):
-        """ header row not included in count """
+        """ header row excluded """
         return len(self.matrix) - 1
 
     @property
     def num_cols(self):
-        """ maximum number of columns of all rows """
-        if self._num_cols is None:
-            m = [row.values for row in self.matrix]
-            self._num_cols = max(map(len, m))
+        return len(self.matrix[0].values)
 
-        return self._num_cols
+    @property
+    def max_num_cols(self):
+        m = [row.values for row in self.matrix]
+        return max(map(len, m))
 
     @property
     def is_jagged(self):
-        num_cols = len(self.matrix[0].values)
+        num_cols = self.num_cols
 
         for row in self:
             if len(row.values) != num_cols:
@@ -66,51 +90,42 @@ class flux_cls:
 
         return True
 
-    def _to_flux_rows(self, m):
-        if m is None:
-            return [flux_row_cls({}, [])]
+    def rows(self, r_1=0, r_2='*l'):
+        r_1 = self.__matrix_row_index(r_1)
+        r_2 = self.__matrix_row_index(r_2) + 1
 
-        m = self.__validate_matrix(m)
-        self.__validate_headers(m[0])
+        return (row.values for row in self.matrix[r_1:r_2])
 
-        if not self.headers:
-            self.headers = index_sequence(m[0])
+    def flux_rows(self, r_1=0, r_2='*l'):
+        r_1 = self.__matrix_row_index(r_1)
+        r_2 = self.__matrix_row_index(r_2) + 1
 
-        if self._num_cols is None:
-            self._num_cols = max(map(len, m))
+        return (row for row in self.matrix[r_1:r_2])
 
-        headers = self.headers
-        flux_m  = [flux_row_cls(headers, row) for row in m]
+    def __matrix_row_index(self, r):
+        anchors = {'*h': 0,
+                   '*f': 1,
+                   '*l': self.num_rows}
 
-        return flux_m
+        r_i = anchors.get(r, r)
+        if not isinstance(r_i, int):
+            raise ValueError("invalid row reference '{}'".format(r))
 
-    def _reapply_header_names(self, headers):
-        """
-        re-assigning self.headers will de-reference flux_row_cls._headers
-        instead, self.headers.clear() must be called, followed by addition of new
-        items
-        """
-        if len(headers) != self._num_cols:
-            self._num_cols = None
-
-        self.headers.clear()
-        for i, header in enumerate(headers):
-            self.headers[header] = i
+        return r_i
 
     def execute_commands(self, commands, profile=False):
-        if profile:
-            # noinspection PyUnresolvedReferences
-            from line_profiler import LineProfiler
-            profiler = LineProfiler()
-        else:
-            profiler = None
-
+        profiler = self.__profiler_function(profile)
         commands = self.__parse_commands(commands)
 
+        completed_commands = []
+
         for command in commands:
-            method = command.method
+            completed_commands.append(command.name)
+
             if profiler:
-                method = profiler(method)
+                method = profiler(command.method)
+            else:
+                method = command.method
 
             if command.num_args == 0:
                 method()
@@ -119,8 +134,27 @@ class flux_cls:
             else:
                 method(*command.args)
 
-        if profiler:
+        if hasattr(profiler, 'print_stats'):
             profiler.print_stats()
+
+    @staticmethod
+    def __profiler_function(profile):
+        if not profile:
+            return None
+
+        if profile == 'print_runtime':
+            return print_runtime
+
+        try:
+            # noinspection PyUnresolvedReferences
+            from line_profiler import LineProfiler
+            return LineProfiler()
+
+        except ImportError as e:
+            if str(profile).lower() in ('line_profiler', 'lineprofiler'):
+                raise ImportError('line_profiler site-package not installed') from e
+
+        return print_runtime
 
     def __parse_commands(self, commands):
         parsed = []
@@ -128,7 +162,6 @@ class flux_cls:
                                            'method',
                                            'args',
                                            'num_args'))
-
         for command in commands:
             if isinstance(command, (list, tuple)):
                 name, args = command
@@ -147,56 +180,53 @@ class flux_cls:
 
         return parsed
 
-    def matrix_by_headers(self, *headers):
-        """
-        performance enhancements:
-            convert all headers to indices first
-            take values on demand
-            for c in range(indices):
-                columns.append([row.values[c] for row in self.matrix])
-
-            store columns that have already been used in dict
-            self._num_cols does not need to be reset if length of headers
-            equal to self._num_cols
-        """
-        headers = modify_iteration_depth(headers, depth=1)
+    def matrix_by_headers(self, *names):
+        names   = modify_iteration_depth(names, depth=1)
         columns = transpose([row.values for row in self]) or [[]]
 
         m = []
-        for header in headers:
+        for header in names:
             header = self.__renamed_or_inserted_header(header)
 
-            column = [header]
-            if header not in self.headers:
-                column += [None] * self.num_rows
-            else:
+            if header in self.headers:
                 i = self.headers[header]
-                column += columns[i]
+                column = columns[i]
+            else:
+                column = [None] * self.num_rows
 
+            column.insert(0, header)
             m.append(column)
 
         m = transpose(m)
 
-        self.headers.clear()
-        self._num_cols = None
-
-        self.matrix = self._to_flux_rows(m)
+        (self.headers, self.matrix) = self.to_flux_rows(m)
 
     def __renamed_or_inserted_header(self, header):
         """
-        to ensure new columns are being created intentionally and not because
-        of spelling errors etc, inserted headers must be surrounded by parenthesis
+        parentheses around inserted headers:
+            to ensure new columns are being created intentionally and not because
+            of spelling errors, inserted headers must be surrounded by parenthesis,
+            eg: '(inserted_header)'
         """
-        if not isinstance(header, (dict, str)):
+        if not isinstance(header, (dict, tuple, str)):
             raise ValueError('{}\nheader must be either dictionary or string'.format(header))
 
-        if isinstance(header, dict):                            # renamed: {'header_a': 'header_z'}
+        if isinstance(header, dict):
             h_old, h_new = tuple(header.items())[0]
             self.headers[h_new] = self.headers[h_old]
 
             return h_new
 
-        if header.startswith('(') and header.endswith(')'):     # inserted: '(inserted_header)'
+        if isinstance(header, tuple):
+            h_old, h_new = header
+            self.headers[h_new] = self.headers[h_old]
+
+            return h_new
+
+        if header in self.headers:
+            return header
+
+        if header.startswith('(') and header.endswith(')'):
             return header[1:-1]
 
         if header not in self.headers:
@@ -205,104 +235,105 @@ class flux_cls:
 
         return header
 
+    def columns(self, *names):
+        """ :return column values """
+        names = modify_iteration_depth(names, depth=1)
+        names = self.__names_to_column_indices(names, self.headers)
+
+        f = self.__row_values_accessor(names)
+        m = [f(row) for row in self]
+
+        if len(names) > 1:
+            return transpose(m)
+
+        return m
+
     def rename_columns(self, old_to_new_headers):
-        """
-        :param old_to_new_headers: a dictionary of {h_old: h_new} headers
-        """
-        renamed = self.matrix[0].values
+        header_values = self.matrix[0].values
 
         for h_old, h_new in old_to_new_headers.items():
-            if h_old not in self.headers:
-                raise KeyError('invalid header name {}'.format(h_old))
-
             i = self.headers[h_old]
-            renamed[i] = h_new
+            header_values[i] = h_new
 
-        self._reapply_header_names(renamed)
+        self._reapply_header_names(header_values)
 
-    def insert_columns(self, *inserted):
+    def insert_columns(self, *names):
         """
-        :param inserted: (before, header_name)
-
         eg names:
-            flux.insert_columns('header_a')                     insert column at index 0
-            flux.insert_columns((3, 'header_a'))                insert column at index 3
-            flux.insert_columns(('header_a', 'header_b'))       insert column at index 0
+            flux.insert_columns((0, 'inserted'))         insert column at beginning
+            flux.insert_columns((3, 'inserted'))         insert column before column 3
+            flux.insert_columns(('col_c', 'inserted'))   insert column before column 'col_c'
+            flux.insert_columns((-1, 'inserted'))        insert column before end
+
+            flux.insert_columns((1, 'inserted_a'),       insert columns before column 1
+                                (1, 'inserted_b'),
+                                (1, 'inserted_c'))
         """
-        inserted = modify_iteration_depth(inserted, depth=0)
-        if not inserted:
+        if not names:
             return
 
-        nd = iteration_depth(inserted)
-        if nd == 0:
-            inserted = [(0, inserted)]
-        elif nd == 1:
-            inserted = [inserted]
-
-        names = [n[1] for n in inserted]
-        names = self.__validate_column_names(names)
-
-        invalid = list(self.headers.keys() & set(names))
-        if invalid:
-            raise ValueError('column name(s) conflict with existing headers:\n{}'.format(invalid))
+        names = self.__validate_modify_inserted_names(names)
+        names = list(reversed(names))
 
         header_values = self.matrix[0].values
-        for before, header in inserted:
+
+        num_inserted = 0
+        for before, header in names:
             if isinstance(before, int):
                 i = before
-            elif before == '*f':
-                i = 0
-            elif before == '*l':
-                i = len(header_values)
             else:
-                try:
-                    i = header_values.index(before)
-                except ValueError as e:
-                    raise ValueError("header '{}' does not exist".format(before)) from e
+                i = header_values.index(before)
 
             header_values.insert(i, header)
+            num_inserted += 1
 
-        indices = []
-        for _, header in inserted:
-            indices.append(header_values.index(header))
-
+        indices = [header_values.index(h) for _, h in names]
         indices.sort()
+
+        self._reapply_header_names(header_values)
+
         for i in indices:
             for row in self:
                 row.values.insert(i, None)
 
+    def append_columns(self, *names, values=None):
+        if not names:
+            return
+
+        names = modify_iteration_depth(names, depth=1)
+        self.__validate_no_duplicates(names)
+        self.__validate_no_overlap_with_headers(names, self.headers)
+
+        header_values = self.matrix[0].values
+        header_values.extend(names)
         self._reapply_header_names(header_values)
 
-    def append_columns(self, *names):
-        names = self.__validate_column_names(names)
+        if values is None:
+            columns = [None for _ in range(len(names))]
+            for row in self:
+                row.values.extend(columns)
 
-        invalid = list(self.headers.keys() & set(names))
-        if invalid:
-            raise ValueError('column name(s) conflict with existing headers:\n{}'.format(invalid))
+            return
 
-        self.matrix[0].values.extend(names)
-        for header in names:
-            self.headers[header] = len(self.headers)
+        if iteration_depth(values) != 1:
+            raise ValueError('iteration depth of values must be exactly one')
 
-        nones = [None for _ in range(len(names))]
-        for row in self:
-            row.values.extend(nones)
+        if len(values) != self.num_rows:
+            raise ValueError('number of values must match the number of rows in flux')
 
-        self._num_cols = None
+        for row, v in zip(self, values):
+            row.values.append(v)
 
     def delete_columns(self, *names):
-        """ if negative indices? """
-        names = self.__validate_column_names(names)
-        indices = [self.headers.get(h, h) for h in names]
+        if not names:
+            return
 
-        invalid = [i for i in indices if not isinstance(i, int)]
-        if invalid:
-            raise ValueError('column(s) do not exist:\n{}'.format(invalid))
+        names = modify_iteration_depth(names, depth=1)
 
-        invalid = [i for i in indices if i < 0]
-        if invalid:
-            raise ValueError('negative indices not supported')
+        self.__validate_no_duplicates(names)
+        self.__validate_no_index_errors_with_headers(names, self.headers)
 
+        indices = self.__names_to_column_indices(names, self.headers)
         indices.sort(reverse=True)
 
         for row in self.matrix:
@@ -311,79 +342,85 @@ class flux_cls:
 
         self._reapply_header_names(self.matrix[0].values)
 
-    def fill_jagged_columns(self):
-        """ :returns indices of rows whose columns were extended """
-
-        max_cols = self.num_cols
+    def identify_jagged_columns(self):
+        num_cols = self.num_cols
 
         row_indices = []
         for i, row in enumerate(self.matrix):
-            values = row.values
-            num_missing = max_cols - len(values)
+            if len(row.values) != num_cols:
+                row_indices.append((i, row))
+
+        return row_indices
+
+    def fill_jagged_columns(self):
+        max_cols = self.max_num_cols
+
+        row_indices = []
+        for i, row in enumerate(self.matrix):
+            num_missing = max_cols - len(row.values)
 
             if num_missing > 0:
-                row_indices.append(i)
-                nones = [None for _ in range(num_missing)]
-                values.extend(nones)
+                row_indices.append((i, row))
+                row.values.extend([None for _ in range(num_missing)])
+
+                if i == 0:
+                    self._reapply_header_names(row.values)
 
         return row_indices
 
     def insert_rows(self, i, rows):
         if self.is_empty:
-            self.matrix = self._to_flux_rows(rows)
+            (self.headers, self.matrix) = self.to_flux_rows(rows)
             return
 
         if i == 0:
-            self.headers.clear()
             del self.matrix[0]
+            # (self.headers, self.matrix) = self.to_flux_rows(rows)
+            #
+            # return
 
-        self._num_cols = None
-        self.matrix[i:i] = self._to_flux_rows(rows)
+        _, matrix = self.to_flux_rows(rows, self.headers)
+        self.matrix[i:i] = matrix
 
     def append_rows(self, rows):
         if self.is_empty:
-            self.matrix = self._to_flux_rows(rows)
+            (self.headers, self.matrix) = self.to_flux_rows(rows)
             return
 
-        self._num_cols = None
-        self.matrix.extend(self._to_flux_rows(rows))
+        _, matrix = self.to_flux_rows(rows, self.headers)
+        self.matrix += matrix
 
-    def sort(self, *f, reverse=None):
+    def sort(self, *names, reverse=None):
         """ in-place sort
-        sort priority of columns proceeds from left to right
 
         eg:
             flux.sort('col_a')
-
-        eg multiple columns:
             flux.sort('col_a', 'col_b', 'col_c',
-                      reverse=[True, True, True])
+                      reverse=[True, False, True])
         """
-        self.matrix[1:] = self.__sort_rows(f, reverse)
+        self.matrix[1:] = self.__sort_rows(names, reverse)
 
-    def sorted(self, *f, reverse=None):
-        """ returns new flux after sorting
-        sort priority of columns proceeds from left to right
+    def sorted(self, *names, reverse=None):
+        """ :return: sorted flux_cls
 
         eg:
             flux = flux.sorted('col_a')
-
-        eg multiple columns:
             flux = flux.sorted('col_a', 'col_b', 'col_c',
-                               reverse=[True, True, True])
+                               reverse=[False, True, True])
         """
         m = [self.matrix[0].values.copy()]
-        m.extend([row.values.copy() for row in self.__sort_rows(f, reverse)])
+        m += [row.values.copy() for row in self.__sort_rows(names, reverse)]
 
-        flux = self.__class__()
-        flux._num_cols = self._num_cols
-        flux.matrix = flux._to_flux_rows(m)
+        flux = self.__class__(m)
 
         return flux
 
-    def __sort_rows(self, f, order):
+    def __sort_rows(self, names, order):
         """
-        sort priority of columns proceeds from left to right
+        sort priority from left to right:
+            names and order must be reversed
+            rightmost column sorted first
+            leftmost column sorted last
         """
         if isinstance(order, bool):
             order = [order]
@@ -393,96 +430,104 @@ class flux_cls:
         if not isinstance(order, (list, tuple)):
             raise TypeError('reverse must be a list of booleans')
 
-        f = modify_iteration_depth(f, 1)
-        for _ in range(len(f) - len(order)):
+        names = modify_iteration_depth(names, depth=1)
+        for _ in range(len(names) - len(order)):
             order.append(False)
 
         m = self.matrix[1:]
+        names = reversed(names)
+        order = reversed(order)
 
-        f = reversed(f)
-        o = reversed(order)
-        for _f_, _o_ in zip(f, o):
-            _f_ = self.__row_values_accessor(_f_)
-            m.sort(key=_f_, reverse=_o_)
+        for f, o in zip(names, order):
+            f = self.__row_values_accessor(f)
+            o = bool(o)
+            m.sort(key=f, reverse=o)
 
         return m
 
-    def filter(self, f):
+    def filter(self, f, *args, **kwargs):
         """ in-place """
-        self.matrix[1:] = [row for row in self if f(row)]
+        self.matrix[1:] = [row for row in self if f(row, *args, **kwargs)]
 
-    def filtered(self, f):
-        """ returns new flux """
+    def filtered(self, f, *args, **kwargs):
+        """ :return: new flux_cls """
         m = [self.matrix[0].values.copy()]
-        m.extend([row.values.copy() for row in self if f(row)])
+        m.extend([row.values.copy() for row in self if f(row, *args, **kwargs)])
 
-        flux = self.__class__()
-        flux._num_cols = self._num_cols
-        flux.matrix = flux._to_flux_rows(m)
+        flux = self.__class__(m)
 
         return flux
 
     def filter_by_unique(self, *f):
-        self.__filter_unique_rows(f, in_place=True)
+        self.__filter_unique_rows(*f, in_place=True)
 
     def filtered_by_unique(self, *f):
-        return self.__filter_unique_rows(f, in_place=False)
+        return self.__filter_unique_rows(*f, in_place=False)
 
-    def __filter_unique_rows(self, f, in_place):
-        uniq = set()
+    def __filter_unique_rows(self, *f, in_place):
 
         def evaluate_unique(row):
+            """ first-class function for .filter() """
             v = f(row)
-            if v not in uniq:
-                uniq.add(v)
+            if v not in u:
+                u.add(v)
                 return True
             else:
                 return False
 
+        u = set()
         f = self.__row_values_accessor(f)
+
         if in_place:
             self.filter(evaluate_unique)
         else:
             return self.filtered(evaluate_unique)
 
     def unique_values(self, *f):
-        """ :return: list of unique values within column(s), original order is preserved """
+        """ :return: list of ordered, unique values from [f(row)] """
         f = self.__row_values_accessor(f)
         return ordered_unique(f(row) for row in self)
 
     def index_row(self, *f):
-        """ dictionary of {f(row): row}
-        overwrites row values for non-unique key values
+        """ :return: dictionary of {f(row): row}
+
+        (rows with non-unique keys are overwritten)
         """
         f = self.__row_values_accessor(f)
         return OrderedDict((f(row), row) for row in self)
 
     def index_rows(self, *f):
-        """ dictionary of {f(row): [rows]}
-        preserves rows in a list for non-unique key values
+        """ :return: dictionary of {f(row): [row(s)]}
+
+        (rows with non-unique keys are appended to a list)
         """
         f = self.__row_values_accessor(f)
-        items = [(f(row), row) for row in self]
+        d = OrderedDefaultDict(list, [(f(row), row) for row in self])
 
-        return OrderedDefaultDict(list, items)
+        return d.ordereddict()
 
     def namedtuples(self):
         try:
             nt_cls = namedtuple('flux_row_nt', self.headers.keys())
             return [nt_cls(*row.values) for row in self]
+
+        except TypeError as e:
+            if self.is_jagged:
+                i = [item[0] for item in self.identify_jagged_columns()][:3]
+                raise TypeError('jagged rows detected in matrix: \n\t(indices {}...)'.format(i)) from e
+            raise e
         except ValueError as e:
             import re
-
             names = [n for n in self.headers.keys() if re.search('^[^a-z]|[ ]', str(n), re.I)]
             if names:
                 raise ValueError('invalid field(s) for namedtuple constructor: {}'.format(names)) from e
-            else:
-                raise e
+            raise e
 
     def enumerate_rows(self, start=0):
-        """ to assist with debugging """
+        """ label each flux_row_cls __dict__ with index; meant to assist with debugging """
+
         if 'i' in self.headers:
-            raise AssertionError("column 'i' already exists as a header name")
+            raise AssertionError("'i' already exists as header name")
 
         for i, row in enumerate(self.matrix, start):
             row.__dict__['i'] = i
@@ -492,47 +537,26 @@ class flux_cls:
             return deepcopy(self)
 
         m = [row.values.copy() for row in self.matrix]
-
-        flux = self.__class__()
-        flux._num_cols = self._num_cols
-        flux.matrix = flux._to_flux_rows(m)
+        flux = self.__class__(m)
 
         return flux
 
-    def rows(self, r_1='*h', r_2='*l'):
-        r_1 = self._matrix_index(r_1)
-        r_2 = self._matrix_index(r_2)
-
-        return (row.values for row in islice(self.matrix, r_1, r_2 + 1))
-
-    def flux_rows(self, r_1='*h', r_2='*l'):
-        r_1 = self._matrix_index(r_1)
-        r_2 = self._matrix_index(r_2)
-
-        return iter(islice(self.matrix, r_1, r_2 + 1))
-
     def contiguous_rows(self, *f):
-        """ :return: list of rows where values are contiguous """
-        rows = []
+        """ :return: list of flux_row_cls where values are identical """
+        sections = []
         for i_1, i_2 in self.contiguous_indices(f):
-            rows.append(self.matrix[i_1:i_2])
+            sections.append(self.matrix[i_1:i_2])
 
-        return rows
+        return sections
 
     def contiguous_indices(self, *f):
-        """ :return: list of (i_1, i_2) row indices where values are contiguous
-        eg:
-            for i_1, i_2 in flux.contiguous_indices('col_a', 'col_b'):
-                rows = flux[i_1:i_2]
-        """
-        if self.num_rows == 0:
+        """ :return: list of (i_1, i_2) row indices where values are identical """
+        if self.num_rows == 0 or self.is_empty:
             return []
 
         f = self.__row_values_accessor(f)
-
-        rows = iter(self)
-        row = next(rows)
-        v_prev = f(row)
+        rows   = iter(self)
+        v_prev = f(next(rows))
 
         i = 1
         indices = [i]
@@ -551,12 +575,45 @@ class flux_cls:
         return indices
 
     def replace_matrix(self, m):
-        self._num_cols = None
+        (self.headers, self.matrix) = self.to_flux_rows(m)
 
-        self.headers = None
-        self.matrix = self._to_flux_rows(m)
+    def _reapply_header_names(self, headers):
+        """
+        reassignment of self.headers will de-reference all flux_row_cls._headers
+        in self.matrix. To prevent this, self.headers.clear() must be called,
+        followed by individual reassignment of new values
+        """
+        self.headers.clear()
+        for h, i in index_sequence(headers).items():
+            self.headers[h] = i
 
+    def __row_values_accessor(self, names):
+        """ :return: a function that retrieves values for each flux_row_cls """
 
+        def row_values(row):
+            """ return muliple values from each row """
+            return tuple(row.values[_i_] for _i_ in indices)
+
+        def row_value(row):
+            """ return single value from each row """
+            return row.values[i]
+
+        names = modify_iteration_depth(names, depth=0)
+        if callable(names):
+            return names
+
+        self.__validate_no_index_errors_with_headers(modify_iteration_depth(names, 1), self.headers)
+
+        if isinstance(names, (list, tuple)):
+            indices = self.__names_to_column_indices(names, self.headers)
+            f = row_values
+        else:
+            i = self.headers.get(str(names), names)
+            f = row_value
+
+        return f
+
+    # region {serialization methods}
     def to_csv(self, path, encoding=None):
         m = list(self.rows())
 
@@ -593,7 +650,7 @@ class flux_cls:
 
     def serialize(self, path):
         """
-        using pickle, while convenient,  also introduces significant security flaws
+        using pickle, while convenient, introduces significant security flaws
         you should be sure no malicious actors have access to the location of these files
         """
         path = apply_file_extension(path, '.flux')
@@ -602,181 +659,51 @@ class flux_cls:
     @classmethod
     def deserialize(cls, path):
         """
-        using pickle, while convenient, also introduces significant security flaws
+        using pickle, while convenient, introduces significant security flaws
         you should be sure no malicious actors have access to the location of these files
         """
         path = apply_file_extension(path, '.flux')
         return read_file(path)
-
-    def _matrix_index(self, reference):
-        if isinstance(reference, (int, float)):
-            return int(reference)
-
-        anchors = {'*h': 0,
-                   '*f': 1,
-                   '*l': len(self.matrix) - 1}
-
-        r_i = anchors.get(reference)
-        if r_i is None:
-            raise KeyError("invalid index '{}'".format(reference))
-
-        return r_i
-
-    def __row_values_accessor(self, f):
-        """ convert f into a function that can retrieve values for each flux_row_cls """
-
-        def row_values(row):
-            """ return muliple values (as tuple) from each row """
-            return tuple(row.values[c] for c in columns)
-
-        def row_value(row):
-            """ return single value from each row """
-            return row.values[i]
-
-        f = modify_iteration_depth(f, depth=0)
-        if callable(f):
-            return f
-
-        self.__validate_accessor(f)
-
-        if isinstance(f, (list, tuple)):
-            columns = tuple(self.headers.get(n, n) for n in f)
-            f = row_values
-        elif isinstance(f, str):
-            i = self.headers[f]
-            f = row_value
-        elif isinstance(f, int):
-            i = f
-            f = row_value
-
-        return f
-
-    def __validate_accessor(self, f):
-        num_cols = len(self.headers) - 1
-
-        if isinstance(f, (str, list, tuple)):
-            _f_ = modify_iteration_depth(f, 1)
-
-            invalid = [h for h in _f_
-                         if isinstance(h, str)
-                         if h not in self.headers]
-            if invalid:
-                raise KeyError("invalid column reference: {}".format(invalid))
-
-            invalid = [i for i in _f_
-                         if isinstance(i, int)
-                         if i > num_cols]
-            if invalid:
-                raise KeyError("integer(s) out of bounds: {}".format(invalid))
-
-        elif isinstance(f, int):
-            if f > num_cols:
-                raise KeyError("integer out of bounds: {}".format(f))
-
-        else:
-            raise TypeError("unhandled type conversion for '{}'".format(f))
-
-    @staticmethod
-    def __validate_matrix(m):
-        base_names = set(base_class_names(m))
-
-        if 'DataFrame' in base_names:
-            raise NotImplementedError("conversion of 'DataFrame' not supported yet")
-
-        if 'ndarray' in base_names:
-            raise NotImplementedError("conversion of 'ndarray' not supported yet")
-
-        if base_names & {'flux_cls', 'excel_levity_cls'}:
-            m = list(m.rows())
-
-        m = iterator_to_list(m)
-
-        if iteration_depth(m) != 2:
-            raise IndexError('matrix must have exactly 2 dimensions')
-
-        if is_flux_row_class(m[0]):
-            m = [m[0].names] + [row.values for row in m]
-
-        return m
-
-    @staticmethod
-    def __validate_headers(headers):
-        conflicting = set(headers) & flux_row_cls.class_names
-        if conflicting:
-            raise NameError('conflicting name(s) {} found in header row: {}'.format(list(conflicting), headers))
-
-    @staticmethod
-    def __validate_column_names(names):
-        names = modify_iteration_depth(names, depth=1)
-
-        duplicates = [n for n, count in Counter(names).items() if count > 1]
-        if duplicates:
-            raise ValueError('duplicate column name(s) detected:\n{}'.format(duplicates))
-
-        return names
+    # endregion
 
     def __len__(self):
         return len(self.matrix)
 
-    def __getitem__(self, row_or_col):
-        """ returns flux_row, flux_rows slice, or column values
-        eg:
-            flux_row  = flux[3]
-            flux_rows = flux[3:5]
-            values    = flux['col']
-        """
-        # flux_row
-        if isinstance(row_or_col, int):
-            return self.matrix[row_or_col]
+    def __getitem__(self, name):
+        """ :return column values """
+        if isinstance(name, slice):
+            indices = list(range(self.num_cols))
+            name = indices[name]
 
-        # flux_rows (slice)
-        if isinstance(row_or_col, slice):
-            i_1, i_2, step = row_or_col.start, row_or_col.stop, row_or_col.step
-            if i_1 is not None:
-                if i_1 < 0:
-                    i_1 = len(self.matrix) + i_1
+        return self.columns(name)
 
-            if i_2 is not None:
-                if i_2 < 0:
-                    i_2 = len(self.matrix) + i_2
-
-            return [row for row in islice(self.matrix, i_1, i_2, step)]
-
-        # column values
-        if row_or_col in self.headers:
-            i = self.headers[row_or_col]
-            return [row.values[i] for row in self]
-
-        raise KeyError("undefined reference: '{}'".format(row_or_col))
-
-    def __setitem__(self, col_name, col_values):
+    def __setitem__(self, name, values):
         """ sets values to a single column
 
-        number of values must be equal to length of self.matrix - 1
+        number of values must be equal to number of rows in matrix,
+        excluding header row
+
         eg:
-            flux['col'] = [None] * flux.num_rows
+            flux['col'] = ['blah'] * flux.num_rows
         """
-        col_values = modify_iteration_depth(col_values, 1)
+        if iteration_depth(name) > 0:
+            raise AssertionError('values must be set one column at a time')
 
-        nd = iteration_depth(col_values)
-        if nd == 0:
-            col_values = [col_values]
-        elif nd == 2:
-            col_values = transpose(col_values)[0]
+        if iteration_depth(values) == 2:
+            values = transpose(values)[0]
 
-        if len(col_values) != self.num_rows:
-            raise ValueError('number of rows in column must match the number of rows in flux')
+        if len(values) != self.num_rows:
+            raise ValueError('number of values must match the number of rows in flux')
 
-        if col_name not in self.headers:
-            # potentially inefficient to init with Nones when values are known...
-            self.append_columns(col_name)
-
-        i = self.headers[col_name]
-        for row, v in zip(self, col_values):
-            row.values[i] = v
+        if name not in self.headers:
+            self.append_columns(name, values=values)
+        else:
+            i = self.headers.get(str(name), name)
+            for row, v in zip(self, values):
+                row.values[i] = v
 
     def __iter__(self):
-        return islice(self.matrix, 1, None)
+        return iter(self.matrix[1:])
 
     def __add__(self, flux_b):
         flux_final = self.copy()
@@ -792,5 +719,89 @@ class flux_cls:
         headers = str(headers).replace("'", '')
 
         return '({:,})  {}'.format(self.num_rows, headers)
+
+    # region {validation functions}
+    @staticmethod
+    def __validate_modify_matrix(m):
+        base_names = set(base_class_names(m))
+
+        if 'DataFrame' in base_names:
+            raise NotImplementedError('DataFrame matrix not supported')
+
+        if 'ndarray' in base_names:
+            raise NotImplementedError('ndarray not supported')
+
+        if base_names & {'flux_cls', 'excel_levity_cls'}:
+            m = list(m.rows())
+        else:
+            m = iterator_to_list(m)
+
+        if iteration_depth(m) < 2:
+            raise IndexError('matrix must have at least 2 dimensions')
+
+        if is_flux_row_class(m[0]):
+            m = [m[0].names] + [row.values for row in m]
+
+        return m
+
+    def __validate_modify_inserted_names(self, inserted):
+        inserted = modify_iteration_depth(inserted, depth=0)
+
+        nd = iteration_depth(inserted)
+        if nd == 1 and len(inserted) == 2:
+            inserted = [inserted]
+        elif nd != 2:
+            raise IndexError('inserted values should be tuples')
+
+        before, names = [n for n in zip(*inserted)]
+        self.__validate_no_index_errors_with_headers(before, self.headers)
+
+        self.__validate_no_duplicates(names)
+        self.__validate_no_overlap_with_headers(names, self.headers)
+
+        return inserted
+
+    @staticmethod
+    def __validate_no_reserved_headers(names):
+        conflicting = set(names) & flux_row_cls.class_names
+        if conflicting:
+            raise NameError('conflicting name(s) {} found in header row: {}'.format(list(conflicting), names))
+
+    @staticmethod
+    def __validate_no_duplicates(names):
+        duplicates = [n for n, count in Counter(names).items() if count > 1]
+        if duplicates:
+            raise ValueError('duplicate column name(s) detected:\n{}'.format(duplicates))
+
+    @staticmethod
+    def __validate_no_overlap_with_headers(names, headers):
+        invalid = list(headers.keys() & set(names))
+        if invalid:
+            raise ValueError('column name(s) conflict with existing headers:\n{}'.format(invalid))
+
+    @staticmethod
+    def __validate_complete_overlap_with_headers(names, headers):
+        _names_ = set(s for s in names if not isinstance(s, int))
+        invalid = _names_ - headers.keys()
+        if invalid:
+            raise ValueError('column(s) do not exist:\n{}'.format(invalid))
+
+    def __validate_no_index_errors_with_headers(self, names, headers):
+        self.__validate_complete_overlap_with_headers(names, headers)
+
+        num_cols = len(headers) - 1
+        invalid  = [i for i in names if isinstance(i, int) if i > num_cols]
+        if invalid:
+            raise IndexError('column(s) out of bounds:\n{}'.format(invalid))
+
+    @staticmethod
+    def __names_to_column_indices(names, headers):
+        _indices_ = list(range(len(headers)))
+
+        indices = [headers.get(str(h), h) for h in names]       # convert to integers
+        indices = [_indices_[i] for i in indices]               # handle negative indices
+
+        return indices
+    # endregion
 
 

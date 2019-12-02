@@ -21,39 +21,31 @@ def to_datetime(v, d_format=None):
     """
 
     if isinstance(v, str):
-        d_ret = __parse_string(v, d_format)
+        date_time = __parse_string(v, d_format)
     elif isinstance(v, float):
-        d_ret = __parse_date_float(v)
-        if d_ret is None:
-            d_ret = __parse_excel_serial(v)
+        date_time = __parse_date_float(v)
+        if date_time is None:
+            date_time = __parse_excel_serial(v)
     elif isinstance(v, datetime):
-        d_ret = v
+        date_time = v
     elif type(v) == date:
-        d_ret = __date_to_datetime(v)
+        date_time = __date_to_datetime(v)
     elif isinstance(v, Iterable):
-        d_ret = [to_datetime(d, d_format) for d in v]
+        date_time = [to_datetime(d, d_format) for d in v]
     else:
         raise ValueError("invalid date: '{}', dont know how to convert '{}' instance".format(v, type(v)))
 
-    return d_ret
+    return date_time
 
 
-def attempt_to_datetime(v):
+def is_datetime(date_time):
     try:
-        v = to_datetime(v)
         b = True
-    except (ValueError, AttributeError):
+        date_time = to_datetime(date_time)
+    except ValueError:
         b = False
 
-    return v, b
-
-
-def is_valid_date(v):
-    try:
-        to_datetime(v)
-        return True
-    except (ValueError, AttributeError):
-        return False
+    return b, date_time
 
 
 def excel_epoch():
@@ -63,9 +55,9 @@ def excel_epoch():
 
 def __parse_date_float(f):
     s = str(int(f))
-    d_ret = __datetime_ymd(s)
+    date_time = __datetime_ymd(s)
 
-    return d_ret
+    return date_time
 
 
 def __datetime_ymd(s):
@@ -101,11 +93,11 @@ def __parse_string(s, d_format):
     s = s.strip()
     s = time_fragment_re.sub('', s)
 
-    d_ret = __parse_string_strptime(s, d_format)
-    if d_ret is None:
-        d_ret = __parse_string_dateutil(s)
+    date_time = __parse_string_strptime(s, d_format)
+    if date_time is None:
+        date_time = __parse_string_dateutil(s)
 
-    return d_ret
+    return date_time
 
 
 def __parse_string_strptime(s, d_format):

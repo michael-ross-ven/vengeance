@@ -1,3 +1,4 @@
+
 import re
 import json
 
@@ -9,13 +10,14 @@ from collections import Iterable
 def print_runtime(f):
     def runtime_wrapper(*args, **kwargs):
         tic = default_timer() * 1000
-        result = f(*args, **kwargs)
+        ret = f(*args, **kwargs)
         toc = default_timer() * 1000
 
         elapsed = -(tic - toc)
-        print_unicode('\tτ: @{}: {}'.format(function_name(f), format_ms(elapsed)))
+        print_unicode('\tτ: @{}: {}'.format(function_name(f),
+                                            format_ms(elapsed)))
 
-        return result
+        return ret
 
     return runtime_wrapper
 
@@ -32,20 +34,19 @@ def print_performance(f=None, *, repeat=3):
     functools_repeat = functools.partial(itertools.repeat, None)
 
     def performance_wrapper(_f_):
-
         @functools.wraps(_f_)
         def functools_wrapper(*args, **kwargs):
-            gcold = gc.isenabled()
+            was_gc_enabled = gc.isenabled()
             gc.disable()
 
-            result = None
-            best   = None
-            total  = 0
+            ret   = None
+            best  = None
+            total = 0
 
             try:
                 for _ in functools_repeat(repeat):
                     tic = default_timer() * 1000
-                    result = _f_(*args, **kwargs)
+                    ret = _f_(*args, **kwargs)
                     toc = default_timer() * 1000
 
                     elapsed = -(tic - toc)
@@ -57,13 +58,15 @@ def print_performance(f=None, *, repeat=3):
                     total += elapsed
 
                 average = total / repeat
-                print_unicode('\tτ: @{}\n\t\taverage:   {}\n\t\tbest:      {}\n'
+                print_unicode('\tτ: @{}'
+                              '\n\t\taverage:   {}'
+                              '\n\t\tbest:      {}\n'
                               .format(function_name(_f_), format_ms(average), format_ms(best)))
             finally:
-                if gcold:
+                if was_gc_enabled:
                     gc.enable()
 
-            return result
+            return ret
         return functools_wrapper
 
     if f is None:
@@ -201,19 +204,17 @@ def between(s, substr_1, substr_2=None):
 
 def p_json_dumps(o, indent=4, ensure_ascii=False):
     """
-    json can not convert certain python objects to string representations
-        dates
-        sets
+    json can not convert certain python objects to
+    string representations like dates, sets, etc
     """
+    def unhandled_conversion(_o_):
+        if isinstance(_o_, date):
+            return _o_.isoformat()
 
-    def unhandled_conversion(_o):
-        if isinstance(_o, date):
-            return _o.isoformat()
+        if isinstance(_o_, set):
+            return list(_o_)
 
-        if isinstance(_o, set):
-            return list(_o)
-
-        raise TypeError('cannot convert type to json ' + repr(_o))
+        raise TypeError('cannot convert type to json ' + repr(_o_))
 
     s = json.dumps(o, indent=indent, default=unhandled_conversion, ensure_ascii=ensure_ascii)
 
@@ -246,3 +247,6 @@ def print_unicode(s):
 
 def vengeance_message(s):
     print_unicode('\tν: {}'.format(s))
+
+
+

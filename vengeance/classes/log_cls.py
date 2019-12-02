@@ -1,6 +1,5 @@
 
 import os
-import sys
 from textwrap import dedent
 
 from logging import Logger
@@ -9,19 +8,20 @@ from logging import FileHandler
 from logging import StreamHandler
 from logging import DEBUG
 
-from concurrent.futures import ProcessPoolExecutor
-
 
 class log_cls(Logger):
 
-    def __init__(self, name, f_dir=None, log_format=None):
+    def __init__(self, name,
+                       filedir=None,
+                       log_format=None):
+
         super().__init__(name)
 
         self.log_format  = log_format
         self.formatter   = None
         self.child_desig = None
-        self._callback   = None
 
+        self._callback       = None
         self._file_handler   = None
         self._stream_handler = None
 
@@ -29,7 +29,7 @@ class log_cls(Logger):
 
         self._set_level()
         self._add_formatter()
-        self._add_file_handler(f_dir)
+        self._add_file_handler(filedir)
         self._add_stream_handler()
 
     def print_message(self, msg):
@@ -69,18 +69,18 @@ class log_cls(Logger):
         self.formatter = Formatter(self.log_format)
         self.formatter.default_time_format = '%Y-%m-%d %I:%M:%S %p'
 
-    def _add_file_handler(self, f_dir):
-        if f_dir is None:
+    def _add_file_handler(self, filedir):
+        if filedir is None:
             return
 
-        if not os.path.exists(f_dir):
-            os.makedirs(f_dir)
+        if not os.path.exists(filedir):
+            os.makedirs(filedir)
 
-        f_name = self.name
-        if not f_name.endswith('.log'):
-            f_name += '.log'
+        filename = self.name
+        if not filename.endswith('.log'):
+            filename += '.log'
 
-        h = FileHandler(str(f_dir) + f_name, mode='w')
+        h = FileHandler(str(filedir) + filename, mode='w')
         h.setLevel(self.level)
         h.setFormatter(self.formatter)
 
@@ -116,82 +116,63 @@ class log_cls(Logger):
                 yield h
 
     def exception_handler(self, e_type, e_msg, e_trace):
-        self.err_msg = str(e_msg)
+        # region {closure functions}
+        def frame_filename():
+            return s_frame.tb_frame.f_code.co_filename
 
-        has_child = not bool(self.child_desig)
-        child_frame = e_trace
-        s_frame     = e_trace
+        # endregion
 
-        # naviagate to most recent stack frame
-        while s_frame.tb_next is not None:
-            if has_child is False:
-                if self.child_desig in _frame_filename(s_frame):
-                    child_frame = s_frame
-                    has_child = True
+        if e_type and e_trace:
+            self.err_msg = str(e_msg)
 
-            s_frame = s_frame.tb_next
+            e_type  = e_type.__name__
+            s_frame = e_trace
 
-        code_file = _frame_filename(s_frame)
-        file = os.path.split(code_file)[1]
-        line = s_frame.tb_lineno
+            child_frame = e_trace
+            has_child   = not bool(self.child_desig)
 
-        log_msg = '''\n\n\n
+            # naviagate to most recent stack frame
+            while s_frame.tb_next is not None:
+                if has_child is False:
+                    if self.child_desig in frame_filename():
+                        child_frame = s_frame
+                        has_child = True
+
+                s_frame = s_frame.tb_next
+
+            code_file = frame_filename()
+            file = os.path.split(code_file)[1]
+            line = s_frame.tb_lineno
+
+            exc_info = (e_type, e_msg, child_frame)
+        else:
+            e_msg = None
+            file  = None
+            line  = None
+            exc_info = None
+
+        log_msg = dedent('''
+        \n\n
         ____________________________   vengeance   ____________________________
-              the result 'w+resign' was added to the game information
+              The result 'w+resign' was added to the game information
               
-              "{e_msg}"
-              error type:   <{e_type}>
-              file:   {file}, line: {line} 
+              error: "{e_msg}"
+              
+              error type: <{e_type}>
+              file: {file}
+              line: {line} 
         ____________________________   vengeance   ____________________________
-        \n\n\n'''.format(name=self.name,
-                         e_msg=e_msg,
-                         e_type=e_type.__name__,
-                         file=file,
-                         line=line)
+        \n\n
+        ''').format(name=self.name,
+                    e_msg=e_msg,
+                    e_type=e_type,
+                    file=file,
+                    line=line)
 
-        log_msg = dedent(log_msg)
-
-        # propagate error through base class exception
-        self.error(log_msg, exc_info=(e_type, e_msg, child_frame))
+        # propagate error up through super class
+        self.error(log_msg, exc_info=exc_info)
 
         self._close_file_handlers()
         self.callback()
 
-    # def __repr__(self):
-    #     return 'log  {}'.format(self.name)
 
-
-class pool_executor_log_cls(ProcessPoolExecutor):
-    def __init__(self, max_workers=None,
-                       base_name='pool_executor_log_cls',
-                       f_dir=None):
-
-        super().__init__(max_workers)
-
-        self.base_name = base_name
-        self.f_dir     = f_dir
-
-    def submit(self, fn, *args, **kwargs):
-        kwargs['i'] = self._queue_count
-        kwargs['base_name'] = self.base_name
-        kwargs['f_dir']     = self.f_dir
-
-        return super().submit(_function_wrapper, fn, *args, **kwargs)
-
-
-# noinspection PyBroadException
-def _function_wrapper(fn, *args, **kwargs):
-    i = kwargs.pop('i') + 1
-    base_name = kwargs.pop('base_name')
-    f_dir     = kwargs.pop('f_dir')
-
-    try:
-        return fn(*args, **kwargs)
-    except Exception:
-        name = '{}_{}.log'.format(base_name, i)
-        log_ = log_cls(name, f_dir)
-        log_.exception_handler(*sys.exc_info())
-
-
-def _frame_filename(s_frame):
-    return s_frame.tb_frame.f_code.co_filename

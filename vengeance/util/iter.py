@@ -52,7 +52,13 @@ def iterator_to_list(v, recurse=False):
 
 
 def iteration_depth(v):
-    """ determine number of nested iteration levels (number of dimensions)
+    """ determine number of nested iteration levels of value
+
+    counts the iteration depth of iterable by recursively traversing the levels of
+    the first element(s) ONLY
+
+    (an iterable with mismatched number of iteration depths at different elements
+    will only return dimension of first element(s))
 
     eg:
         0 = iteration_depth('abc')
@@ -61,9 +67,9 @@ def iteration_depth(v):
         2 = iteration_depth([['abc'], ['bcd'] ])
         2 = iteration_depth([[]])
 
-    (only evaluates the first element if iteration_depth > 1)
+    only evaluates the first element
     eg:
-        2 = iteration_depth([['abc'], 1, 2])
+        3 = iteration_depth([['a', ['b']], 1, 2])
     """
     if _is_exhaustable_iterator(v):
         raise TypeError('cannot evaluate iteration depth of an exhaustable iterator')
@@ -105,23 +111,6 @@ def divide_sequence(sequence, num_divisions):
     for i_1 in range(0, num_items, stride_len):
         i_2 = i_1 + stride_len
         yield sequence[i_1:i_2]
-
-
-def is_vengeance_class(o):
-    bases = set(base_class_names(o))
-    if 'flux_cls' in bases or 'excel_levity_cls' in bases:
-        return True
-
-    return False
-
-
-def is_flux_row_class(o):
-    bases = set(base_class_names(o))
-    return 'flux_row_cls' in bases
-
-
-def base_class_names(o):
-    return [b.__name__ for b in o.__class__.mro()]
 
 
 def transpose(m):
@@ -219,17 +208,20 @@ def is_empty(v):
 
 
 def index_sequence(sequence, start=0):
+    """ :return dict of {value: positional_index} for all items in sequence
+
+    values are modified before they are added as keys:
+        all values coerced to string
+        non-unique keys are appended with '_n' suffix
+    """
     indices   = OrderedDict()
     nonunique = defaultdict(int)
 
     for i, v in enumerate(sequence, start):
-        if v in {'', None}:
-            v = '_None_'
+        _v_ = str(v)
 
         if v in nonunique:
-            _v_ = '{} ({})'.format(v, nonunique[v] + 1)
-        else:
-            _v_ = str(v)
+            _v_ = '{}_{}'.format(v, nonunique[v] + 1)
 
         indices[_v_]  = i
         nonunique[v] += 1
@@ -366,4 +358,21 @@ class OrderedDefaultDict(OrderedDict):
         for k, v in self.items():
             self[k] = modify_iteration_depth(v, depth)
 
+
+def is_vengeance_class(o):
+    bases = set(base_class_names(o))
+
+    if 'flux_cls' in bases or 'excel_levity_cls' in bases:
+        return True
+
+    return False
+
+
+def is_flux_row_class(o):
+    bases = set(base_class_names(o))
+    return 'flux_row_cls' in bases
+
+
+def base_class_names(o):
+    return [b.__name__ for b in o.__class__.mro()]
 

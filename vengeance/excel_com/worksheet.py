@@ -12,7 +12,7 @@ from .. excel_com.excel_address import col_number
 from .. excel_com.excel_address import max_cols as excel_max_cols
 from .. excel_com.excel_address import max_rows as excel_max_rows
 
-from . workbook import app_to_foreground
+from . workbook import excel_app_to_foreground
 from . excel_constants import *
 
 
@@ -38,13 +38,14 @@ def get_worksheet(wb,
 
     if activate:
         ws.Visible = True
-        app_to_foreground(ws.Application)
+        excel_app_to_foreground(ws.Application)
         ws.Activate()
 
     return ws
 
 
-def first_row(excel_range, default_r=1):
+def first_row(excel_range, default=1):
+
     search = range_find(excel_range,
                         what='*',
                         look_at=xlPart,
@@ -52,14 +53,15 @@ def first_row(excel_range, default_r=1):
                         search_direction=xlNext)
 
     if search:
-        r = max(search.Row, default_r)
+        r = max(search.Row, default)
     else:
-        r = default_r
+        r = default
 
-    return r
+    return int(r)
 
 
-def last_row(excel_range, default_r=1):
+def last_row(excel_range, default=1):
+
     search = range_find(excel_range,
                         what='*',
                         look_at=xlPart,
@@ -67,14 +69,14 @@ def last_row(excel_range, default_r=1):
                         search_direction=xlPrevious)
 
     if search:
-        r = max(search.Row, default_r)
+        r = max(search.Row, default)
     else:
-        r = default_r
+        r = default
 
-    return r
+    return int(r)
 
 
-def first_col(excel_range, default_c='A'):
+def first_col(excel_range, default='A'):
 
     search = range_find(excel_range,
                         what='*',
@@ -83,15 +85,14 @@ def first_col(excel_range, default_c='A'):
                         search_direction=xlNext)
 
     if search:
-        c = max(search.Column, col_number(default_c))
-        c_lttr = col_letter(c)
+        c = max(search.Column, col_number(default))
     else:
-        c_lttr = default_c
+        c = default
 
-    return c_lttr
+    return col_letter(c)
 
 
-def last_col(excel_range, default_c='A'):
+def last_col(excel_range, default='A'):
 
     search = range_find(excel_range,
                         what='*',
@@ -100,12 +101,11 @@ def last_col(excel_range, default_c='A'):
                         search_direction=xlPrevious)
 
     if search:
-        c = max(search.Column, col_number(default_c))
-        c_lttr = col_letter(c)
+        c = max(search.Column, col_number(default))
     else:
-        c_lttr = default_c
+        c = default
 
-    return c_lttr
+    return col_letter(c)
 
 
 def range_find(excel_range,
@@ -151,9 +151,7 @@ def last_cell(excel_range):
         a = excel_range.Address.split(':')[-1]
         return excel_range.Parent.Range(a)
     except com_error:
-        pass
-
-    return excel_range.Cells(excel_range.Cells.Count)
+        return excel_range.Cells(excel_range.Cells.Count)
 
 
 def is_filtered(ws):
@@ -174,7 +172,7 @@ def is_range_empty(excel_range):
 
 
 def activate_sheet(ws):
-    app_to_foreground(ws.Application)
+    excel_app_to_foreground(ws.Application)
     ws.Visible = True
     ws.Activate()
 
@@ -183,16 +181,15 @@ def write_to_excel_range(v, excel_range):
     m = modify_iteration_depth(v, 2)
     m = list(__excel_friendly_matrix(m))
 
-    a = excel_range.Address
-    if ':' not in a:
-        a = '{}:{}'.format(a, excel_range.Resize(len(m), len(m[0])).Address)
-    else:
-        a = excel_range.Resize(len(m), len(m[0])).Address
+    num_cols = len(m[0])
+    num_rows = len(m)
 
-    excel_range.Parent.Range(a).Value = m
+    _excel_range_ = excel_range.Parent.Range(excel_range,
+                                             excel_range.Resize(num_rows, num_cols))
+    _excel_range_.Value = m
 
 
-def gen_range_rows(excel_range):
+def excel_range_rows(excel_range):
     for row in __convert_excel_errors(excel_range):
         yield row
 
@@ -222,9 +219,33 @@ def __convert_excel_errors(excel_range):
 def __excel_friendly_matrix(m):
     """ modify matrix values so they can be written to an Excel range without error
     TODO:
-        profile / optimize function
-        convert date to datetime?
+        profile instance checks
     """
+    __validate_destination_size(m)
+    num_cols = len(m[0])
+
+    for i, row in enumerate(m):
+        if len(row) != num_cols:
+            raise ValueError('cannot write to Excel, jagged row at index {:,}'.format(i))
+
+        _row_ = []
+        for v in row:
+            if (v is None) or isinstance(v, (bool, int, float, str)):
+                _row_.append(v)
+                continue
+
+            if isinstance(v, date):
+                _v_ = datetime(v.year, v.month, v.day)
+            else:
+                _v_ = repr(v)
+
+            _row_.append(_v_)
+
+        yield _row_
+
+
+def __validate_destination_size(m):
+    """ ensure matrix is within Excel's column and row maximum """
     num_cols = len(m[0])
     num_rows = len(m)
 
@@ -234,25 +255,6 @@ def __excel_friendly_matrix(m):
 
     if num_rows > excel_max_rows:
         raise ValueError("number of rows ({:,}) exceeds Excel's row limit".format(num_rows))
-
-    for r, row in enumerate(m):
-        if len(row) != num_cols:
-            _m_ = '\n\t'.join([repr(_row_) for _row_ in m[r - 1:r + 2]])
-            raise ValueError('cannot write to Excel, jagged column in matrix'
-                             '\nrow {:,}\n\n\t{}'.format(r, _m_))
-
-        _row_ = []
-        for c, v in enumerate(row):
-            if (v is None) or isinstance(v, (bool, int, float, str)):
-                pass
-            elif isinstance(v, date):
-                v = datetime(v.year, v.month, v.day)
-            else:
-                v = repr(v)
-
-            _row_.append(v)
-
-        yield _row_
 
 
 def parse_range(excel_range):

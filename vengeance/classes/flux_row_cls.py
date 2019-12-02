@@ -6,8 +6,8 @@ from collections import namedtuple
 class flux_row_cls:
 
     class_names = {'_headers',
-                   'values',
                    'names',
+                   'values',
                    'dict',
                    'namedtuples'}
 
@@ -34,7 +34,7 @@ class flux_row_cls:
         return list(self._headers.keys())
 
     @property
-    def view_as_array(self):
+    def _view_as_array(self):
         """ for development purposes; used purely to trigger a debugging feature in PyCharm
 
         PyCharm will recognize returned the (name, value) pairs as an ndarray
@@ -47,20 +47,20 @@ class flux_row_cls:
     def dict(self):
         return OrderedDict(zip(self.names, self.values))
 
-    def namedtuples(self, nt_cls=None):
+    def namedtuples(self):
         try:
-            if nt_cls is None:
-                nt_cls = namedtuple('flux_row_nt', self.names)
+            return namedtuple('flux_row_nt', self.names)(*self.values)
 
-            return nt_cls(*self.values)
+        except TypeError as e:
+            if len(self.names) != len(self.values):
+                raise TypeError('mismatched number of headers and values') from e
+            raise e
         except ValueError as e:
             import re
-
             names = [n for n in self.names if re.search('^[^a-z]|[ ]', str(n), re.I)]
             if names:
                 raise ValueError('invalid field(s) for namedtuple constructor: {}'.format(names)) from e
-            else:
-                raise e
+            raise e
 
     def __getattr__(self, name):
         """  eg:
@@ -106,7 +106,7 @@ class flux_row_cls:
         if isinstance(name, slice):
             return 'slice should be used on row.values\n(eg, row.values[2:5], not row[2:5])'
 
-        names = '\n\t'.join(self.names)
+        names = '\n\t'.join(str(n) for n in self.names)
         return "No flux_row_cls column named '{}'\navailable columns:\n\t{}".format(name, names)
 
     def __getstate__(self):
@@ -135,6 +135,7 @@ class flux_row_cls:
 
     def __repr__(self):
         i = self.__dict__.get('i', '')
+
         if i != '':
             i = '({:,})  '.format(i)
 
@@ -144,13 +145,13 @@ class flux_row_cls:
 class lev_row_cls(flux_row_cls):
 
     class_names = {'_headers',
-                   'values',
                    'names',
+                   'values',
+                   'address',
                    'dict',
-                   'namedtuples',
-                   'address'}
+                   'namedtuples'}
 
-    def __init__(self, headers, values, address):
+    def __init__(self, headers, values, address=''):
         super().__init__(headers, values)
         self.__dict__['address'] = address
 

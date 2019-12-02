@@ -1,5 +1,44 @@
 
 
+
+2019-
+$release 31
+
+
+
+2019-12-02
+$release 30
+    flux_cls.columns() method added
+    flux_cls.__getitem__() now only returns column values
+    flux_cls._num_cols changed to flux.max_num_cols() property
+    flux_cls.identify_jagged_columns() method added
+
+    flux_cls.to_flux_rows() 
+        changed to a classmethod
+        returns headers instead of setting self.headers
+
+    pool_executor_log_cls class removed
+
+    index_sequence() no longer converts ('', None) values to '_None_'
+
+
+
+2019-10-25
+$release 29
+    added *args, **kwargs params to flux_cls.filter()
+    added *args, **kwargs params to flux_cls.filtered()
+
+    flux_cls.__row_values_accessor()
+        returns tuples if client sumbitted length 1 tuple
+        (no longer calls modify_iteration_depth(f, depth=0))
+
+    flux_cls.__validate_matrix()
+        iteration depth of matrix allowed to be greater than 2 (row values may have iterables)
+
+    workbook.__excel_app_from_hwnd() now traps win32com gencache AttributeError
+
+
+
 2019-09-16
 $release 28
     removed /examples/ folder

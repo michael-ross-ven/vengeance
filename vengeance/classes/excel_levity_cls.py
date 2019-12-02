@@ -11,7 +11,7 @@ from .. excel_com.worksheet import first_col
 from .. excel_com.worksheet import last_col
 from .. excel_com.worksheet import first_row
 from .. excel_com.worksheet import last_row
-from .. excel_com.worksheet import gen_range_rows
+from .. excel_com.worksheet import excel_range_rows
 from .. excel_com.worksheet import clear_worksheet_filter
 from .. excel_com.worksheet import is_filtered
 from .. excel_com.worksheet import write_to_excel_range
@@ -31,7 +31,6 @@ from . flux_row_cls import lev_row_cls
 
 
 class excel_levity_cls:
-
     allow_focus = False
     
     @staticmethod
@@ -55,7 +54,7 @@ class excel_levity_cls:
                        first_r=0,
                        last_r=0):
 
-        self.ws      = ws
+        self.ws = ws
         self.ws_name = ws.Name
 
         self.headers   = OrderedDict()
@@ -72,11 +71,8 @@ class excel_levity_cls:
         self.first_r  = first_r
         self.last_r   = last_r
 
-        self.num_cols = 0
-        self.num_rows = 0
-        self.is_empty = None
-
-        self.set_range_boundaries(index_meta=True, index_header=True)
+        self.set_range_boundaries(index_meta=True,
+                                  index_header=True)
 
     @property
     def application(self):
@@ -144,6 +140,60 @@ class excel_levity_cls:
 
         return c
 
+    @property
+    def num_cols(self):
+        return col_number(self.last_c) - col_number(self.first_c) + 1
+
+    @property
+    def num_rows(self):
+        return int(self.last_r) - int(self.first_r) + 1
+
+    @property
+    def is_empty(self):
+        if self.last_r > self.first_r:
+            return False
+
+        r_1 = self.header_r or self.meta_r
+        r_2 = self.last_r
+        a = '{}{}:{}{}'.format(self.first_c, r_1, self.last_c, r_2)
+
+        return is_range_empty(self.ws.Range(a))
+
+    def rows(self, r_1='*h', r_2='*l'):
+        if self.is_empty:
+            return [[]]
+
+        a = '*f {}:*l {}'.format(r_1, r_2)
+        excel_range = self.excel_range(a)
+
+        return (row for row in excel_range_rows(excel_range))
+
+    def flux_rows(self, r_1='*h', r_2='*l'):
+        if self.is_empty:
+            return [[]]
+
+        if self.headers:
+            headers = index_sequence(self.headers.keys())
+        elif self.m_headers:
+            headers = index_sequence(self.m_headers.keys())
+        else:
+            headers = {}
+
+        reserved = headers.keys() & lev_row_cls.class_names
+        if reserved:
+            raise NameError("reserved name(s) {} found in header row {}"
+                            .format(list(reserved), list(headers.keys())))
+
+        a = '*f {}:*l {}'.format(r_1, r_2)
+        excel_range = self.excel_range(a)
+
+        r_1 = excel_range.Row
+        c_1, c_2 = self.first_c, self.last_c
+
+        for r, row in enumerate(excel_range_rows(excel_range), r_1):
+            a = '${}${}:${}${}'.format(c_1, r, c_2, r)
+            yield lev_row_cls(headers, row, a)
+
     def activate(self):
         if self.allow_focus:
             activate_sheet(self.ws)
@@ -159,11 +209,7 @@ class excel_levity_cls:
         if not self.has_filter:
             return
 
-        was_filtered = is_filtered(self.ws)
         self.ws.AutoFilterMode = False
-
-        if was_filtered:
-            self.set_range_boundaries()
 
     def reapply_filter(self, c_1='*f', c_2='*l'):
         if self.header_r > 0:
@@ -204,11 +250,12 @@ class excel_levity_cls:
     def set_range_boundaries(self, index_meta=True, index_header=True):
         """ find the edges of data in worksheet
 
-        worksheet filter MUST be cleared from worksheet to correctly determine these boundaries
+        worksheet filter MUST be cleared from worksheet to
+        determine these boundaries correctly
         """
         clear_worksheet_filter(self.ws)
 
-        self.__find_range_boundaries()
+        self.__range_boundaries()
 
         if index_meta:
             self.__index_meta_columns()
@@ -216,35 +263,32 @@ class excel_levity_cls:
         if index_header:
             self.__index_header_columns()
 
-    def __find_range_boundaries(self):
-        self.first_c, self.last_c = self._fixed_columns
-        self.first_r, self.last_r = self._fixed_rows
+    def __range_boundaries(self):
+        (self.first_c,
+         self.last_c) = self._fixed_columns
 
-        excel_range = self.ws.UsedRange
+        (self.first_r,
+         self.last_r) = self._fixed_rows
 
-        self.first_c = self.first_c or first_col(excel_range)
-        self.first_c = col_letter(self.first_c)
-        self.last_c  = self.last_c or last_col(excel_range, default_c=self.first_c)
-        self.last_c  = col_letter(self.last_c)
+        used_range = self.ws.UsedRange
 
-        self.num_cols = col_number(self.last_c) - col_number(self.first_c) + 1
+        self.first_c = self.first_c or first_col(used_range)
+        self.last_c  = self.last_c  or last_col(used_range, default=self.first_c)
 
         r_1 = max(self.meta_r, self.header_r) + 1
-        r_2 = excel_range.Rows.Count
-        a = '{}{}:{}{}'.format(self.first_c, r_1, self.last_c, r_2)
+        r_2 = used_range.Rows.Count
+        a = '{}{}:{}{}'.format(self.first_c, r_1,
+                               self.last_c,  r_2)
+
         excel_range = self.ws.Range(a)
 
-        self.first_r = self.first_r or first_row(excel_range, default_r=r_1)
-        self.last_r  = self.last_r or last_row(excel_range, default_r=self.first_r)
+        self.first_r = self.first_r or first_row(excel_range, default=r_1)
+        self.last_r  = self.last_r  or last_row(excel_range, default=self.first_r)
 
-        self.num_rows = self.last_r - self.first_r + 1
-
-        if self.last_r > self.first_r:
-            self.is_empty = False
-        else:
-            r = self.header_r or self.meta_r or self.first_r
-            a = '{}{}:{}{}'.format(self.first_c, r, self.last_c, r)
-            self.is_empty = is_range_empty(self.ws.Range(a))
+        self.first_c = col_letter(self.first_c)
+        self.last_c  = col_letter(self.last_c)
+        self.first_r = int(self.first_r)
+        self.last_r  = int(self.last_r)
 
     @classmethod
     def index_headers(cls, ws, row_int=None):
@@ -257,15 +301,9 @@ class excel_levity_cls:
 
         return cls.__index_row_headers(excel_range)
 
-    def __index_headers(self, row_ref):
-        a = '*f {} :*l {}'.format(row_ref, row_ref)
-        excel_range = self.excel_range(a)
-
-        return self.__index_row_headers(excel_range)
-
     @classmethod
     def __index_row_headers(cls, excel_range):
-        row = next(gen_range_rows(excel_range))
+        row = next(excel_range_rows(excel_range))
         if not any(row):
             return OrderedDict()
 
@@ -274,6 +312,12 @@ class excel_levity_cls:
         headers = OrderedDict((h, col_letter(v)) for h, v in headers.items())
 
         return headers
+
+    def __index_headers(self, row_ref):
+        a = '*f {} :*l {}'.format(row_ref, row_ref)
+        excel_range = self.excel_range(a)
+
+        return self.__index_row_headers(excel_range)
 
     def __index_meta_columns(self):
         if self.meta_r == 0:
@@ -312,40 +356,6 @@ class excel_levity_cls:
             a = '{}{}'.format(c_1, r_1)
 
         return a
-
-    def rows(self, r_1='*h', r_2='*l'):
-        if self.is_empty:
-            return [[]]
-
-        a = '*f {}:*l {}'.format(r_1, r_2)
-        excel_range = self.excel_range(a)
-
-        return (row for row in gen_range_rows(excel_range))
-
-    def flux_rows(self, r_1='*h', r_2='*l'):
-        if self.is_empty:
-            return [[]]
-
-        a = '*f {}:*l {}'.format(r_1, r_2)
-        excel_range = self.excel_range(a)
-
-        if self.headers:
-            headers = index_sequence(self.headers.keys())
-        elif self.m_headers:
-            headers = index_sequence(self.m_headers.keys())
-        else:
-            headers = {}
-
-        reserved = headers.keys() & lev_row_cls.class_names
-        if reserved:
-            raise NameError("reserved name(s) {} found in header row {}".format(list(reserved), list(headers.keys())))
-
-        r_1 = excel_range.Row
-        c_1, c_2 = self.first_c, self.last_c
-
-        for r, row in enumerate(gen_range_rows(excel_range), r_1):
-            a = '${}${}:${}${}'.format(c_1, r, c_2, r)
-            yield lev_row_cls(headers, row, a)
 
     def __validate_destination_size(self, m, c_1, r_1):
         """

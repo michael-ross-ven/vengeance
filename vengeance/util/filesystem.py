@@ -23,8 +23,8 @@ def read_file(path, encoding=None, mode='r'):
         .pickle
     """
     assert_path_exists(path)
-    extn = file_extension(path, include_dot=True)
 
+    extn = file_extension(path, include_dot=True)
     if extn.startswith('.xls') or extn in {'.7z', '.gzip', '.hd5'}:
         raise NotImplementedError
 
@@ -39,6 +39,7 @@ def read_file(path, encoding=None, mode='r'):
     if extn in {'.flux', '.pkl', '.pickle'}:
         if not mode.endswith('b'):
             mode += 'b'
+
         with open(path, mode) as f:
             return cpickle.load(f)
 
@@ -57,12 +58,10 @@ def write_file(path, data, encoding=None, mode='w'):
     """
     extn = file_extension(path, include_dot=True)
 
-    if extn.startswith('.xls') or extn in {'.7z', '.gzip', '.hd5'}:
-        raise NotImplementedError
-
     if extn == '.csv':
         with open(path, mode, encoding=encoding) as f:
             csv.writer(f, lineterminator='\n').writerows(data)
+
         return
 
     if extn == '.json':
@@ -83,25 +82,25 @@ def write_file(path, data, encoding=None, mode='w'):
 
         return
 
+    # convert data to string: f.write() is much faster than f.writelines()
     if not isinstance(data, str):
-        # convert data to string: f.write() is much faster than f.writelines()
         data = repr_(data, concat='\n', quotes=False, wrap=False)
 
     with open(path, mode, encoding=encoding) as f:
         f.write(data)
 
 
-def clear_dir(f_dir, allow_not_exist=False):
-    f_dir = standardize_dir(f_dir)
+def clear_dir(filedir, allow_not_exist=False):
+    filedir = standardize_dir(filedir)
 
-    if not os.path.exists(f_dir):
+    if not os.path.exists(filedir):
         if allow_not_exist is True:
             return
         else:
-            raise FileNotFoundError("cannot clear: '{}', directory does not exist".format(f_dir))
+            raise FileNotFoundError("cannot clear: '{}', directory does not exist".format(filedir))
 
-    for file_content in os.listdir(f_dir):
-        path = f_dir + file_content
+    for file_content in os.listdir(filedir):
+        path = filedir + file_content
 
         if os.path.isdir(path):
             shutil.rmtree(path)
@@ -141,35 +140,36 @@ def file_last_modified(path):
     return datetime.fromtimestamp(unix_t)
 
 
-def standardize_dir(f_dir, pathsep='/'):
-    """ lowercase and make sure directory follows predictable pattern
+def standardize_dir(filedir, pathsep='/'):
+    """ ensure directory follows predictable pattern
+
     pathsep=os.path.sep?
     """
-    f_dir = (f_dir.replace('\\', pathsep)
+    filedir = (filedir.replace('\\', pathsep)
                   .replace('/', pathsep)
                   .lower()
                   .strip())
 
-    if not f_dir.endswith(pathsep):
-        f_dir += pathsep
+    if not filedir.endswith(pathsep):
+        filedir += pathsep
 
-    return f_dir
+    return filedir
 
 
-def standardize_file_name(f_name):
-    return f_name.lower().strip()
+def standardize_file_name(filename):
+    return filename.lower().strip()
 
 
 def standardize_path(path):
-    f_dir, f_name = parse_path(path)
+    filedir, filename = parse_path(path)
 
-    f_dir  = standardize_dir(f_dir)
-    f_name = standardize_file_name(f_name)
+    filedir  = standardize_dir(filedir)
+    filename = standardize_file_name(filename)
 
-    return f_dir + f_name
+    return filedir + filename
 
 
-def sanatize_file_name(f_name):
+def sanatize_file_name(filename):
     """
     replace illegal Windows file name characters with '-'
 
@@ -187,32 +187,30 @@ def sanatize_file_name(f_name):
                     '"':  '-'}
 
     for k, v in invalid_chrs.items():
-        f_name = f_name.replace(k, v)
+        filename = filename.replace(k, v)
 
-    f_name = f_name.strip()
-    if not f_name:
+    filename = filename.strip()
+    if not filename:
         raise IOError('file name is blank')
 
-    return f_name
+    return filename
 
 
 def assert_path_exists(path):
-    f_dir, f_name = parse_path(path)
+    filedir, filename = parse_path(path)
 
-    if not os.path.exists(f_dir):
-        raise FileNotFoundError("invalid directory: '{}'".format(f_dir))
+    if not os.path.exists(filedir):
+        raise FileNotFoundError("invalid directory: '{}'".format(filedir))
 
     if not os.path.exists(path):
-        extn  = file_extension(f_name, include_dot=True)
-        retry = f_name.replace(extn, '.*')
-        path  = glob(standardize_dir(f_dir) + retry)
+        extn  = file_extension(filename, include_dot=True)
+        retry = filename.replace(extn, '.*')
+        path  = glob(standardize_dir(filedir) + retry)
 
         if path:
-            retry_name = path[0].split('\\')[-1]
-            retry_extn = file_extension(retry_name, include_dot=True)
-            msg = "invalid file extension: '{}' (did you mean '{}' ?)".format(extn, retry_extn)
+            msg = "invalid file extension".format(extn)
         else:
-            msg = "'{}' not found within directory '{}'".format(f_name, f_dir)
+            msg = "'{}' not found within directory '{}'".format(filename, filedir)
 
         raise FileNotFoundError(msg)
 
@@ -220,16 +218,16 @@ def assert_path_exists(path):
 def parse_path(path):
 
     if os.path.isdir(path):
-        f_dir  = path
-        f_name = ''
+        filedir  = path
+        filename = ''
     else:
-        f_dir, f_name = os.path.split(path)
+        filedir, filename = os.path.split(path)
 
-    return f_dir, f_name
+    return filedir, filename
 
 
-def file_extension(f_name, include_dot=True):
-    _, extn = os.path.splitext(f_name)
+def file_extension(filename, include_dot=True):
+    _, extn = os.path.splitext(filename)
     if include_dot is False:
         extn = extn.replace('.', '')
 
@@ -238,13 +236,13 @@ def file_extension(f_name, include_dot=True):
     return extn
 
 
-def apply_file_extension(f_name, extn):
+def apply_file_extension(filename, extn):
     if not extn.startswith('.'):
         extn = '.' + extn
 
-    if f_name.endswith(extn):
-        return f_name
+    if filename.endswith(extn):
+        return filename
 
-    return f_name + extn
+    return filename + extn
 
 
