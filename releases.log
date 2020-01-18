@@ -1,7 +1,7 @@
 
 
 
-2020-
+2020-01-18
 $release 31
     fixed bug in divide_sequence
     flux_cls.__iadd__() method added
@@ -9,7 +9,7 @@ $release 31
 
     flux_row_cls:
         self.__dict__ is checked for name in __setattr__() and __setitem__()
-        (allows for flux_row.values = ... instead of flux_row.values[:] = ...)
+        (allows replacement of all row values without slice, flux_row.values = ... instead of flux_row.values[:] = ...)
 
     added @lru_cache memoization for date parse functions
     removed time_fragment_re.sub for parse_date_string() function

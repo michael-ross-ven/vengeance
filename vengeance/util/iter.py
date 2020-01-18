@@ -1,6 +1,4 @@
 
-from math import ceil
-
 from collections import OrderedDict
 from collections import defaultdict
 from collections import Iterable
@@ -9,34 +7,27 @@ from collections import Iterable
 def modify_iteration_depth(v, depth=0):
     """
     eg:
-        'a'               = modify_iteration_depth([['a']], depth=0)
-        ['a', 'b', 'c']   = modify_iteration_depth([['a', 'b', 'c']], depth=0)
-        [['a']]           = modify_iteration_depth('a', depth=2)
-        [['a', 'b', 'c']] = modify_iteration_depth(['a', 'b', 'c'], depth=2)
-
-    (but only evaluates depth of first element of iterable)
-    eg:
-        ['a', [['b']], [['c']]] = modify_iteration_depth(['a', [['b']], [['c']]], depth=0)
+        'a'           = modify_iteration_depth([['a']], depth=0)
+        [2, 2, 2]     = modify_iteration_depth([[2, 2, 2]], depth=0)
+        [[[1, 1, 1]]] = modify_iteration_depth([1, 1, 1], depth=3)
     """
-    v  = iterator_to_list(v)
-    nd = iteration_depth(v)
+    # v  = iterator_to_list(v, recurse=False)
+    if is_exhaustable(v):
+        raise TypeError('cannot mofify iteration depth of an exhaustable iterator')
 
-    # remove unneccesary nesting
+    nd = iteration_depth(v, recurse=False)
+
     if nd > depth:
         for _ in range(nd - depth):
-            if _is_subscriptable(v) and len(v) == 1:
-                v = v[0]
-
-    # apply additional nesting
+            if is_subscriptable(v) and len(v) == 1: v = v[0]
     elif nd < depth:
-        for _ in range(depth - nd):
-            v = [v]
+        for _ in range(depth - nd):                 v = [v]
 
     return v
 
 
 def iterator_to_list(v, recurse=False):
-    if not _is_iterable(v):
+    if not is_iterable(v):
         return v
 
     if is_vengeance_class(v):
@@ -45,72 +36,122 @@ def iterator_to_list(v, recurse=False):
         v = list(v)
 
     if recurse:
-        for i, _v_ in enumerate(v):
-            v[i] = iterator_to_list(_v_, recurse=True)
+        for i in range(len(v)):
+            v[i] = iterator_to_list(v[i], recurse=True)
 
     return v
 
 
-def iteration_depth(v):
-    """ determine number of nested iteration levels of value
-
-    counts the iteration depth of iterable by recursively traversing the levels of
-    the first element(s) ONLY
-
-    (an iterable with mismatched number of iteration depths at different elements
-    will only return dimension of first element(s))
-
+def iteration_depth(v, recurse=False):
+    """
     eg:
         0 = iteration_depth('abc')
         1 = iteration_depth(['abc'])
         1 = iteration_depth([])
-        2 = iteration_depth([['abc'], ['bcd'] ])
-        2 = iteration_depth([[]])
+        2 = iteration_depth([[2], [2]])
 
-    only evaluates the first element
-    eg:
-        3 = iteration_depth([['a', ['b']], 1, 2])
+    eg recurse = True:
+        5 = iteration_depth([[2, 2, [3, 3, 3, [4, [5, 5, 5, 5], 4]]]], True)
+    eg recurse = False:
+        (only evaluates the depth of first elements)
+        2 = iteration_depth([[2, 2, [3, 3, 3, [4, [5, 5, 5, 5], 4]]]], False)
     """
-    if _is_exhaustable_iterator(v):
+    if is_exhaustable(v):
         raise TypeError('cannot evaluate iteration depth of an exhaustable iterator')
 
-    if isinstance(v, str):
+    if not is_iterable(v):
         return 0
 
-    if not isinstance(v, Iterable):
-        return 0
-
-    if not v:
+    if len(v) == 0:
         return 1
 
-    if not isinstance(v, (list, tuple)):
-        v = list(v)
+    if isinstance(v, dict):
+        v = list(v.values())
+
+    if recurse:
+        return 1 + max(iteration_depth(_v_, recurse) for _v_ in v)
 
     try:
-        _v_ = v[0]
+        return 1 + iteration_depth(v[0], recurse)
     except TypeError:
         return 1
 
-    return 1 + iteration_depth(_v_)
 
+def divide_sequence(sequence, divisions):
+    """
+    eg:
+        [['a', 'a', 'a', 'a', 'a'],
+         ['a', 'a', 'a', 'a', 'a']] = divide_sequence(['a'] * 10, 2)
+    """
+    num_items = len(sequence)
+    if divisions > num_items:
+        raise AssertionError('too many divisions')
 
-def stride_sequence(sequence, stride_len):
-    sequence = iterator_to_list(sequence)
+    stride  = max(1, num_items // divisions)
+    strides = [stride for _ in range(divisions)]
+    undershoot = num_items - (stride * divisions)
 
-    for i_1 in range(0, len(sequence), stride_len):
-        i_2 = i_1 + stride_len
+    i = 0
+    while undershoot > 0:
+        strides[i] += 1
+        undershoot -= 1
+        i += 1
+
+    i_1 = 0
+    for stride in strides:
+        i_2 = i_1 + stride
         yield sequence[i_1:i_2]
+        i_1 = i_2
 
 
-def divide_sequence(sequence, num_divisions):
-    sequence = iterator_to_list(sequence)
+def is_iterable(v):
+    """
+    (strings are not considered to be iterable)
 
-    num_items  = len(sequence)
-    stride_len = max(1, ceil(num_items / num_divisions))
+    eg:
+        False = is_iterable('mike')
+        True  = is_iterable(['m', 'i' 'k' 'e'])
+    """
+    is_iter   = isinstance(v, Iterable)
+    is_string = isinstance(v, str)
 
-    for i_1 in range(0, num_items, stride_len):
-        i_2 = i_1 + stride_len
-        yield sequence[i_1:i_2]
+    return is_iter and (not is_string)
+
+
+def is_subscriptable(v):
+    if isinstance(v, (list, tuple)):
+        return True
+
+    try:
+        # noinspection PyStatementEffect
+        v[0]
+        return True
+    except IndexError:
+        return True
+    except TypeError:
+        return False
+
+
+def is_exhaustable(v):
+    return hasattr(v, '__next__')
+
+
+def is_vengeance_class(o):
+    """ all util functions should be independent from any other imports to avoid
+    circular dependencies. Otherwise, isintance(o, (flux_cls, excel_levity_cls))
+    would be sufficient
+    """
+    bases = set(base_class_names(o))
+    return ('flux_cls' in bases) or ('excel_levity_cls' in bases)
+
+
+def is_flux_row_class(o):
+    bases = set(base_class_names(o))
+    return 'flux_row_cls' in bases
+
+
+def base_class_names(o):
+    return [b.__name__ for b in o.__class__.mro()]
 
 
 def transpose(m):
@@ -122,93 +163,8 @@ def transpose(m):
     return t
 
 
-def append_matrices(direction, *matrices, has_header=True):
-    d = direction
-
-    if d.startswith('v') or d.startswith('row'):
-        return append_vertical(*matrices, has_header=has_header)
-
-    if d.startswith('h') or d.startswith('col'):
-        return append_horizontal(*matrices)
-
-    raise ValueError("invalid direction: '{}'".format(direction))
-
-
-def append_vertical(*matrices, has_header=True):
-
-    def append(m_1, m_2):
-        m_1 = iterator_to_list(m_1)
-        m_2 = iterator_to_list(m_2)
-
-        if len(m_1[0]) != len(m_2[0]):
-            raise IndexError('vertical append requires matrices to have equal number of columns')
-
-        if is_empty(m_1):
-            return m_2
-
-        if is_empty(m_2):
-            return m_1
-
-        if has_header:
-            m_2 = m_2[1:]
-
-        return m_1 + m_2
-
-    m_final, matrices = matrices[0], matrices[1:]
-    for m in matrices:
-        m_final = append(m_final, m)
-
-    return m_final
-
-
-def append_horizontal(*matrices):
-    """
-    this is god-awfully slow
-
-    add all columns together in single iteration
-    zip(*matrices)?
-    but must assert all equal num columns
-    """
-
-    def append(m_1, m_2):
-        m_1 = iterator_to_list(m_1)
-        m_2 = iterator_to_list(m_2)
-
-        if len(m_1) != len(m_2):
-            raise IndexError('horizontal append requires matrices to have equal number of rows')
-
-        if is_empty(m_1):
-            return m_2
-
-        if is_empty(m_2):
-            return m_1
-
-        return [row_1 + row_2 for row_1, row_2 in zip(m_1, m_2)]
-
-    m_final, matrices = matrices[0], matrices[1:]
-    for m in matrices:
-        m_final = append(m_final, m)
-
-    return m_final
-
-
-def is_empty(v):
-    """ determine if iterable is composed entirely of empty iterables, eg, [] or [[]]
-    eg:
-        True  = is_empty( [] )
-        True  = is_empty( [[]] )
-        False = is_empty( [[None]] )
-        False = is_empty( [[], [], []] )
-    """
-    m = iterator_to_list(v)
-    num_rows = len(m)
-    num_cols = len(m[0])
-
-    return (num_rows == 1) and (num_cols == 0)
-
-
 def index_sequence(sequence, start=0):
-    """ :return dict of {value: positional_index} for all items in sequence
+    """ :return {value: index} for all items in sequence
 
     values are modified before they are added as keys:
         all values coerced to string
@@ -219,11 +175,13 @@ def index_sequence(sequence, start=0):
 
     for i, v in enumerate(sequence, start):
         _v_ = str(v)
+        if _v_ == '':
+            _v_ = 'None'
 
         if v in nonunique:
-            _v_ = '{}_{}'.format(v, nonunique[v] + 1)
+            _v_ = '{}_{}'.format(_v_, nonunique[v]+1)
 
-        indices[_v_]  = i
+        indices[_v_] = i
         nonunique[v] += 1
 
     return indices
@@ -269,31 +227,10 @@ def invert_mapping(d):
     return inverted
 
 
-def _is_iterable(v):
-    """ determine if value is an iteraterable data structure
-    (strings are not considered to be iterable data structures in this function)
-
-    eg:
-        False = is_iterable('mike')
-        True  = is_iterable(['m', 'i' 'k' 'e'])
-    """
-    is_iter   = isinstance(v, Iterable)
-    is_string = isinstance(v, str)
-
-    return is_iter and not is_string
-
-
-def _is_subscriptable(v):
-    return isinstance(v, (list, tuple))
-
-
-def _is_exhaustable_iterator(v):
-    return hasattr(v, '__next__')
-
-
 class OrderedDefaultDict(OrderedDict):
-
-    def __init__(self, default_factory=None, *args, **kwargs):
+    def __init__(self, default_factory=None,
+                       *args,
+                       **kwargs):
 
         if default_factory and (not callable(default_factory)):
             raise TypeError('first argument must be callable')
@@ -306,9 +243,7 @@ class OrderedDefaultDict(OrderedDict):
             OrderedDict.__init__(self, *args, **kwargs)
 
     def __append_values(self, sequence):
-        """
-        append all values as list if constructed default_factory is list
-        """
+        """ append all values as list if constructed default_factory is list """
 
         if isinstance(sequence, dict):
             sequence = OrderedDict(sequence.items()).items()
@@ -343,36 +278,5 @@ class OrderedDefaultDict(OrderedDict):
     def ordereddict(self):
         return OrderedDict(self)
 
-    def count_values(self):
-        d = OrderedDict()
 
-        for k, v in self.items():
-            if _is_iterable(v):
-                d[k] = len(v)
-            else:
-                d[k] = 1
-
-        return d
-
-    def modify_iteration_depth(self, depth=0):
-        for k, v in self.items():
-            self[k] = modify_iteration_depth(v, depth)
-
-
-def is_vengeance_class(o):
-    bases = set(base_class_names(o))
-
-    if 'flux_cls' in bases or 'excel_levity_cls' in bases:
-        return True
-
-    return False
-
-
-def is_flux_row_class(o):
-    bases = set(base_class_names(o))
-    return 'flux_row_cls' in bases
-
-
-def base_class_names(o):
-    return [b.__name__ for b in o.__class__.mro()]
 

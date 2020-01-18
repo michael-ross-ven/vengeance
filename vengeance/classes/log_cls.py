@@ -116,58 +116,39 @@ class log_cls(Logger):
                 yield h
 
     def exception_handler(self, e_type, e_msg, e_trace):
-        # region {closure functions}
         def frame_filename():
             return s_frame.tb_frame.f_code.co_filename
 
-        # endregion
-
         if e_type and e_trace:
-            self.err_msg = str(e_msg)
+            self.err_msg = str(e_msg).replace('"', "'")
 
             e_type  = e_type.__name__
-            s_frame = e_trace
-
-            child_frame = e_trace
-            has_child   = not bool(self.child_desig)
+            c_frame = s_frame = e_trace
+            has_child = not bool(self.child_desig)
 
             # naviagate to most recent stack frame
             while s_frame.tb_next is not None:
                 if has_child is False:
                     if self.child_desig in frame_filename():
-                        child_frame = s_frame
+                        c_frame = s_frame
                         has_child = True
 
                 s_frame = s_frame.tb_next
 
-            code_file = frame_filename()
-            file = os.path.split(code_file)[1]
-            line = s_frame.tb_lineno
-
-            exc_info = (e_type, e_msg, child_frame)
+            exc_info = (e_type, e_msg, c_frame)
         else:
-            e_msg = None
-            file  = None
-            line  = None
+            self.err_msg = ''
             exc_info = None
 
-        log_msg = dedent('''
-        \n\n
-        ____________________________   vengeance   ____________________________
-              The result 'w+resign' was added to the game information
-              
-              error: "{e_msg}"
-              
-              error type: <{e_type}>
-              file: {file}
-              line: {line} 
-        ____________________________   vengeance   ____________________________
-        \n\n
-        ''').format(name=self.name,
-                    e_msg=e_msg,
-                    e_type=e_type,
-                    file=file,
-                    line=line)
+        # include self.name?
+        log_msg = dedent('''\n\n
+        _______________________________________   vengeance  _____________________________________________
+                          The result 'w+resign' was added to the game information
+        
+        <{}>
+        "{}"
+        _______________________________________   vengeance  _____________________________________________
+        \n\n''').format(e_type, self.err_msg)
 
         # propagate error up through super class
         self.error(log_msg, exc_info=exc_info)

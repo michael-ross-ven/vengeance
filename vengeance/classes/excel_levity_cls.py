@@ -2,48 +2,37 @@
 import re
 
 # noinspection PyUnresolvedReferences
-from pythoncom import com_error
+from pythoncom import com_error as pythoncom_error
 
 from collections import OrderedDict
 
-from .. excel_com.worksheet import activate_sheet
-from .. excel_com.worksheet import first_col
-from .. excel_com.worksheet import last_col
-from .. excel_com.worksheet import first_row
-from .. excel_com.worksheet import last_row
-from .. excel_com.worksheet import excel_range_rows
-from .. excel_com.worksheet import clear_worksheet_filter
-from .. excel_com.worksheet import is_filtered
-from .. excel_com.worksheet import write_to_excel_range
-from .. excel_com.worksheet import is_range_empty
-from .. excel_com.worksheet import parse_range
+from ..excel_com.worksheet import activate_sheet
+from ..excel_com.worksheet import first_col
+from ..excel_com.worksheet import last_col
+from ..excel_com.worksheet import first_row
+from ..excel_com.worksheet import last_row
+from ..excel_com.worksheet import excel_range_rows
+from ..excel_com.worksheet import clear_worksheet_filter
+from ..excel_com.worksheet import is_filtered
+from ..excel_com.worksheet import write_to_excel_range
+from ..excel_com.worksheet import is_range_empty
+from ..excel_com.worksheet import parse_range
 
-from .. excel_com.excel_address import col_letter
-from .. excel_com.excel_address import col_letter_offset
-from .. excel_com.excel_address import col_number
+from ..excel_com.excel_address import col_letter
+from ..excel_com.excel_address import col_letter_offset
+from ..excel_com.excel_address import col_number
 
-from .. excel_com.excel_constants import *
+from ..excel_com.excel_constants import *
 
-from .. util.iter import index_sequence
-from .. util.iter import modify_iteration_depth
+from ..util.iter import index_sequence
+from ..util.iter import modify_iteration_depth
+from ..util.iter import iterator_to_list
 
-from . flux_row_cls import lev_row_cls
+from .flux_row_cls import lev_row_cls
 
 
 class excel_levity_cls:
     allow_focus = False
-    
-    @staticmethod
-    def col_letter_offset(col_str, offset):
-        return col_letter_offset(col_str, offset)
-    
-    @staticmethod
-    def col_letter(col_int):
-        return col_letter(col_int)
-
-    @staticmethod
-    def col_number(col_str):
-        return col_number(col_str)
 
     def __init__(self, ws,
                        *,
@@ -60,7 +49,8 @@ class excel_levity_cls:
         self.headers   = OrderedDict()
         self.m_headers = OrderedDict()
 
-        self._named_ranges  = {}
+        self._named_ranges = {}
+
         self._fixed_columns = first_c, last_c
         self._fixed_rows    = first_r, last_r
 
@@ -73,6 +63,18 @@ class excel_levity_cls:
 
         self.set_range_boundaries(index_meta=True,
                                   index_header=True)
+
+    @staticmethod
+    def col_letter_offset(col_str, offset):
+        return col_letter_offset(col_str, offset)
+
+    @staticmethod
+    def col_letter(col_int):
+        return col_letter(col_int)
+
+    @staticmethod
+    def col_number(col_str):
+        return col_number(col_str)
 
     @property
     def application(self):
@@ -114,16 +116,22 @@ class excel_levity_cls:
         if self.is_empty:
             return False
 
-        return bool(self.headers) and bool(self.m_headers)
+        return bool(self.headers) or bool(self.m_headers)
 
     @property
     def has_filter(self):
         return bool(self.ws.AutoFilter)
 
     @property
-    def append_r(self):
-        """ determines the first available empty row in sheet """
+    def first_empty_row(self):
         if self.is_empty:
+            return self.header_r or self.meta_r or 1
+
+        a = '{}{}:{}{}'.format(self.first_c, self.first_r,
+                               self.last_c, self.first_r)
+        first_data_row = self.ws.Range(a)
+
+        if is_range_empty(first_data_row):
             r = self.first_r
         else:
             r = self.last_r + 1
@@ -131,7 +139,7 @@ class excel_levity_cls:
         return r
 
     @property
-    def append_c(self):
+    def first_empty_column(self):
         """ determines the first available empty column in sheet """
         if self.is_empty:
             c = self.first_c
@@ -153,7 +161,7 @@ class excel_levity_cls:
         if self.last_r > self.first_r:
             return False
 
-        r_1 = self.header_r or self.meta_r
+        r_1 = self.header_r or self.meta_r or 1
         r_2 = self.last_r
         a = '{}{}:{}{}'.format(self.first_c, r_1, self.last_c, r_2)
 
@@ -254,7 +262,6 @@ class excel_levity_cls:
         determine these boundaries correctly
         """
         clear_worksheet_filter(self.ws)
-
         self.__range_boundaries()
 
         if index_meta:
@@ -264,26 +271,22 @@ class excel_levity_cls:
             self.__index_header_columns()
 
     def __range_boundaries(self):
-        (self.first_c,
-         self.last_c) = self._fixed_columns
-
-        (self.first_r,
-         self.last_r) = self._fixed_rows
-
         used_range = self.ws.UsedRange
 
-        self.first_c = self.first_c or first_col(used_range)
-        self.last_c  = self.last_c  or last_col(used_range, default=self.first_c)
+        first_c, last_c = self._fixed_columns
+        first_r, last_r = self._fixed_rows
+
+        self.first_c = first_c or first_col(used_range)
+        self.last_c  = last_c  or last_col(used_range, default=self.first_c)
 
         r_1 = max(self.meta_r, self.header_r) + 1
         r_2 = used_range.Rows.Count
         a = '{}{}:{}{}'.format(self.first_c, r_1,
                                self.last_c,  r_2)
-
         excel_range = self.ws.Range(a)
 
-        self.first_r = self.first_r or first_row(excel_range, default=r_1)
-        self.last_r  = self.last_r  or last_row(excel_range, default=self.first_r)
+        self.first_r = first_r or first_row(excel_range, default=r_1)
+        self.last_r  = last_r  or last_row(excel_range, default=self.first_r)
 
         self.first_c = col_letter(self.first_c)
         self.last_c  = col_letter(self.last_c)
@@ -332,11 +335,10 @@ class excel_levity_cls:
         self.headers = self.__index_headers('header_r')
 
     def excel_range(self, reference):
-
         try:
             a = self.excel_address(reference)
             excel_range = self.ws.Range(a)
-        except com_error:
+        except pythoncom_error:
             excel_range = self.named_ranges.get(reference)
 
         if excel_range is None:
@@ -357,7 +359,7 @@ class excel_levity_cls:
 
         return a
 
-    def __validate_destination_size(self, m, c_1, r_1):
+    def __validate_within_fixed_destination(self, m, c_1, r_1):
         """
         if lev has fixed columns or rows, these should not be exceeded
         make sure matrix fits in allowed destination space
@@ -390,11 +392,12 @@ class excel_levity_cls:
     def __setitem__(self, reference, v):
         """ write value(s) to excel range """
         excel_range = self.excel_range(reference)
-        m = modify_iteration_depth(v, 2)
-
         c = excel_range.Column
         r = excel_range.Row
-        self.__validate_destination_size(m, c, r)
+
+        v = iterator_to_list(v)
+        m = modify_iteration_depth(v, 2)
+        self.__validate_within_fixed_destination(m, c, r)
 
         write_to_excel_range(m, excel_range)
 
@@ -428,7 +431,7 @@ def _named_ranges_in_workbook(wb):
         if nr.Visible:
             try:
                 named_ranges[nr.Name] = nr.RefersToRange
-            except com_error:
+            except pythoncom_error:
                 continue
 
     return named_ranges
@@ -436,8 +439,10 @@ def _named_ranges_in_workbook(wb):
 
 def _reference_to_col_row(lev, reference):
     reference = __reference_to_property_names(reference)
-    col, row  = __reference_to_property_values(lev, reference)
-    col, row  = __parse_characters_from_digits(reference, col, row)
+    col, row  = __property_names_to_value(lev, reference)
+
+    if col is None or row is None:
+        col, row = __parse_characters_from_digits(reference, col, row)
 
     return col, row
 
@@ -450,8 +455,7 @@ def __reference_to_property_names(reference):
     anchor_names = {'*m': 'meta',
                     '*h': 'header',
                     '*f': 'first',
-                    '*l': 'last',
-                    '*a': 'append'}
+                    '*l': 'last'}
 
     anchor_re = re.compile('''
          (?P<col>^[*][fla])
@@ -465,10 +469,19 @@ def __reference_to_property_names(reference):
         value = match.group(0)
 
         if name == 'col':
-            col = anchor_names[value] + '_c '
+            if value == '*a':
+                col = 'first_empty_column '
+            else:
+                col = anchor_names[value] + '_c '
+
             reference = reference.replace(value, col, 1)
+
         elif name == 'row':
-            row = ' ' + anchor_names[value] + '_r'
+            if value == '*a':
+                row = 'first_empty_row '
+            else:
+                row = ' ' + anchor_names[value] + '_r'
+
             reference = reference.replace(value, row, 1)
 
     # replace multiple spaces with single space
@@ -477,7 +490,7 @@ def __reference_to_property_names(reference):
     return reference
 
 
-def __reference_to_property_values(lev, reference):
+def __property_names_to_value(lev, reference):
     if ' ' not in reference:
         return None, None
 
@@ -485,13 +498,13 @@ def __reference_to_property_values(lev, reference):
     reference = ' '.join(reference.split())
 
     splits = reference.split(' ')
-    col = __lookup_col_row_on_object(lev, splits[0])
-    row = __lookup_col_row_on_object(lev, splits[1])
+    col = __col_row_to_value(lev, splits[0])
+    row = __col_row_to_value(lev, splits[1])
 
     return col, row
 
 
-def __lookup_col_row_on_object(lev, reference):
+def __col_row_to_value(lev, reference):
     if reference in lev.headers:
         literal = lev.headers[reference]
     elif reference in lev.m_headers:
@@ -507,8 +520,6 @@ def __lookup_col_row_on_object(lev, reference):
 
 
 def __parse_characters_from_digits(reference, col, row):
-    if (col is not None) and (row is not None):
-        return col, row
 
     address_re = re.compile(r'''
          (?P<col>^[$]?[a-z]{1,2})(?=[\d* ])

@@ -1,16 +1,16 @@
 
-from . workbook import open_workbook
-from . workbook import close_workbook
-from . workbook import new_excel_instance
-from . workbook import any_excel_instance
-from . workbook import empty_excel_instance
-from . workbook import all_excel_instances
+from .workbook import open_workbook
+from .workbook import close_workbook
+from .workbook import new_excel_instance
+from .workbook import any_excel_instance
+from .workbook import empty_excel_instance
+from .workbook import all_excel_instances
 
-from . worksheet import get_worksheet
+from .worksheet import get_worksheet
 
-from . excel_address import col_letter_offset
-from . excel_address import col_letter
-from . excel_address import col_number
+from .excel_address import col_letter_offset
+from .excel_address import col_letter
+from .excel_address import col_number
 
 
 __all__ = ['open_workbook',

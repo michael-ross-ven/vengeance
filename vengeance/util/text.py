@@ -83,7 +83,7 @@ def format_ms(ms):
         f_ms = '{} hr {} min'.format(h, m)
     elif m >= 1:
         f_ms = '{} min {} sec'.format(int(m), int(s))
-    elif s > 1:
+    elif s >= 1:
         f_ms = '{:.2f} sec'.format(s)
     elif ms > 10:
         f_ms = '{} ms'.format(int(ms))
@@ -203,11 +203,13 @@ def between(s, substr_1, substr_2=None):
 
 
 def p_json_dumps(o, indent=4, ensure_ascii=False):
-    """
-    json can not convert certain python objects to
-    string representations like dates, sets, etc
-    """
+
     def unhandled_conversion(_o_):
+        """
+        json can not convert certain python objects to
+        string representations like dates, sets, etc
+        """
+
         if isinstance(_o_, date):
             return _o_.isoformat()
 
@@ -216,7 +218,10 @@ def p_json_dumps(o, indent=4, ensure_ascii=False):
 
         raise TypeError('cannot convert type to json ' + repr(_o_))
 
-    s = json.dumps(o, indent=indent, default=unhandled_conversion, ensure_ascii=ensure_ascii)
+    s = json.dumps(o,
+                   indent=indent,
+                   default=unhandled_conversion,
+                   ensure_ascii=ensure_ascii)
 
     return s
 

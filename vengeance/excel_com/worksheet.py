@@ -1,19 +1,20 @@
 
-# noinspection PyUnresolvedReferences
-from pythoncom import com_error
-
 from datetime import date
 from datetime import datetime
 
-from .. util.iter import modify_iteration_depth
+# noinspection PyUnresolvedReferences
+from pythoncom import com_error as pythoncom_error
 
-from .. excel_com.excel_address import col_letter
-from .. excel_com.excel_address import col_number
-from .. excel_com.excel_address import max_cols as excel_max_cols
-from .. excel_com.excel_address import max_rows as excel_max_rows
+from .excel_constants import *
+from .workbook import excel_application_to_foreground
 
-from . workbook import excel_app_to_foreground
-from . excel_constants import *
+from ..excel_com.excel_address import col_letter
+from ..excel_com.excel_address import col_number
+from ..excel_com.excel_address import max_cols as excel_max_cols
+from ..excel_com.excel_address import max_rows as excel_max_rows
+
+from ..util.iter import iterator_to_list
+from ..util.iter import modify_iteration_depth
 
 
 def get_worksheet(wb,
@@ -30,7 +31,7 @@ def get_worksheet(wb,
 
     try:
         ws = wb.Sheets[ws]
-    except com_error as e:
+    except pythoncom_error as e:
         raise NameError("'{}' worksheet not found in '{}'".format(ws, wb.Name)) from e
 
     if clear_filter:
@@ -38,7 +39,7 @@ def get_worksheet(wb,
 
     if activate:
         ws.Visible = True
-        excel_app_to_foreground(ws.Application)
+        excel_application_to_foreground(ws.Application)
         ws.Activate()
 
     return ws
@@ -150,7 +151,7 @@ def last_cell(excel_range):
     try:
         a = excel_range.Address.split(':')[-1]
         return excel_range.Parent.Range(a)
-    except com_error:
+    except pythoncom_error:
         return excel_range.Cells(excel_range.Cells.Count)
 
 
@@ -172,21 +173,24 @@ def is_range_empty(excel_range):
 
 
 def activate_sheet(ws):
-    excel_app_to_foreground(ws.Application)
+    excel_application_to_foreground(ws.Application)
     ws.Visible = True
     ws.Activate()
 
 
 def write_to_excel_range(v, excel_range):
+    v = iterator_to_list(v)
     m = modify_iteration_depth(v, 2)
-    m = list(__excel_friendly_matrix(m))
 
+    __validate_destination_size(m)
+
+    m = list(__excel_friendly_matrix(m))
     num_cols = len(m[0])
     num_rows = len(m)
 
-    _excel_range_ = excel_range.Parent.Range(excel_range,
-                                             excel_range.Resize(num_rows, num_cols))
-    _excel_range_.Value = m
+    excel_range.Parent.Range(excel_range,
+                             excel_range.Resize(num_rows, num_cols)
+                             ).Value = m
 
 
 def excel_range_rows(excel_range):
@@ -210,7 +214,7 @@ def __convert_excel_errors(excel_range):
             c = cell_error.Column - c_0
             m[r][c] = excel_errors.get(m[r][c], 'unknown error')
 
-    except com_error:
+    except pythoncom_error:
         pass
 
     return m
@@ -221,7 +225,6 @@ def __excel_friendly_matrix(m):
     TODO:
         profile instance checks
     """
-    __validate_destination_size(m)
     num_cols = len(m[0])
 
     for i, row in enumerate(m):

@@ -14,19 +14,9 @@ from .text import repr_
 
 
 def read_file(path, encoding=None, mode='r'):
-    """
-    assumes text file unless extension is in these specialized formats:
-        .csv
-        .json
-        .flux
-        .pkl
-        .pickle
-    """
-    assert_path_exists(path)
 
     extn = file_extension(path, include_dot=True)
-    if extn.startswith('.xls') or extn in {'.7z', '.gzip', '.hd5'}:
-        raise NotImplementedError
+    __validate_extension(extn)
 
     if extn == '.csv':
         with open(path, mode, encoding=encoding) as f:
@@ -39,7 +29,6 @@ def read_file(path, encoding=None, mode='r'):
     if extn in {'.flux', '.pkl', '.pickle'}:
         if not mode.endswith('b'):
             mode += 'b'
-
         with open(path, mode) as f:
             return cpickle.load(f)
 
@@ -48,15 +37,9 @@ def read_file(path, encoding=None, mode='r'):
 
 
 def write_file(path, data, encoding=None, mode='w'):
-    """
-    assumes text file unless extension is in these specialized formats:
-        .csv
-        .json
-        .flux
-        .pkl
-        .pickle
-    """
+
     extn = file_extension(path, include_dot=True)
+    __validate_extension(extn)
 
     if extn == '.csv':
         with open(path, mode, encoding=encoding) as f:
@@ -67,7 +50,6 @@ def write_file(path, data, encoding=None, mode='w'):
     if extn == '.json':
         if not isinstance(data, str):
             data = p_json_dumps(data, ensure_ascii=(encoding is None))
-
         with open(path, mode, encoding=encoding) as f:
             f.write(data)
 
@@ -76,32 +58,36 @@ def write_file(path, data, encoding=None, mode='w'):
     if extn in {'.flux', '.pkl', '.pickle'}:
         if not mode.endswith('b'):
             mode += 'b'
-
         with open(path, mode) as f:
             cpickle.dump(data, f)
 
         return
 
-    # convert data to string: f.write() is much faster than f.writelines()
+    # f.write() is faster than f.writelines(): convert data to string
     if not isinstance(data, str):
-        data = repr_(data, concat='\n', quotes=False, wrap=False)
+        data = repr_(data,
+                     concat='\n',
+                     quotes=False,
+                     wrap=False)
 
     with open(path, mode, encoding=encoding) as f:
         f.write(data)
 
 
-def clear_dir(filedir, allow_not_exist=False):
+def __validate_extension(extn):
+    """ check for file types that require specialized io libraries / protocols """
+    if extn.startswith('.xls') or extn in {'.7z', '.gzip', '.hd5'}:
+        raise NotImplementedError("'{}' file type not supported".format(extn))
+
+
+def clear_dir(filedir):
+    if not os.path.exists(filedir):
+        return
+
     filedir = standardize_dir(filedir)
 
-    if not os.path.exists(filedir):
-        if allow_not_exist is True:
-            return
-        else:
-            raise FileNotFoundError("cannot clear: '{}', directory does not exist".format(filedir))
-
-    for file_content in os.listdir(filedir):
-        path = filedir + file_content
-
+    for item in os.listdir(filedir):
+        path = filedir + item
         if os.path.isdir(path):
             shutil.rmtree(path)
         else:
@@ -141,16 +127,15 @@ def file_last_modified(path):
 
 
 def standardize_dir(filedir, pathsep='/'):
-    """ ensure directory follows predictable pattern
-
+    """
     pathsep=os.path.sep?
     """
     filedir = (filedir.replace('\\', pathsep)
-                  .replace('/', pathsep)
-                  .lower()
-                  .strip())
+                      .replace('/', pathsep)
+                      .lower()
+                      .strip())
 
-    if not filedir.endswith(pathsep):
+    if filedir != '' and not filedir.endswith(pathsep):
         filedir += pathsep
 
     return filedir
@@ -170,11 +155,10 @@ def standardize_path(path):
 
 
 def sanatize_file_name(filename):
-    """
-    replace illegal Windows file name characters with '-'
+    """ replace illegal Windows file name characters with '-'
 
     (there's an additional set of path characters that are
-     illegal for Windows' built-in compression)
+     illegal only for Windows' .zip compression)
     """
     invalid_chrs = {'\\': '-',
                     '/':  '-',
@@ -189,17 +173,13 @@ def sanatize_file_name(filename):
     for k, v in invalid_chrs.items():
         filename = filename.replace(k, v)
 
-    filename = filename.strip()
-    if not filename:
-        raise IOError('file name is blank')
-
     return filename
 
 
 def assert_path_exists(path):
     filedir, filename = parse_path(path)
 
-    if not os.path.exists(filedir):
+    if filedir != '' and not os.path.exists(filedir):
         raise FileNotFoundError("invalid directory: '{}'".format(filedir))
 
     if not os.path.exists(path):

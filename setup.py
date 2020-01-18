@@ -7,15 +7,15 @@ from setuptools import setup
 from textwrap import dedent
 
 
-__version__ = '1.0.37'
-__release__ = '$release 30'
+__version__ = '1.0.38'
+__release__ = '$release 31'
 
 dependencies = ('comtypes',
                 'pypiwin32',
                 'python-dateutil')
 
 
-long_description = '(fill this out later)\nhttps://github.com/michael-ross-ven/vengeance/blob/master/README.md'
+long_description = 'https://github.com/michael-ross-ven/vengeance/blob/master/README.md\n(fill this out for pypi.org later)'
 
 
 def write_version_file():

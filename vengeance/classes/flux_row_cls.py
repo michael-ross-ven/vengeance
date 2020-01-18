@@ -3,6 +3,7 @@ from collections import OrderedDict
 from collections import namedtuple
 
 
+# noinspection DuplicatedCode
 class flux_row_cls:
 
     class_names = {'_headers',
@@ -14,16 +15,13 @@ class flux_row_cls:
     def __init__(self, headers, values):
         """
         :param headers: OrderedDict of {'header': index}
-
-            * headers is a single dictionary passed byref from the
-              flux_cls to many flux_row_cls instances
-            * this eliminates need for all flux_row_cls objects
-              to maintain a seprate copy of these mappings and
-              allows for centralized and instantaneous updatdes
+            headers is a single dictionary passed byref from the flux_cls to many flux_row_cls instances
+            this eliminates need for all flux_row_cls objects to maintain a seprate copy of these mappings and
+            allows for centralized and instantaneous updatdes
 
         :param values: list of underlying data
 
-        self.__dict__ is used to set attributes in __init__ so as to avoid
+        properties must be set on self.__dict__, instead of directly on self to prevent
         premature __setattr__ lookups
         """
         self.__dict__['_headers'] = headers
@@ -35,11 +33,11 @@ class flux_row_cls:
 
     @property
     def _view_as_array(self):
-        """ for development purposes; used purely to trigger a debugging feature in PyCharm
+        """ meant to trigger a debugging feature in PyCharm
 
         PyCharm will recognize returned the (name, value) pairs as an ndarray
         and enable the "...view as array" option in the debugger which displays
-        values in a special window
+        values in a special window as a table
         """
         import numpy
         return numpy.transpose([self.names, self.values])
@@ -48,19 +46,7 @@ class flux_row_cls:
         return OrderedDict(zip(self.names, self.values))
 
     def namedtuples(self):
-        try:
-            return namedtuple('flux_row_nt', self.names)(*self.values)
-
-        except TypeError as e:
-            if len(self.names) != len(self.values):
-                raise TypeError('mismatched number of headers and values') from e
-            raise e
-        except ValueError as e:
-            import re
-            names = [n for n in self.names if re.search('^[^a-z]|[ ]', str(n), re.I)]
-            if names:
-                raise ValueError('invalid field(s) for namedtuple constructor: {}'.format(names)) from e
-            raise e
+        return namedtuple('flux_row_ntc', self.names)(*self.values)
 
     def __getattr__(self, name):
         """  eg:
@@ -90,7 +76,10 @@ class flux_row_cls:
             i = self._headers.get(name, name)
             self.values[i] = value
         except (TypeError, IndexError) as e:
-            raise AttributeError(self.__attr_err_msg(name)) from e
+            if name in self.__dict__:
+                self.__dict__[name] = value
+            else:
+                raise AttributeError(self.__attr_err_msg(name)) from e
 
     def __setitem__(self, name, value):
         """ eg:
@@ -100,11 +89,14 @@ class flux_row_cls:
             i = self._headers.get(name, name)
             self.values[i] = value
         except (TypeError, IndexError) as e:
-            raise AttributeError(self.__attr_err_msg(name)) from e
+            if name in self.__dict__:
+                self.__dict__[name] = value
+            else:
+                raise AttributeError(self.__attr_err_msg(name)) from e
 
     def __attr_err_msg(self, name):
         if isinstance(name, slice):
-            return 'slice should be used on row.values\n(eg, row.values[2:5], not row[2:5])'
+            return 'slice should be used directly on row.values\n(eg, row.values[2:5], not row[2:5])'
 
         names = '\n\t'.join(str(n) for n in self.names)
         return "No flux_row_cls column named '{}'\navailable columns:\n\t{}".format(name, names)
@@ -135,7 +127,6 @@ class flux_row_cls:
 
     def __repr__(self):
         i = self.__dict__.get('i', '')
-
         if i != '':
             i = '({:,})  '.format(i)
 
