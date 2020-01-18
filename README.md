@@ -6,6 +6,7 @@
 (TODO: cleanup typos in this readme)
 \
 \
+\
 Values stored as list of lists (ie, a matrix) should be able to be easily managed with pure Python,  
 without the need for a massive or complex library.
 
