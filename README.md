@@ -1,7 +1,8 @@
 #### (See https://github.com/michael-ross-ven/vengeance_unittest project for usage)
 
-(TODO: cleanup typos in this readme)
+
 ## Managing tabular data shouldn't be complicated.
+(TODO: cleanup typos in this readme)
 
 Values stored as list of lists (ie, a matrix) should be able to be easily managed with pure Python,  
 without the need for a massive or complex library.
