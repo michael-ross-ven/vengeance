@@ -2,7 +2,7 @@
 \
 \
 \
-\## Managing tabular data shouldn't be complicated.
+## Managing tabular data shouldn't be complicated.
 (TODO: cleanup typos in this readme)
 \
 \
