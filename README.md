@@ -1,4 +1,5 @@
-#### (See https://github.com/michael-ross-ven/vengeance_unittest project for usage)
+#### (See https://github.com/michael-ross-ven/vengeance_unittest project for examples
+start with flux_example.py and excel_levity_example.py)
 \
 \
 \
