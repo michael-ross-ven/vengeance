@@ -17,6 +17,7 @@ from ..util.iter import transpose
 from ..util.iter import index_sequence
 from ..util.iter import ordered_unique
 from ..util.iter import base_class_names
+from ..util.iter import is_vengeance_class
 from ..util.iter import is_flux_row_class
 from ..util.iter import is_exhaustable
 from ..util.iter import is_subscriptable
@@ -707,8 +708,16 @@ class flux_cls:
     # region {validation functions}
     @staticmethod
     def __validate_modify_matrix(m):
+        """ validate datatypes of matrix; convert matrix to list of lists if neccessary
+
+        Rows should be lists, not tuples, but not going to check here.
+        Just let methods fail, user will be smarter when passing matrix next time
+        """
+
         if m is None or m == []:
             return [[]]
+        if is_vengeance_class(m):
+            return list(m.rows())
 
         base_names = set(base_class_names(m))
 
@@ -716,18 +725,20 @@ class flux_cls:
             raise NotImplementedError('DataFrame not supported')
         elif 'ndarray' in base_names:
             raise NotImplementedError('ndarray not supported')
-        elif base_names & {'flux_cls', 'excel_levity_cls'}:
-            m = list(m.rows())
-
-        if is_exhaustable(m):
+        elif is_exhaustable(m):
             raise NotImplementedError('exhaustable iterators not supported')
-        elif not is_subscriptable(m):
-            raise TypeError("matrix type: '{}' not supported".format(type(m)))
-        elif iteration_depth(m) < 2:
-            raise TypeError('matrix must have an iteration depth greater than 1 (eg, a list of lists)')
 
-        if is_flux_row_class(m[0]):
-            m = [m[0].names] + [row.values for row in m]
+        elif not is_subscriptable(m):
+            raise TypeError("matrix should be list of lists, not a : '{}'".format(type(m)))
+        elif iteration_depth(m) < 2:
+            raise TypeError('matrix must have an iteration depth of at least 2 (rows and columns within matrix)')
+
+        elif is_flux_row_class(m[0]):
+            first_row = m[0]
+            if first_row.is_header_row():
+                m = [row.values for row in m]
+            else:
+                m = [first_row.names] + [row.values for row in m]
 
         return m
 

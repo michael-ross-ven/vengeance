@@ -126,6 +126,7 @@ def is_subscriptable(v):
         # noinspection PyStatementEffect
         v[0]
         return True
+
     except IndexError:
         return True
     except TypeError:

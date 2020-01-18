@@ -1,14 +1,17 @@
 
 from collections import OrderedDict
 from collections import namedtuple
+from ..util.iter import index_sequence
 
 
 # noinspection DuplicatedCode
 class flux_row_cls:
 
     class_names = {'_headers',
+                   '_view_as_array',
                    'names',
                    'values',
+                   'is_header_row',
                    'dict',
                    'namedtuples'}
 
@@ -18,22 +21,17 @@ class flux_row_cls:
             headers is a single dictionary passed byref from the flux_cls to many flux_row_cls instances
             this eliminates need for all flux_row_cls objects to maintain a seprate copy of these mappings and
             allows for centralized and instantaneous updatdes
-
         :param values: list of underlying data
 
-        properties must be set on self.__dict__, instead of directly on self to prevent
-        premature __setattr__ lookups
+        (properties must be set on self.__dict__ instead of directly on self to prevent
+         premature __setattr__ lookups)
         """
         self.__dict__['_headers'] = headers
         self.__dict__['values']   = values
 
     @property
-    def names(self):
-        return list(self._headers.keys())
-
-    @property
     def _view_as_array(self):
-        """ meant to trigger a debugging feature in PyCharm
+        """ to help with debugging; meant to trigger a debugging feature in PyCharm
 
         PyCharm will recognize returned the (name, value) pairs as an ndarray
         and enable the "...view as array" option in the debugger which displays
@@ -41,6 +39,14 @@ class flux_row_cls:
         """
         import numpy
         return numpy.transpose([self.names, self.values])
+
+    @property
+    def names(self):
+        return list(self._headers.keys())
+
+    def is_header_row(self):
+        header_values = list(index_sequence(self.values).keys())
+        return self.names == header_values
 
     def dict(self):
         return OrderedDict(zip(self.names, self.values))
@@ -136,14 +142,17 @@ class flux_row_cls:
 class lev_row_cls(flux_row_cls):
 
     class_names = {'_headers',
+                   '_view_as_array',
                    'names',
                    'values',
                    'address',
+                   'is_header_row',
                    'dict',
                    'namedtuples'}
 
     def __init__(self, headers, values, address=''):
         super().__init__(headers, values)
+
         self.__dict__['address'] = address
 
     def __repr__(self):

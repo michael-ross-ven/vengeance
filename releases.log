@@ -1,5 +1,10 @@
 
 
+2020-01-18
+$release 32
+    fixed bug in flux_cls.__validate_modify_matrix(), checks for first_row.is_header_row() when matrix is flux_row_cls
+
+
 
 2020-01-18
 $release 31
