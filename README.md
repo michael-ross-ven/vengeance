@@ -1,9 +1,6 @@
 ## Managing tabular data shouldn't be complicated.
-<<<<<<< HEAD
+
 #### (See https://github.com/michael-ross-ven/vengeance_unittest project for examples, start with *flux_example.py* and *excel_levity_example.py*)
-=======
-#### (See https://github.com/michael-ross-ven/vengeance_unittest for examples, start with *flux_example.py* and *excel_levity_example.py*)
->>>>>>> ffa689679ea8f1f1bb71db3dcfe18ad1aabbd53c
 \
 \
 (TODO: cleanup typos in this readme)
