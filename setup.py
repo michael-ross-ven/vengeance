@@ -22,11 +22,11 @@ def write_version_file():
             # generated from setup.py
             __version__ = '{}'
             __release__ = '{}'
+        '''.format(__version__, __release__)
 
-            dependencies = {}
-        '''.format(__version__, __release__, repr(dependencies))
-        
-        f.write(dedent(s))
+        s = dedent(s) + '\n\n'
+
+        f.write(s)
 
 
 if __name__ == '__main__':
