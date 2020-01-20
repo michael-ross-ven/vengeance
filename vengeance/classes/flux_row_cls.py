@@ -1,7 +1,7 @@
 
 from collections import OrderedDict
 from collections import namedtuple
-from ..util.iter import index_sequence
+from ..util.iter import map_numeric_indices
 
 
 # noinspection DuplicatedCode
@@ -45,8 +45,14 @@ class flux_row_cls:
         return list(self._headers.keys())
 
     def is_header_row(self):
-        header_values = list(index_sequence(self.values).keys())
-        return self.names == header_values
+        """ determine if underlying values match self._headers.keys
+
+        self.names == self.values will not always work, since map_numeric_indices()
+        was used to modify self._headers values into more suitable dictionary keys,
+        like modifying duplicate values to ensure they are unique, etc
+        """
+        header_names = list(map_numeric_indices(self.values).keys())
+        return self.names == header_names
 
     def dict(self):
         return OrderedDict(zip(self.names, self.values))

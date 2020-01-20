@@ -1,5 +1,12 @@
 
 
+2020-01-20
+$release 33
+    index_sequence() renamed to map_numeric_indices()
+    mapped param added to flux_cls.columns()
+
+
+
 2020-01-18
 $release 32
     fixed bug in flux_cls.__validate_modify_matrix(), checks for first_row.is_header_row() when matrix is flux_row_cls
@@ -108,8 +115,7 @@ $release 21
     flux_cls.insert_columns() and flux_cls.append_columns() will raise error if non-unique column names submitted
     flux_cls.bind() and flux_cls.unbind() methods removed
     performance optimization (~2x faster) to flux_cls.__getitem__, when parameter is a slice
-        
-
+    
     flux_row_cls.class_names expanded to include 'names', 'dict' and 'namedtuples'
     
     '.pickle' extension added to read_file() / write_file()

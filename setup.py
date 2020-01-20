@@ -7,13 +7,8 @@ from setuptools import setup
 from textwrap import dedent
 
 
-__version__ = '1.0.39'
-__release__ = '$release 32'
-
-dependencies = ('comtypes',
-                'pypiwin32',
-                'python-dateutil')
-
+__version__ = '1.0.40'
+__release__ = '$release 33'
 
 long_description = 'https://github.com/michael-ross-ven/vengeance/blob/master/README.md\n(fill this out for pypi.org later)'
 
@@ -45,12 +40,13 @@ if __name__ == '__main__':
           author='Michael Ross',
           author_email='michael.ross.uncc@gmail.com',
           license='MIT',
-          install_requires=dependencies,
+          install_requires=('comtypes', 'pypiwin32', 'python-dateutil'),
+          # extra_require=('numpy', 'line-profiler'),
           packages=setuptools.find_packages(),
           classifiers=[
               "Programming Language :: Python :: 3",
               "License :: OSI Approved :: MIT License",
               "Operating System :: Microsoft :: Windows"
-          ]
+            ]
 
           )

@@ -164,25 +164,34 @@ def transpose(m):
     return t
 
 
-def index_sequence(sequence, start=0):
+def map_numeric_indices(sequence, start=0):
     """ :return {value: index} for all items in sequence
 
     values are modified before they are added as keys:
         all values coerced to string
-        non-unique keys are appended with '_n' suffix
+        '' are converted to 'None'
+        non-unique keys are appended with '_{num nonunique}' suffix to make
+        them unique and ensure that indices are incremented correctly
+
+    eg
+        {'a':   0,
+         'b':   1,
+         'c':   2,
+         'b_2': 3} = map_numeric_indices(['a', 'b', 'c', 'b'])
     """
     indices   = OrderedDict()
     nonunique = defaultdict(int)
 
     for i, v in enumerate(sequence, start):
-        _v_ = str(v)
-        if _v_ == '':
-            _v_ = 'None'
+        v_s = str(v)
+
+        if v_s == '':
+            v_s = 'None'
 
         if v in nonunique:
-            _v_ = '{}_{}'.format(_v_, nonunique[v]+1)
+            v_s = '{}_{}'.format(v_s, nonunique[v]+1)
 
-        indices[_v_] = i
+        indices[v_s] = i
         nonunique[v] += 1
 
     return indices

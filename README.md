@@ -1,4 +1,8 @@
 ## Managing tabular data shouldn't be complicated.
+#### (See https://github.com/michael-ross-ven/vengeance_unittest project for examples, start with *flux_example.py* and *excel_levity_example.py*)
+\
+\
+(TODO: cleanup typos in this readme)
 
 Values stored as list of lists (ie, a matrix) should be able to be easily managed with pure Python,  
 without the need for a massive or complex library.
@@ -21,9 +25,8 @@ of by integer indices, eg
     footprint, makes renaming or modifying columns an expensive operation. 
     In the case that row values dd need to be accessed by numerical index, this requires an extra layer of 
     complexity, whereby items first need to be converted into dictionary keys and values 
-    (where their original order must be guaranteed)
-
-    eg
+    (where their original order must be guaranteed), eg
+    
         [
             {'col_a': 1, 'col_b': 'b', 'col_c': 'c'},
             {'col_a': 2, 'col_b': 'b', 'col_c': 'c'},

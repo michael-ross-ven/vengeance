@@ -14,7 +14,7 @@ from ..util.iter import OrderedDefaultDict
 from ..util.iter import iteration_depth
 from ..util.iter import modify_iteration_depth
 from ..util.iter import transpose
-from ..util.iter import index_sequence
+from ..util.iter import map_numeric_indices
 from ..util.iter import ordered_unique
 from ..util.iter import base_class_names
 from ..util.iter import is_vengeance_class
@@ -30,19 +30,18 @@ from .flux_row_cls import flux_row_cls
 
 class flux_cls:
     """ primary data management class
-
     (I need to publish my vengeance example project)
+
     eg:
-        m = [['col_a', 'col_b', 'col_c'],
-             ['a',     'b',      'c'],
-             [1,        2,        3],
-             ['blah',  'blah',   'blah']]]
-        flux = flux_cls(m)
+        flux = flux_cls([['col_a', 'col_b', 'col_c'],
+                         ['a',     'b',     'c'],
+                         [1,        2,       3],
+                         [None,     None,    None]])
     """
 
     def __init__(self, matrix=None):
         (self.headers,
-         self.matrix) = flux_cls.to_flux_rows(matrix)
+         self.matrix) = self.to_flux_rows(matrix)
 
     @classmethod
     def to_flux_rows(cls, matrix, headers=None):
@@ -60,7 +59,7 @@ class flux_cls:
     @classmethod
     def to_flux_row_headers(cls, names):
         cls.__validate_no_reserved_headers(names)
-        return index_sequence(names)
+        return map_numeric_indices(names)
 
     # region {serialization methods}
     def to_csv(self, path, encoding=None):
@@ -113,7 +112,7 @@ class flux_cls:
     def header_values(self):
         """
         there may be a discrepancy between self.matrix[0].values and self.headers.keys
-            index_sequence() makes certain modifications to self.headers.keys,
+            map_numeric_indices() makes certain modifications to self.headers.keys,
             such as coercing values to strings, modifying duplicate values, etc
         """
         return list(self.headers.keys())
@@ -133,8 +132,10 @@ class flux_cls:
 
     @property
     def max_num_cols(self):
-        m = [row.values for row in self.matrix]
-        return max(map(len, m))
+        # m = [row.values for row in self.matrix]
+        # return max(map(len, m))
+
+        return max(map(len, self.matrix))
 
     @property
     def is_jagged(self):
@@ -301,17 +302,24 @@ class flux_cls:
 
         return header
 
-    def columns(self, *names):
+    def columns(self, *names, mapped=False):
         names = modify_iteration_depth(names, depth=1)
-        names = self.__names_to_column_indices(names, self.headers)
+        indices = self.__names_to_column_indices(names, self.headers)
 
-        f = self.__row_values_accessor(names)
-        m = [f(row) for row in self.matrix[1:]]
+        f = self.__row_values_accessor(indices)
+        c = [f(row) for row in self.matrix[1:]]
 
-        if len(names) > 1:
-            return transpose(m)
+        if len(indices) > 1:
+            c = transpose(c)
 
-        return m
+        if mapped:
+            names = [self.header_values[i] for i in indices]
+            if len(names) == 1:
+                c = [c]
+
+            c = OrderedDict((n, column) for n, column in zip(names, c))
+
+        return c
 
     def rename_columns(self, old_to_new_headers):
         header_values = self.matrix[0].values
@@ -618,7 +626,7 @@ class flux_cls:
         followed by individual reassignment of new values
         """
         self.headers.clear()
-        for h, i in index_sequence(headers).items():
+        for h, i in map_numeric_indices(headers).items():
             self.headers[h] = i
 
     def __row_values_accessor(self, names):
@@ -708,14 +716,23 @@ class flux_cls:
     # region {validation functions}
     @staticmethod
     def __validate_modify_matrix(m):
-        """ validate datatypes of matrix; convert matrix to list of lists if neccessary
+        """ validate matrix datatype and iteration depth; convert matrix to list of lists if neccessary
 
-        Rows should be lists, not tuples, but not going to check here.
-        Just let methods fail, user will be smarter when passing matrix next time
+        if rows are tuples, they should prob be converted to lists, but not going to check here.
+        Just let flux methods fail, user will be smarter when passing matrix next time
+
+        why tf should primitive values be extracted, if these are already flux_row_cls / lev_row_cls?
+            faster
+            allow lev_row_cls.address info to be preserved
+            if is_vengeance_class(m):
+                list(m.flux_rows())
+
+            if is_flux_row_class(m[0]):
+                check header row, return m
         """
-
-        if m is None or m == []:
+        if m is None:
             return [[]]
+
         if is_vengeance_class(m):
             return list(m.rows())
 
@@ -724,21 +741,21 @@ class flux_cls:
         if 'DataFrame' in base_names:
             raise NotImplementedError('DataFrame not supported')
         elif 'ndarray' in base_names:
-            raise NotImplementedError('ndarray not supported')
+            raise NotImplementedError('ndarray not supported (must be native python lists)')
         elif is_exhaustable(m):
-            raise NotImplementedError('exhaustable iterators not supported')
-
+            raise NotImplementedError('exhaustable iterators must be converted to lists')
         elif not is_subscriptable(m):
-            raise TypeError("matrix should be list of lists, not a : '{}'".format(type(m)))
+            raise TypeError("invalid type: <'{}'> (matrix should be a list of lists)".format(type(m)))
         elif iteration_depth(m) < 2:
-            raise TypeError('matrix must have an iteration depth of at least 2 (rows and columns within matrix)')
-
+            raise IndexError('matrix must have at least two dimensions (one dimension for rows, one for columns)')
         elif is_flux_row_class(m[0]):
+
             first_row = m[0]
             if first_row.is_header_row():
                 m = [row.values for row in m]
             else:
-                m = [first_row.names] + [row.values for row in m]
+                m = [first_row.names] + \
+                    [row.values for row in m]
 
         return m
 

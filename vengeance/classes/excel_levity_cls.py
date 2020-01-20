@@ -24,7 +24,7 @@ from ..excel_com.excel_address import col_number
 
 from ..excel_com.excel_constants import *
 
-from ..util.iter import index_sequence
+from ..util.iter import map_numeric_indices
 from ..util.iter import modify_iteration_depth
 from ..util.iter import iterator_to_list
 
@@ -181,9 +181,9 @@ class excel_levity_cls:
             return [[]]
 
         if self.headers:
-            headers = index_sequence(self.headers.keys())
+            headers = map_numeric_indices(self.headers.keys())
         elif self.m_headers:
-            headers = index_sequence(self.m_headers.keys())
+            headers = map_numeric_indices(self.m_headers.keys())
         else:
             headers = {}
 
@@ -311,7 +311,7 @@ class excel_levity_cls:
             return OrderedDict()
 
         start = excel_range.Column
-        headers = index_sequence(row, start)
+        headers = map_numeric_indices(row, start)
         headers = OrderedDict((h, col_letter(v)) for h, v in headers.items())
 
         return headers
