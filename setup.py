@@ -7,8 +7,8 @@ from setuptools import setup
 from textwrap import dedent
 
 
-__version__ = '1.0.40'
-__release__ = '$release 33'
+__version__ = '1.0.41'
+__release__ = '$release 34'
 
 long_description = 'https://github.com/michael-ross-ven/vengeance/blob/master/README.md\n(fill this out for pypi.org later)'
 

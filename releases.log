@@ -1,7 +1,9 @@
 
 
-2020-
+2020-01-20
 $release 34
+    as_namedtuples param added to flux_cls.index_row()
+    as_namedtuples param added to flux_cls.index_rows()
 
 
 

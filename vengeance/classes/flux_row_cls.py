@@ -13,7 +13,7 @@ class flux_row_cls:
                    'values',
                    'is_header_row',
                    'dict',
-                   'namedtuples'}
+                   'namedtuple'}
 
     def __init__(self, headers, values):
         """
@@ -57,7 +57,7 @@ class flux_row_cls:
     def dict(self):
         return OrderedDict(zip(self.names, self.values))
 
-    def namedtuples(self):
+    def namedtuple(self):
         return namedtuple('flux_row_ntc', self.names)(*self.values)
 
     def __getattr__(self, name):

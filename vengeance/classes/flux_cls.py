@@ -246,6 +246,25 @@ class flux_cls:
 
         return parsed
 
+    def columns(self, *names, mapped=False):
+        names   = modify_iteration_depth(names, depth=1)
+        indices = self.__names_to_column_indices(names, self.headers)
+
+        f = self.__row_values_accessor(indices)
+        c = [f(row) for row in self.matrix[1:]]
+
+        if len(indices) > 1:
+            c = transpose(c)
+
+        if mapped:
+            names = [self.header_values[i] for i in indices]
+            if len(names) == 1:
+                c = [c]
+
+            c = OrderedDict((n, column) for n, column in zip(names, c))
+
+        return c
+
     def matrix_by_headers(self, *names):
         names   = modify_iteration_depth(names, depth=1)
         columns = transpose([row.values for row in self.matrix[1:]]) or [[]]
@@ -301,25 +320,6 @@ class flux_cls:
                              "by parenthesis, ie '({header})' not '{header}'".format(header=header))
 
         return header
-
-    def columns(self, *names, mapped=False):
-        names = modify_iteration_depth(names, depth=1)
-        indices = self.__names_to_column_indices(names, self.headers)
-
-        f = self.__row_values_accessor(indices)
-        c = [f(row) for row in self.matrix[1:]]
-
-        if len(indices) > 1:
-            c = transpose(c)
-
-        if mapped:
-            names = [self.header_values[i] for i in indices]
-            if len(names) == 1:
-                c = [c]
-
-            c = OrderedDict((n, column) for n, column in zip(names, c))
-
-        return c
 
     def rename_columns(self, old_to_new_headers):
         header_values = self.matrix[0].values
@@ -545,22 +545,36 @@ class flux_cls:
         f = self.__row_values_accessor(f)
         return ordered_unique(f(row) for row in self.matrix[1:])
 
-    def index_row(self, *f):
+    def index_row(self, *f, as_namedtuples=False):
         """ :return: dictionary of {f(row): row}
 
         rows with non-unique keys are overwritten
         """
         f = self.__row_values_accessor(f)
-        return OrderedDict((f(row), row) for row in self.matrix[1:])
 
-    def index_rows(self, *f):
+        if as_namedtuples is False:
+            return OrderedDict((f(row), row) for row in self.matrix[1:])
+
+        self.__validate_headers_as_namedtuple_fields(self.headers)
+        flux_row_ntc = namedtuple('flux_row_ntc', self.headers.keys())
+
+        return OrderedDict((f(row), flux_row_ntc(*row.values)) for row in self.matrix[1:])
+
+    def index_rows(self, *f, as_namedtuples=False):
         """ :return: dictionary of {f(row): [rows]}
 
         rows with non-unique keys are appended to a list
         """
         f = self.__row_values_accessor(f)
-        d = OrderedDefaultDict(list, [(f(row), row) for row in self.matrix[1:]])
 
+        if as_namedtuples is False:
+            d = OrderedDefaultDict(list, [(f(row), row) for row in self.matrix[1:]])
+            return OrderedDict(d)
+
+        self.__validate_headers_as_namedtuple_fields(self.headers)
+        flux_row_ntc = namedtuple('flux_row_ntc', self.headers.keys())
+
+        d = OrderedDefaultDict(list, [(f(row), flux_row_ntc(*row.values)) for row in self.matrix[1:]])
         return OrderedDict(d)
 
     def namedtuples(self):
@@ -571,7 +585,9 @@ class flux_cls:
             try:
                 yield flux_row_ntc(*row.values)
             except TypeError as e:
-                raise TypeError('jagged row at index {}?'.format(i)) from e
+                if self.is_jagged:
+                    raise TypeError('jagged row at index {}?'.format(i)) from e
+                raise e
 
     def label_row_indices(self, start=0):
         """ meant to assist with debugging;
