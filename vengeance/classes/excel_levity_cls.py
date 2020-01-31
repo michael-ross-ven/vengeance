@@ -104,11 +104,11 @@ class excel_levity_cls:
         return self.m_headers
 
     @property
-    def header_values(self):
+    def header_names(self):
         return list(self.headers.keys())
 
     @property
-    def meta_header_values(self):
+    def meta_header_names(self):
         return list(self.m_headers.keys())
 
     @property

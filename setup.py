@@ -7,10 +7,10 @@ from setuptools import setup
 from textwrap import dedent
 
 
-__version__ = '1.0.41'
-__release__ = '$release 34'
+__version__ = '1.0.42'
+__release__ = '$release 35'
 
-long_description = 'https://github.com/michael-ross-ven/vengeance/blob/master/README.md\n(fill this out for pypi.org later)'
+long_description = 'https://github.com/michael-ross-ven/vengeance/blob/master/README.md (fill this out for pypi.org later)'
 
 
 def write_version_file():
@@ -25,7 +25,6 @@ def write_version_file():
         '''.format(__version__, __release__)
 
         s = dedent(s) + '\n\n'
-
         f.write(s)
 
 
@@ -34,11 +33,11 @@ if __name__ == '__main__':
 
     setup(name='vengeance',
           version=__version__,
-          description='Data library focusing on intuitive, row-major organization and interaction with the Excel object model',
+          description='Library focusing on row-major organization of tabular data and control over the Excel application',
           long_description=long_description,
           url='https://github.com/michael-ross-ven/vengeance',
           author='Michael Ross',
-          author_email='michael.ross.uncc@gmail.com',
+          author_email='',
           license='MIT',
           install_requires=('comtypes', 'pypiwin32', 'python-dateutil'),
           # extra_require=('numpy', 'line-profiler'),

@@ -1,7 +1,18 @@
 
+""" compact_ordereddict
+starting at python 3.6, the built-in dict is insertion-ordered AND compact,
+using about half the memory of OrderedDict
+(Thank you Raymond Hettinger!)
+"""
+import sys
 from collections import OrderedDict
 from collections import defaultdict
 from collections import Iterable
+
+if sys.version_info < (3, 6):
+    compact_ordereddict = OrderedDict
+else:
+    compact_ordereddict = dict
 
 
 def modify_iteration_depth(v, depth=0):
@@ -11,7 +22,6 @@ def modify_iteration_depth(v, depth=0):
         [2, 2, 2]     = modify_iteration_depth([[2, 2, 2]], depth=0)
         [[[1, 1, 1]]] = modify_iteration_depth([1, 1, 1], depth=3)
     """
-    # v  = iterator_to_list(v, recurse=False)
     if is_exhaustable(v):
         raise TypeError('cannot mofify iteration depth of an exhaustable iterator')
 
@@ -126,10 +136,7 @@ def is_subscriptable(v):
         # noinspection PyStatementEffect
         v[0]
         return True
-
-    except IndexError:
-        return True
-    except TypeError:
+    except (IndexError, TypeError):
         return False
 
 
@@ -168,10 +175,8 @@ def map_numeric_indices(sequence, start=0):
     """ :return {value: index} for all items in sequence
 
     values are modified before they are added as keys:
-        all values coerced to string
-        '' are converted to 'None'
-        non-unique keys are appended with '_{num nonunique}' suffix to make
-        them unique and ensure that indices are incremented correctly
+        non-unique keys are coerced to string and appended with '_{num}'
+        suffix to ensure that indices are incremented correctly
 
     eg
         {'a':   0,
@@ -184,12 +189,8 @@ def map_numeric_indices(sequence, start=0):
 
     for i, v in enumerate(sequence, start):
         v_s = str(v)
-
-        if v_s == '':
-            v_s = 'None'
-
         if v in nonunique:
-            v_s = '{}_{}'.format(v_s, nonunique[v]+1)
+            v_s = '{}_{}'.format(v, nonunique[v] + 1)
 
         indices[v_s] = i
         nonunique[v] += 1
@@ -216,61 +217,52 @@ def invert_mapping(d):
          'd': 3}
                 to
         {-1: ['a', 'a', 'a']
-         2:  b                      # single items not in list
+         2:  b                      # single items not stored as list
          3:  ['c', 'd']}
     """
     if not isinstance(d, dict):
-        raise TypeError('value must be a dictionary')
+        raise TypeError('mapping must be a dictionary')
 
     inverted = OrderedDefaultDict(list)
+
     for k, v in d.items():
         _k_, _v_ = v, k
+        for ki in modify_iteration_depth(_k_, 1):
+            inverted[ki].append(_v_)
 
-        for _k_ in modify_iteration_depth(v, 1):
-            inverted[_k_].append(_v_)
-
-    inverted = OrderedDict(inverted)
+    inverted = inverted.compact_ordereddict()
     for k, v in inverted.items():
-        if len(v) == 1:
-            inverted[k] = v[0]
+        inverted[k] = modify_iteration_depth(v, 0)
 
     return inverted
 
 
-class OrderedDefaultDict(OrderedDict):
+class OrderedDefaultDict(compact_ordereddict):
     def __init__(self, default_factory=None,
-                       *args,
-                       **kwargs):
-
-        if default_factory and (not callable(default_factory)):
-            raise TypeError('first argument must be callable')
+                       items=None):
 
         self.default_factory = default_factory
 
-        if args and (self.default_factory is list):
-            self.__append_values(args[0])
+        if (default_factory is list) and items:
+            self.__append_items(items)
         else:
-            OrderedDict.__init__(self, *args, **kwargs)
+            super().__init__(items)
 
-    def __append_values(self, sequence):
-        """ append all values as list if constructed default_factory is list """
+    def __append_items(self, items):
+        """ append all (key, value) pairs if default_factory is list """
+        for item in items:
+            try:
+                if len(item) != 2:
+                    raise ValueError('items expected to be (key, value) pairs')
+            except TypeError as e:
+                raise TypeError('items expected to be (key, value) pairs') from e
 
-        if isinstance(sequence, dict):
-            sequence = OrderedDict(sequence.items()).items()
-        elif not isinstance(sequence, (list, tuple)):
-            raise ValueError
-
-        for item in sequence:
-            if len(item) == 2:
-                self[item[0]].append(item[1])
-            elif len(item) < 2:
-                raise ValueError('need more than 1 value to unpack')
-            elif len(item) > 2:
-                raise ValueError('too many values to unpack (expected 2)')
+            k, v = item
+            self[k].append(v)
 
     def __getitem__(self, key):
         try:
-            return OrderedDict.__getitem__(self, key)
+            return super().__getitem__(key)
         except KeyError:
             return self.__missing__(key)
 
@@ -285,8 +277,9 @@ class OrderedDefaultDict(OrderedDict):
     def defaultdict(self):
         return defaultdict(self.default_factory, self.items())
 
-    def ordereddict(self):
-        return OrderedDict(self)
+    def compact_ordereddict(self):
+        super_cls = compact_ordereddict     # super() not working?
+        return super_cls(self.items())
 
 
 

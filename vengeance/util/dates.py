@@ -26,14 +26,13 @@ def to_datetime(v, d_format=None):
     elif isinstance(v, (list, tuple)):
         date_time = [to_datetime(d, d_format) for d in v]
     else:
-        raise ValueError("dont know how to convert '{}' instance to datetime".format(type(v)))
+        raise ValueError("can't convert '{}' instance to datetime".format(type(v)))
 
     return date_time
 
 
-def is_datetime(v):
-    """ :retutn: boolean if converted, converted value
-    """
+def is_date(v):
+    """ :return: (bool successful, converted value) """
     try:
         return True, to_datetime(v)
     except ValueError:

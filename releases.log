@@ -1,8 +1,31 @@
 
 
-2020-
+2020-01-31
 $release 35
-    
+    iter.map_numeric_indices() function no longer converts '' to 'None'
+    iter.compact_ordereddict() function allows built-in dict to be used in place of OrderedDict if python interpreter is >= 3.6
+        the compacted dict uses about half the memory of OrderedDict
+
+    iter.OrderedDefaultDict inherits super class from iter.compact_ordereddict()
+
+    flux_cls:
+        .index_row() and .index_rows() utilize iter.compact_ordereddict()
+        mapped param changed to headers in .columns()
+
+        .min_num_cols property added
+        .header_values property renamed to .header_names
+        .first_five_rows property renamed to .preview
+
+        getattr for private methods implemented in .__parse_commands()
+
+        .serialize() and .deserialize() no longer apply '.flux' file extension to path, just validates extension
+        .__matrix_row_index() method removed from .rows() and .flux_rows()
+             r_1 and r_2 should always be ints, not '*h', '*f', or '*l' like in excel_levity_cls
+
+    excel_levity_cls:
+        .header_values property renamed to .header_names
+        .meta_header_values property renamed to .meta_header_names
+
 
 
 2020-01-20

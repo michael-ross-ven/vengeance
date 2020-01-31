@@ -44,7 +44,6 @@ def write_file(path, data, encoding=None, mode='w'):
     if extn == '.csv':
         with open(path, mode, encoding=encoding) as f:
             csv.writer(f, lineterminator='\n').writerows(data)
-
         return
 
     if extn == '.json':
@@ -52,7 +51,6 @@ def write_file(path, data, encoding=None, mode='w'):
             data = p_json_dumps(data, ensure_ascii=(encoding is None))
         with open(path, mode, encoding=encoding) as f:
             f.write(data)
-
         return
 
     if extn in {'.flux', '.pkl', '.pickle'}:
@@ -60,7 +58,6 @@ def write_file(path, data, encoding=None, mode='w'):
             mode += 'b'
         with open(path, mode) as f:
             cpickle.dump(data, f)
-
         return
 
     # f.write() is faster than f.writelines(): convert data to string
