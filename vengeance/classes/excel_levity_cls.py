@@ -45,6 +45,8 @@ class excel_levity_cls:
 
         self.ws = ws
         self.ws_name = ws.Name
+        
+        self.is_worksheet_type = (ws.__class__.__name__ == '_Worksheet')
 
         self.headers   = OrderedDict()
         self.m_headers = OrderedDict()
@@ -261,6 +263,15 @@ class excel_levity_cls:
         worksheet filter MUST be cleared from worksheet to
         determine these boundaries correctly
         """
+
+        if self.ws.__class__.__name__ != '_Worksheet':
+            # a chart
+            self.first_c = ''
+            self.last_c  = ''
+            self.first_r = 0
+            self.last_r  = 0
+            return
+
         clear_worksheet_filter(self.ws)
         self.__range_boundaries()
 
@@ -295,6 +306,9 @@ class excel_levity_cls:
 
     @classmethod
     def index_headers(cls, ws, row_int=None):
+        if ws.__class__.__name__ != '_Worksheet':
+            return {}
+
         if row_int is None:
             row_int = first_row(ws)
 
@@ -413,6 +427,9 @@ class excel_levity_cls:
             yield row
 
     def __repr__(self):
+        if not self.is_worksheet_type:
+            return "{{}}: '{}'".format(self.ws.__class__.__name__, self.ws_name)
+
         if self.first_c and self.last_c:
             a = "{}{}:{}{}".format(self.first_c,
                                    self.header_r,

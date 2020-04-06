@@ -1,4 +1,8 @@
 
+import sys
+if sys.version_info < (3,):
+    raise ImportError('Only Python 3+ version supported')
+
 try:
     from .version import __version__
     from .util import *

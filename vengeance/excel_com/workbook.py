@@ -2,6 +2,7 @@
 import ctypes
 import os
 import pythoncom
+import re
 
 from ctypes import POINTER
 from ctypes import PyDLL
@@ -12,6 +13,7 @@ from ctypes.wintypes import BOOL
 from comtypes import COMError
 from comtypes import GUID
 from comtypes import IUnknown
+
 from comtypes.automation import IDispatch as comtypes_idispatch
 from comtypes.client import CreateObject as comtypes_createobject
 from comtypes.client.dynamic import Dispatch as comtypes_dispatch
@@ -20,13 +22,12 @@ from comtypes.client.dynamic import Dispatch as comtypes_dispatch
 from pythoncom import com_error as pythoncom_error
 from win32com.client.gencache import EnsureDispatch
 
-from ..util.filesystem import assert_path_exists
 from ..util.filesystem import standardize_path
 from ..util.text import vengeance_message
 from .excel_constants import xlMaximized
 
-# FindWindowExA only accepts ascii-encoded strings
-FindWindowExA              = ctypes.windll.user32.FindWindowExA
+# winapi functions
+FindWindowExA              = ctypes.windll.user32.FindWindowExA         # only uses ascii-encoded strings
 SetForegroundWindow        = ctypes.windll.user32.SetForegroundWindow
 AccessibleObjectFromWindow = ctypes.oledll.oleacc.AccessibleObjectFromWindow
 
@@ -48,6 +49,7 @@ def open_workbook(path,
                   update_links=True):
 
     wb = is_workbook_open(path)
+
     if wb is None:
         wb = __open_workbook(excel_app, path, update_links, read_only)
 
@@ -66,7 +68,6 @@ def is_workbook_open(path):
     """
     path = os.path.realpath(path)
     path = standardize_path(path)
-    assert_path_exists(path)
 
     window_h = FindWindowExA(0, 0, xl_main_ascii, None)
 
@@ -117,8 +118,8 @@ def new_excel_instance():
     excel_app = EnsureDispatch(excel_app)
 
     excel_app.WindowState = xlMaximized
+    excel_app_to_foreground(excel_app)
 
-    # excel_app_to_foreground(excel_app)
     reload_all_add_ins(excel_app)
 
     return excel_app
@@ -130,20 +131,22 @@ def empty_excel_instance():
     while window_h != 0:
         excel_app = __excel_application_from_hwnd(window_h)
 
-        if __is_excel_app_empty(excel_app):
+        if (excel_app is not None) and __is_excel_app_empty(excel_app):
             vengeance_message('utilizing empty Excel instance')
+
+            excel_app.WindowState = xlMaximized
+            excel_app_to_foreground(excel_app)
+
             return excel_app
 
         window_h = FindWindowExA(0, window_h, xl_main_ascii, None)
 
-    raise AssertionError('empty Excel instance not found')
+    return None
 
 
 def any_excel_instance():
-    excel_app = (EnsureDispatch('Excel.Application')
-                 or new_excel_instance())
-    excel_app.Visible = True
-
+    excel_app = (EnsureDispatch('Excel.Application') or
+                 new_excel_instance())
     return excel_app
 
 
@@ -175,29 +178,9 @@ def reload_all_add_ins(excel_app):
                 vengeance_message('failed to load add-in: {}' + name)
 
 
-def excel_application_to_foreground(excel_app):
+def excel_app_to_foreground(excel_app):
     excel_app.Visible = True
     SetForegroundWindow(excel_app.Hwnd)
-
-
-def __is_excel_app_empty(excel_app):
-    if excel_app is None:
-        return False
-
-    workbooks = list(excel_app.Workbooks)
-    if not workbooks:
-        excel_app.Visible = True
-        return True
-
-    if len(workbooks) == 1:
-        wb = workbooks[0]
-
-        if wb.Saved and wb.Name == 'Book1':
-            ws = wb.Sheets[1]
-            if ws.Name == 'Sheet1' and ws.UsedRange.Address == '$A$1':
-                return True
-
-    return False
 
 
 def __open_workbook(excel_app, path, update_links, read_only):
@@ -215,27 +198,24 @@ def __open_workbook(excel_app, path, update_links, read_only):
 
 def __convert_excel_application(excel_app):
     if excel_app in (None, 'new'):
-        excel_app = new_excel_instance()
-        excel_application_to_foreground(excel_app)
-
-        return excel_app
-
-    if excel_app == 'empty':
-        excel_app = empty_excel_instance()
-        excel_application_to_foreground(excel_app)
-
-        return excel_app
+        return new_excel_instance()
 
     if excel_app == 'any':
         return any_excel_instance()
 
+    if excel_app == 'empty':
+        excel_app = empty_excel_instance()
+        if excel_app is None:
+            raise AssertionError('empty Excel instance not found')
+
+        return excel_app
+
     if not hasattr(excel_app, 'Workbooks'):
-        raise TypeError("excel_app should be an application pointer or in (None, 'new', 'empty', 'any')")
+        raise TypeError("excel_app should be an application pointer or in (None, 'new', 'any', 'empty')")
 
     return excel_app
 
 
-# noinspection PyTypeChecker
 def __excel_application_from_hwnd(window_h):
     """
     comtypes library is used to search windows handles for Excel application,
@@ -253,6 +233,7 @@ def __excel_application_from_hwnd(window_h):
         corrupt_hwnds.add(window_h)
         return None
 
+    # noinspection PyTypeChecker
     obj_ptr = POINTER(comtypes_idispatch)()
     xl_guid = GUID.from_progid(xl_clsid)
 
@@ -263,6 +244,7 @@ def __excel_application_from_hwnd(window_h):
     try:
         com_ptr   = comtypes_dispatch(obj_ptr).Application
         excel_app = __comtype_pointer_to_pythoncom(com_ptr, comtypes_idispatch)
+
     except (COMError, pythoncom_error, NameError) as e:
         raise ChildProcessError('remote procedure call to Excel application rejected\n\n'
                                 '(check if cursor is still active within a cell somewhere, '
@@ -271,13 +253,12 @@ def __excel_application_from_hwnd(window_h):
 
     try:
         excel_app = EnsureDispatch(excel_app)
-        excel_app.Visible = True
-
         return excel_app
+
     except AttributeError as e:
         raise AttributeError('error dispatching Excel application from win32com module: \n'
-                             'Deleting the win32com folder, then re-running function may resolve the error\n'
-                             'gencache folder location: %userprofile%\\AppData\\Local\\Temp\\gen_py') from e
+                             'Deleting the win32com gencache folder, then re-running function may resolve the error\n'
+                             '(gencache folder location: %userprofile%\\AppData\\Local\\Temp\\gen_py\\') from e
 
 
 # noinspection PyTypeChecker
@@ -292,6 +273,38 @@ def __comtype_pointer_to_pythoncom(ptr, interface):
                    byref(interface._iid_),
                    True)
 
+
+# noinspection PyUnusedLocal
+def __is_excel_app_empty(excel_app):
+    """ an Excel application with no workbooks
+    or a an Excel application with the default workbook opened
+    """
+    if excel_app is None:
+        return False
+
+    workbooks = list(excel_app.Workbooks)
+    if len(workbooks) == 0:
+        return True
+
+    if len(workbooks) > 1:
+        return False
+
+    wb = workbooks[0]
+    is_unnamed = re.search('^book[1-9][0-9]?$', wb.FullName, re.I) is not None
+
+    if not (wb.Saved and is_unnamed):
+        return False
+
+    for i, ws in enumerate(wb.Sheets, 1):
+        if (ws.Name.lower() != 'sheet{}'.format(i) or
+            ws.UsedRange.Address != '$A$1'):
+
+            return False
+
+    wb.Close()
+    wb = None
+
+    return True
 
 
 

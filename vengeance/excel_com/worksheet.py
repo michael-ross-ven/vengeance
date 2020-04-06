@@ -6,7 +6,7 @@ from datetime import datetime
 from pythoncom import com_error as pythoncom_error
 
 from .excel_constants import *
-from .workbook import excel_application_to_foreground
+from .workbook import excel_app_to_foreground
 
 from ..excel_com.excel_address import col_letter
 from ..excel_com.excel_address import col_number
@@ -34,12 +34,15 @@ def get_worksheet(wb,
     except pythoncom_error as e:
         raise NameError("'{}' worksheet not found in '{}'".format(ws, wb.Name)) from e
 
+    # if chart that has been moved to its own worksheet, these calls will fail
+    # if ws.__class__.__name__ != '_Worksheet':
+
     if clear_filter:
         clear_worksheet_filter(ws)
 
     if activate:
         ws.Visible = True
-        excel_application_to_foreground(ws.Application)
+        excel_app_to_foreground(ws.Application)
         ws.Activate()
 
     return ws
@@ -173,7 +176,7 @@ def is_range_empty(excel_range):
 
 
 def activate_sheet(ws):
-    excel_application_to_foreground(ws.Application)
+    excel_app_to_foreground(ws.Application)
     ws.Visible = True
     ws.Activate()
 
@@ -253,11 +256,13 @@ def __validate_destination_size(m):
     num_rows = len(m)
 
     if num_cols > excel_max_cols:
-        raise ValueError("number of columns ({:,}) exceeds Excel's column limit\n"
-                         "(did you mean to transpose this matrix?)".format(num_cols))
+        raise ValueError("number of columns in matrix ({:,}) exceeds Excel's column limit({:,})"
+                         "(did you mean to transpose this matrix first?)"
+                         .format(num_cols, excel_max_cols))
 
     if num_rows > excel_max_rows:
-        raise ValueError("number of rows ({:,}) exceeds Excel's row limit".format(num_rows))
+        raise ValueError("number of rows in matrix ({:,}) exceeds Excel's row limit ({:,})"
+                         .format(num_rows, excel_max_rows))
 
 
 def parse_range(excel_range):

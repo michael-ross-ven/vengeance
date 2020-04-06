@@ -1,39 +1,42 @@
 
-from copy import deepcopy
 from collections import Counter
 from collections import namedtuple
-
-from ..util.filesystem import write_file
-from ..util.filesystem import read_file
-from ..util.filesystem import file_extension
-
-from ..util.iter import compact_ordereddict
-from ..util.iter import OrderedDefaultDict
-
-from ..util.iter import iteration_depth
-from ..util.iter import modify_iteration_depth
-from ..util.iter import transpose
-from ..util.iter import map_numeric_indices
-from ..util.iter import ordered_unique
-from ..util.iter import base_class_names
-from ..util.iter import is_vengeance_class
-from ..util.iter import is_flux_row_class
-from ..util.iter import is_exhaustable
-from ..util.iter import is_subscriptable
-
-from ..util.text import p_json_dumps
-from ..util.text import print_runtime
+from copy import copy
+from copy import deepcopy
 
 from .flux_row_cls import flux_row_cls
+
+from ..util.filesystem import file_extension
+from ..util.filesystem import read_file
+from ..util.filesystem import write_file
+from ..util.filesystem import binary_extensions
+
+from ..util.iter import OrderedDefaultDict
+from ..util.iter import base_class_names
+from ..util.iter import is_exhaustable
+from ..util.iter import is_subscriptable
+from ..util.iter import iteration_depth
+from ..util.iter import map_numeric_indices
+from ..util.iter import modify_iteration_depth
+from ..util.iter import transpose
+from ..util.text import json_dumps_extended
+from ..util.text import print_runtime
+
+from ..conditional import ordereddict_
+from ..conditional import line_profiler_installed
+
+if line_profiler_installed:
+    from line_profiler import LineProfiler
 
 
 class flux_cls:
     """ primary data management class
     eg:
-        flux = flux_cls([['col_a', 'col_b', 'col_c'],
-                         ['a', 'b', 'c'],
-                         [1, 2, 3],
-                         [None, None, None]])
+        matrix = [['col_a', 'col_b', 'col_c'],
+                  ['a', 'b', 'c'],
+                  [1, 2, 3],
+                  [None, None, None]]
+        flux = flux_cls(matrix)
     """
 
     def __init__(self, matrix=None):
@@ -43,63 +46,102 @@ class flux_cls:
     @classmethod
     def to_flux_rows(cls, matrix, headers=None):
         matrix = cls.__validate_modify_matrix(matrix)
-
         if headers is None:
-            headers = cls.__validate_modify_headers(matrix[0])
+            cls.__validate_no_reserved_headers(matrix[0])
+            headers = map_numeric_indices(matrix[0])
 
-        matrix = [flux_row_cls(headers, row) for row in matrix]
-
-        return headers, matrix
+        return headers, [flux_row_cls(headers, row) for row in matrix]
 
     # region {filesystem methods}
-    def to_csv(self, path, encoding=None):
-        m = self.rows()
-        write_file(path, m, encoding=encoding)
+    def to_file(self, path, encoding=None, fkwargs=None):
+        extn = file_extension(path)
+
+        if extn == '.csv':
+            self.to_csv(path, encoding, fkwargs)
+        elif extn == '.json':
+            self.to_json(path, encoding, fkwargs)
+        elif extn in binary_extensions:
+            self.serialize(path, fkwargs)
+        else:
+            raise ValueError("invalid file extension for '{}'".format(path))
 
     @classmethod
-    def from_csv(cls, path, encoding=None):
-        m = read_file(path, encoding=encoding)
+    def from_file(cls, path, encoding=None, fkwargs=None):
+        extn = file_extension(path)
+
+        if extn == '.csv':
+            return cls.from_csv(path, encoding, fkwargs)
+        if extn == '.json':
+            return cls.from_json(path, encoding, fkwargs)
+        if extn in binary_extensions:
+            return cls.deserialize(path, fkwargs)
+
+        raise ValueError("invalid file extension for '{}'".format(path))
+
+    def to_csv(self, path, encoding=None, fkwargs=None):
+        if file_extension(path) != '.csv':
+            raise ValueError("file extension must end with '.csv'")
+
+        m = self.rows()
+        write_file(path, m, encoding, fkwargs)
+
+    @classmethod
+    def from_csv(cls, path, encoding=None, fkwargs=None):
+        if file_extension(path) != '.csv':
+            raise ValueError("file extension must end with '.csv'")
+
+        m = read_file(path, encoding, fkwargs)
         return cls(m)
 
-    def to_json(self, path=None, encoding=None):
-        j = [row.dict() for row in self.matrix[1:]]
-        j = p_json_dumps(j)
-        if path is None:
-            return j
+    def to_json(self, path=None, encoding=None, fkwargs=None):
+        if file_extension(path) != '.json':
+            raise ValueError("file extension must end with '.json'")
 
-        write_file(path, j, encoding=encoding)
+        if self.is_empty or self.num_rows == 0:
+            j = [{}]
+        else:
+            j = [row.dict() for row in self.matrix[1:]]
+
+        if path is None:
+            return json_dumps_extended(j, **fkwargs)
+        else:
+            write_file(path, j, encoding, fkwargs)
 
     @classmethod
-    def from_json(cls, path, encoding=None):
-        rows = read_file(path, encoding=encoding)
-        if not rows:
+    def from_json(cls, path, encoding=None, fkwargs=None):
+        if file_extension(path) != '.json':
+            raise ValueError("file extension must end with '.json'")
+
+        j = read_file(path, encoding, fkwargs)
+
+        if not j:
             m = [[]]
         else:
-            m = [list(rows[0].keys())] + \
-                [list(d.values()) for d in rows]
+            m = [list(j[0].keys())] + \
+                [list(row.values()) for row in j]
 
         return cls(m)
 
-    def serialize(self, path):
+    def serialize(self, path, fkwargs=None):
         """
         although convenient, pickle introduces significant security flaws
         you should be sure no malicious actors have access to the location of these files
         """
-        if file_extension(path) != '.flux':
-            raise ValueError('file extension must end with .flux')
+        if file_extension(path) not in binary_extensions:
+            raise ValueError("file extension must end with {}".format(binary_extensions))
 
-        write_file(path, self)
+        write_file(path, self, fkwargs=fkwargs)
 
     @classmethod
-    def deserialize(cls, path):
+    def deserialize(cls, path, fkwargs=None):
         """
         although convenient, pickle introduces significant security flaws
         you should be sure no malicious actors have access to the location of these files
         """
-        if file_extension(path) != '.flux':
-            raise ValueError('file extension must end with .flux')
+        if file_extension(path) not in binary_extensions:
+            raise ValueError("file extension must end with {}".format(binary_extensions))
 
-        return read_file(path)
+        return read_file(path, fkwargs=fkwargs)
     # endregion
 
     @property
@@ -121,7 +163,7 @@ class flux_cls:
     @property
     def is_empty(self):
         for row in self.matrix:
-            if row.values:
+            if any(row.values):
                 return False
 
         return True
@@ -129,6 +171,9 @@ class flux_cls:
     @property
     def num_rows(self):
         """ header row excluded """
+        if self.is_empty:
+            return -1
+
         return len(self.matrix) - 1
 
     @property
@@ -170,18 +215,21 @@ class flux_cls:
         f = self.__row_values_accessor(indices)
         c = [f(row) for row in m]
         if len(indices) > 1:
-            c = transpose(c)
+            c = [list(v) for v in transpose(c)]
 
         return c
 
-    def execute_commands(self, commands, profile=False):
-        profiler = self.__validate_modify_profiler_function(profile)
-        commands = self.__parse_commands(commands, profiler)
+    def execute_commands(self, commands, use_profiler=False):
+        profiler = self.__validate_modify_profiler_function(use_profiler)
+        commands = self.__parse_commands(commands)
 
         completed_commands = []
         for command in commands:
-            methodname  = command.name
-            flux_method = command.method
+            methodname = command.name
+            if profiler:
+                flux_method = profiler(command.method)
+            else:
+                flux_method = command.method
 
             if command.num_args == 0:
                 flux_method()
@@ -195,13 +243,19 @@ class flux_cls:
         if hasattr(profiler, 'print_stats'):
             profiler.print_stats()
 
-    def __parse_commands(self, commands, profiler):
+        return completed_commands
+
+    def __parse_commands(self, commands):
         parsed = []
         nt_cls = namedtuple('command_nt', 'name method args num_args')
 
         for command in commands:
             if isinstance(command, (list, tuple)):
                 name, args = command
+
+                if isinstance(args, dict):
+                    raise NotImplementedError('keyword args not supported yet')
+
                 if isinstance(args, str):
                     num_args = 1
                 else:
@@ -209,16 +263,13 @@ class flux_cls:
 
             else:
                 name = command
-                args = None
+                args = tuple()
                 num_args = 0
 
             if name.startswith('__'):
                 name = '_{}{}'.format(self.__class__.__name__, name)
 
             method = getattr(self, name)
-            if profiler:
-                method = profiler(method)
-
             parsed.append(nt_cls(name, method, args, num_args))
 
         return parsed
@@ -227,8 +278,17 @@ class flux_cls:
         self.headers, self.matrix = self.to_flux_rows(m)
 
     def matrix_by_headers(self, *names):
-        names   = modify_iteration_depth(names, depth=1)
-        columns = transpose([row.values for row in self.matrix[1:]]) or [[]]
+        if self.is_empty:
+            return self
+
+        names = modify_iteration_depth(names, depth=1)
+        if isinstance(names, dict):
+            names = [names]
+
+        blank_column = None
+
+        columns = [list(v) for v in transpose([row.values for row in self.matrix[1:]])]
+        columns = columns or [[]]
 
         m = []
         for header in names:
@@ -238,14 +298,19 @@ class flux_cls:
                 i = self.headers[header]
                 column = columns[i]
             else:
-                column = [None] * self.num_rows
+                if blank_column is None:
+                    blank_column = [None for _ in range(self.num_rows)]
+                column = blank_column
 
+            column = copy(column)
             column.insert(0, header)
+
             m.append(column)
 
-        m = transpose(m)
-
+        m = [list(row) for row in transpose(m)]
         self.headers, self.matrix = self.to_flux_rows(m)
+
+        return self
 
     def __renamed_or_inserted_header(self, header):
         """
@@ -254,17 +319,14 @@ class flux_cls:
             of spelling errors, inserted headers must be surrounded by parenthesis,
             eg: '(inserted_header)'
         """
-        if not isinstance(header, (dict, tuple, str)):
-            raise ValueError('{}\nheader must be either dictionary or string'.format(header))
+        if not isinstance(header, (dict, str)):
+            raise TypeError('{}\nheader must be either dictionary or string'.format(header))
 
         if isinstance(header, dict):
+            if len(header) != 1:
+                raise ValueError('only a single {old, new} pair permitted for new header mapping')
+
             h_old, h_new = list(header.items())[0]
-            self.headers[h_new] = self.headers[h_old]
-
-            return h_new
-
-        if isinstance(header, tuple):
-            h_old, h_new = header
             self.headers[h_new] = self.headers[h_old]
 
             return h_new
@@ -421,8 +483,8 @@ class flux_cls:
             flux = flux.sorted('col_a', 'col_b', 'col_c',
                                reverse=[False, True, True])
         """
-        m = [self.matrix[0].values.copy()] + \
-            [row.values.copy() for row in self.__sort_rows(names, reverse)]
+        m = [copy(self.matrix[0].values)] + \
+            [copy(row.values) for row in self.__sort_rows(names, reverse)]
 
         flux = self.__class__(m)
 
@@ -456,12 +518,14 @@ class flux_cls:
 
     def filter(self, f, *args, **kwargs):
         """ in-place """
-        self.matrix[1:] = [row for row in self.matrix[1:] if f(row, *args, **kwargs)]
+        self.matrix[1:] = [row for row in self.matrix[1:]
+                               if f(row, *args, **kwargs)]
 
     def filtered(self, f, *args, **kwargs):
         """ :return: new flux_cls """
-        m = [self.matrix[0].values.copy()]
-        m.extend([row.values.copy() for row in self.matrix[1:] if f(row, *args, **kwargs)])
+        m = [copy(self.matrix[0].values)]
+        m.extend([copy(row.values) for row in self.matrix[1:]
+                                   if f(row, *args, **kwargs)])
 
         flux = self.__class__(m)
 
@@ -477,6 +541,7 @@ class flux_cls:
         def evaluate_unique(row):
             """ first-class function """
             v = f(row)
+
             if v not in u:
                 u.add(v)
                 return True
@@ -491,49 +556,51 @@ class flux_cls:
         else:
             return self.filtered(evaluate_unique)
 
-    def unique_values(self, *names):
-        """ :return: list of ordered, unique values from [f(row)] """
+    def unique(self, *names):
         f = self.__row_values_accessor(names)
-        return ordered_unique(f(row) for row in self.matrix[1:])
+        items = ((f(row), None) for row in self.matrix[1:])
 
+        return ordereddict_(items).keys()
+
+    # noinspection DuplicatedCode
     def index_row(self, *names, as_namedtuples=False):
-        """ :return: dictionary of {f(row): row}
+        """ :return: dictionary of {v(row): row}
 
         rows with non-unique keys are overwritten
         """
         f = self.__row_values_accessor(names)
 
-        if as_namedtuples is False:
+        if as_namedtuples:
+            ntc   = namedtuple('flux_row_ntc', self.headers.keys())
+            items = ((f(row), ntc(*row.values)) for row in self.matrix[1:])
+        else:
             items = ((f(row), row) for row in self.matrix[1:])
-            return compact_ordereddict(items)
 
-        flux_row_ntc = namedtuple('flux_row_ntc', self.headers.keys())
-        items = ((f(row), flux_row_ntc(*row.values)) for row in self.matrix[1:])
+        return ordereddict_(items)
 
-        return compact_ordereddict(items)
-
+    # noinspection DuplicatedCode
     def index_rows(self, *names, as_namedtuples=False):
-        """ :return: dictionary of {f(row): [rows]}
+        """ :return: dictionary of {v(row): [rows]}
 
         rows with non-unique keys are appended to a list
         """
         f = self.__row_values_accessor(names)
 
-        if as_namedtuples is False:
+        if as_namedtuples:
+            ntc   = namedtuple('flux_row_ntc', self.headers.keys())
+            items = ((f(row), ntc(*row.values)) for row in self.matrix[1:])
+        else:
             items = ((f(row), row) for row in self.matrix[1:])
-            return OrderedDefaultDict(list, items).compact_ordereddict()
 
-        flux_row_ntc = namedtuple('flux_row_ntc', self.headers.keys())
-        items = ((f(row), flux_row_ntc(*row.values)) for row in self.matrix[1:])
-
-        return OrderedDefaultDict(list, items).compact_ordereddict()
+        return (OrderedDefaultDict(list, items)
+                .ordereddict())
 
     def namedtuples(self, r_1=1, r_2=None):
-        flux_row_ntc = namedtuple('flux_row_ntc', self.headers.keys())
+        ntc = namedtuple('flux_row_ntc', self.headers.keys())
 
         for i, row in enumerate(self.matrix[r_1:r_2], r_1):
             try:
-                yield flux_row_ntc(*row.values)
+                yield ntc(*row.values)
             except TypeError as e:
                 if len(row) != self.num_cols:
                     raise TypeError('{}\n(jagged row at matrix index: {})'.format(e, i)) from e
@@ -557,7 +624,7 @@ class flux_cls:
         if deep:
             return deepcopy(self)
 
-        m = [row.values.copy() for row in self.matrix]
+        m = [copy(row.values) for row in self.matrix]
         flux = self.__class__(m)
 
         return flux
@@ -576,7 +643,8 @@ class flux_cls:
             v_2 = f(row)
 
             if v_2 != v_1:
-                yield i_1, i_2 - 1
+                if i_2 - 1 != i_1:
+                    yield i_1, i_2 - 1
 
                 v_1 = v_2
                 i_1 = i_2
@@ -597,6 +665,9 @@ class flux_cls:
         """ :return: a function that retrieves column values for each flux_row_cls """
 
         # region {closure functions}
+        def row_slice(row):
+            return tuple(row.values[i])
+
         def row_values(row):
             """ return muliple column values from each row """
             return tuple([row.values[_i_] for _i_ in indices])
@@ -610,6 +681,9 @@ class flux_cls:
 
         if callable(names):
             f = names
+        elif isinstance(names, slice):
+            i = names
+            f = row_slice
         elif iteration_depth(names) == 0:
             i = self.__validate_modify_column_indices([names], self.headers)[0]
             f = row_value
@@ -669,6 +743,21 @@ class flux_cls:
 
         return self
 
+    def __getstate__(self):
+        is_sublcassed = (type(self) == flux_cls and
+                         type(self.matrix[0]) == flux_row_cls)
+        if is_sublcassed:
+            return list(self.rows())
+        
+        return self.__dict__
+
+    def __setstate__(self, v):
+        if isinstance(v, list):
+            # call constructor directly
+            self.__init__(v)
+        else:
+            setattr(self, '__dict__', v)
+
     def __repr__(self):
         if self.is_empty:
             return '(empty)'
@@ -683,25 +772,14 @@ class flux_cls:
     def __validate_modify_matrix(m):
         """ validate matrix datatype and has at least 2 dimensions;
         convert matrix to list of lists if neccessary
-
-        why should primitive values be extracted if these are already flux_row_cls?
-            faster?
-            allow object info to be preserved
-                lev_row_cls.address
-                flux_row_cls.i
-
-            if is_vengeance_class(m):
-                list(m.flux_rows())
-            if is_flux_row_class(m[0]):
-                check header row, return m
         """
         if m is None:
             return [[]]
 
-        if is_vengeance_class(m):
-            return [row.copy() for row in m.rows()]
-
         base_names = set(base_class_names(m))
+
+        if ('flux_cls' in base_names) or ('excel_levity_cls' in base_names):
+            return [copy(row) for row in m.rows()]
 
         if 'DataFrame' in base_names:
             raise NotImplementedError('DataFrame not supported')
@@ -713,39 +791,39 @@ class flux_cls:
             raise TypeError("invalid type: <'{}'> (matrix must be a list of lists)".format(type(m)))
         elif iteration_depth(m) < 2:
             raise IndexError('matrix must have at least two dimensions (one dimension for rows, one for columns)')
-        elif is_flux_row_class(m[0]):
+        elif 'flux_row_cls' in base_class_names(m[0]):
 
             first_row = m[0]
             if first_row.is_header_row():
-                m = [row.values.copy() for row in m]
+                m = [copy(row.values) for row in m]
             else:
                 m = [first_row.names] + \
-                    [row.values.copy() for row in m]
+                    [copy(row.values) for row in m]
 
         return m
 
-    @classmethod
-    def __validate_modify_headers(cls, names):
-        cls.__validate_no_reserved_headers(names)
-        return map_numeric_indices(names)
-
     @staticmethod
-    def __validate_modify_profiler_function(profile):
-        if not profile:
+    def __validate_modify_profiler_function(use_profiler):
+        if use_profiler is False:
             return None
 
-        if profile == 'print_runtime':
+        if use_profiler is True:
+            if line_profiler_installed:
+                return LineProfiler()
+            else:
+                return print_runtime
+
+        profiler = str(use_profiler).lower()
+        if profiler == 'print_runtime':
             return print_runtime
 
-        try:
-            # noinspection PyUnresolvedReferences
-            from line_profiler import LineProfiler
-            return LineProfiler()
-        except ImportError as e:
-            if str(profile).lower() in ('line_profiler', 'lineprofiler'):
-                raise ImportError('line_profiler site-package not installed') from e
+        if profiler in ('line_profiler', 'lineprofiler'):
+            if line_profiler_installed is False:
+                raise ImportError("'line_profiler' package not installed")
+            else:
+                return LineProfiler()
 
-        return print_runtime
+        raise ValueError("invalid profiler: '{}'".format(profiler))
 
     @classmethod
     def __validate_modify_inserted_names(cls, inserted, headers):

@@ -1,80 +1,133 @@
 
-import _pickle as cpickle
-
+import _pickle as cpickle       # cPickle was renamed as pickle in python3
 import csv
-import json
+import gc
 import os
 import shutil
 
 from datetime import datetime
 from glob import glob
+from .text import json_unhandled_conversion
+from ..conditional import ultrajson_installed
 
-from .text import p_json_dumps
-from .text import repr_
+if ultrajson_installed:
+    import ujson as json
+else:
+    import json
+
+binary_extensions = {'.flux', '.bin', '.pkl', '.pickle'}
 
 
-def read_file(path, encoding=None, mode='r'):
+def read_file(path,
+              encoding=None,
+              fkwargs=None,
+              mode='r'):
 
-    extn = file_extension(path, include_dot=True)
+    as_bytes = mode.endswith('b')
+    extn     = file_extension(path, include_dot=True)
+    kw       = fkwargs or {}
+
     __validate_extension(extn)
+    __validate_encoding(as_bytes, encoding, extn)
+
+    was_gc_enabled = gc.isenabled()
+    gc.disable()
 
     if extn == '.csv':
-        with open(path, mode, encoding=encoding) as f:
-            return list(csv.reader(f))
+        kw['strict'] = kw.get('strict', True)
 
-    if extn == '.json':
         with open(path, mode, encoding=encoding) as f:
-            return json.load(f)
+            data = list(csv.reader(f, **kw))
 
-    if extn in {'.flux', '.pkl', '.pickle'}:
-        if not mode.endswith('b'):
-            mode += 'b'
+    elif extn == '.json':
+        with open(path, mode, encoding=encoding) as f:
+            data = json.load(f, **kw)
+
+    elif extn in binary_extensions:
+        if not as_bytes: mode += 'b'
+
         with open(path, mode) as f:
-            return cpickle.load(f)
+            data = cpickle.load(f, **kw)
 
-    with open(path, mode, encoding=encoding) as f:
-        return f.read()
+    elif as_bytes:
+        with open(path, mode) as f:
+            data = f.read()
+    else:
+        with open(path, mode, encoding=encoding) as f:
+            data = f.read()
+
+    if was_gc_enabled:
+        gc.enable()
+
+    return data
 
 
-def write_file(path, data, encoding=None, mode='w'):
+def write_file(path,
+               data,
+               encoding=None,
+               fkwargs=None,
+               mode='w'):
 
-    extn = file_extension(path, include_dot=True)
+    as_bytes = mode.endswith('b')
+    extn     = file_extension(path, include_dot=True)
+    kw       = fkwargs or {}
+
     __validate_extension(extn)
+    __validate_encoding(as_bytes, encoding, extn)
+
+    was_gc_enabled = gc.isenabled()
+    gc.disable()
 
     if extn == '.csv':
-        with open(path, mode, encoding=encoding) as f:
-            csv.writer(f, lineterminator='\n').writerows(data)
-        return
+        kw['strict'] = kw.get('strict', True)
+        kw['lineterminator'] = kw.get('lineterminator', '\n')
 
-    if extn == '.json':
-        if not isinstance(data, str):
-            data = p_json_dumps(data, ensure_ascii=(encoding is None))
         with open(path, mode, encoding=encoding) as f:
-            f.write(data)
-        return
+            csv.writer(f, **kw).writerows(data)
 
-    if extn in {'.flux', '.pkl', '.pickle'}:
-        if not mode.endswith('b'):
-            mode += 'b'
+    elif extn == '.json':
+        if not ultrajson_installed:
+            # need a way of passing indent to json_unhandled_conversion
+            kw['indent']  = kw.get('indent', 4)
+            kw['default'] = kw.get('default', json_unhandled_conversion)
+
+        with open(path, mode, encoding=encoding) as f:
+            json.dump(data, f, **kw)
+
+    elif extn in binary_extensions:
+        if not as_bytes: mode += 'b'
+
         with open(path, mode) as f:
-            cpickle.dump(data, f)
-        return
+            cpickle.dump(data, f, **kw)
 
-    # f.write() is faster than f.writelines(): convert data to string
-    if not isinstance(data, str):
-        data = repr_(data,
-                     concat='\n',
-                     quotes=False,
-                     wrap=False)
+    else:
+        if as_bytes:
+            with open(path, mode) as f:
+                f.write(data)
+        else:
+            # v.write() is faster than v.writelines()
+            if not isinstance(data, str):
+                data = '\n'.join([str(v) for v in data])
 
-    with open(path, mode, encoding=encoding) as f:
-        f.write(data)
+            with open(path, mode, encoding=encoding) as f:
+                f.write(data)
+
+    if was_gc_enabled:
+        gc.enable()
 
 
 def __validate_extension(extn):
     """ check for file types that require specialized io libraries / protocols """
-    if extn.startswith('.xls') or extn in {'.7z', '.gzip', '.hd5'}:
+    if extn.startswith('.xl') or extn in {'.7z', '.gzip'}:
         raise NotImplementedError("'{}' file type not supported".format(extn))
+
+
+def __validate_encoding(as_bytes, encoding, extn):
+    if as_bytes and encoding:
+        raise ValueError('as bytes mode does not accept an encoding argument')
+
+    if as_bytes and extn == '.csv':
+        raise ValueError('as bytes mode is incompatable with csv module')
 
 
 def clear_dir(filedir):
@@ -82,7 +135,6 @@ def clear_dir(filedir):
         return
 
     filedir = standardize_dir(filedir)
-
     for item in os.listdir(filedir):
         path = filedir + item
         if os.path.isdir(path):
@@ -142,10 +194,10 @@ def standardize_file_name(filename):
     return filename.lower().strip()
 
 
-def standardize_path(path):
+def standardize_path(path, pathsep='/'):
     filedir, filename = parse_path(path)
 
-    filedir  = standardize_dir(filedir)
+    filedir  = standardize_dir(filedir, pathsep)
     filename = standardize_file_name(filename)
 
     return filedir + filename
