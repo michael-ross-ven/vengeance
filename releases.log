@@ -1,4 +1,24 @@
 
+2020-04-05
+$release 37
+    filesystem.read_file() and filesystem.write_file()
+        added fkwargs param for additional flexibility
+        optional ujson package used to parse json files
+
+    flux_cls
+        if flux_cls is not subclassed, __getstate__ and __setstate__ will call constructor directly 
+            ~30% speed improvement to .serialize()
+            ~20% speed improvement to .deserialize()
+
+
+2020-02-09
+$release 36
+    removed write_version_file() from setup.py
+
+    flux_cls:
+        correction to .matrix_by_headers() when submitting a single column to be renamed (eg, flux.matrix_by_headers({'col': 'new_col'}))
+        correction to .matrix_by_headers(), no longer adds duplicate header row when retrieving duplicate columns
+
 
 2020-01-31
 $release 35
