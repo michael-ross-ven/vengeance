@@ -1,159 +1,206 @@
 
 import os
-from textwrap import dedent
+import sys
 
+from textwrap import dedent
 from logging import Logger
 from logging import Formatter
 from logging import FileHandler
 from logging import StreamHandler
-from logging import DEBUG
+from logging import (NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL)
+
+from .. util.filesystem import parse_path
+from .. util.text import stack_frame_filename_lineno
+
+level_colors  = {NOTSET:   'grey',
+                 DEBUG:    'grey',
+                 INFO:     'blue',
+                 WARNING:  'yellow',
+                 ERROR:    'red',
+                 CRITICAL: 'red'}
+color_numbers = {'white':   30,
+                 'red':     31,
+                 'orange':  32,
+                 'yellow':  33,
+                 'blue':    34,
+                 'magenta': 35,
+                 'green':   36,
+                 'bronze':  37,
+                 'grey':    29}
 
 
 class log_cls(Logger):
+    def __init__(self, path='',
+                       level='DEBUG',
+                       log_format='%(message)s',
+                       exception_callback=None):
+        """
+        :param path:
+            if path includes directory, a file handler
+            is added at that location, otherwise
+            path is used as name of logger
+        :param log_format:
+            format to be applied to handlers
+            eg log_format:
+                '[%(asctime)s] [%(levelname)s] %(message)s'
+        :param exception_callback:
+            function to be called after self.exception_handler()
+        """
 
-    def __init__(self, name,
-                       filedir=None,
-                       log_format=None):
+        filedir, name, extn = parse_path(path, pathsep='/', explicit_cwd=False)
+        if isinstance(level, str):
+            level = level.upper()
 
-        super().__init__(name)
+        super().__init__(name, level)
 
-        self.log_format  = log_format
-        self.formatter   = None
-        self.child_desig = None
+        self.formatter = Formatter(log_format)
+        self.exception_callback = exception_callback
+        self.exception_message  = ''
 
-        self._callback       = None
-        self._file_handler   = None
-        self._stream_handler = None
+        self._add_stream_handler(stream=sys.stdout)
+        self._add_file_handler(filedir, name, extn)
 
-        self.err_msg = ''
+    @property
+    def stream_handlers(self):
+        handlers = []
+        for h in self.handlers:
+            if type(h) in (StreamHandler, colored_streamhandler_cls):
+                handlers.append(h)
 
-        self._set_level()
-        self._add_formatter()
-        self._add_file_handler(filedir)
-        self._add_stream_handler()
+        return handlers
 
-    def print_message(self, msg):
-        fh = self._file_handler
-        sh = self._stream_handler
+    @property
+    def file_handlers(self):
+        handlers = []
+        for h in self.handlers:
+            if isinstance(h, FileHandler):
+                handlers.append(h)
 
-        if fh:
-            fh.formatter = None
-        if sh:
-            sh.formatter = None
+        return handlers
 
-        self.info(msg)
+    def reset_format(self, log_format):
+        self.formatter = Formatter(log_format)
+        for h in self.handlers:
+            h.setFormatter(self.formatter)
 
-        if fh:
-            fh.formatter = self.formatter
-        if sh:
-            sh.formatter = self.formatter
-
-    def add_parent(self, p_log):
+    def add_parent_log(self, p_log):
+        assert id(p_log) != id(self)
         self.parent = p_log
-        self._close_stream_handlers()
+        self.close_stream_handlers()
 
-    def add_callback_function(self, f):
-        self._callback = f
+    def close(self):
+        self.close_stream_handlers()
+        self.close_file_handlers()
 
-    def callback(self):
-        if self._callback:
-            self._callback()
+    def close_stream_handlers(self):
+        for h in self.stream_handlers:
+            h.close()
+            self.removeHandler(h)
 
-    def _set_level(self):
-        self.setLevel(DEBUG)
+    def close_file_handlers(self):
+        for h in self.file_handlers:
+            h.close()
+            self.removeHandler(h)
 
-    def _add_formatter(self):
-        if self.log_format is None:
-            self.log_format = '%(asctime)s - %(levelname)s - %(message)s'
+    def _add_stream_handler(self, stream):
+        is_terminal = stream.isatty()
 
-        self.formatter = Formatter(self.log_format)
-        self.formatter.default_time_format = '%Y-%m-%d %I:%M:%S %p'
+        if is_terminal:
+            h = StreamHandler(stream)
+        else:
+            h = colored_streamhandler_cls(stream)
 
-    def _add_file_handler(self, filedir):
-        if filedir is None:
+        h.setLevel(self.level)
+        h.setFormatter(self.formatter)
+        self.addHandler(h)
+
+    def _add_file_handler(self, filedir, filename, extn):
+        if not filedir:
             return
 
         if not os.path.exists(filedir):
             os.makedirs(filedir)
 
-        filename = self.name
-        if not filename.endswith('.log'):
-            filename += '.log'
+        extn = extn or '.log'
+        path = filedir + filename + extn
 
-        h = FileHandler(str(filedir) + filename, mode='w')
+        h = FileHandler(path, mode='w', encoding='utf-8')
+
         h.setLevel(self.level)
         h.setFormatter(self.formatter)
-
         self.addHandler(h)
-        self._file_handler = h
 
-    def _add_stream_handler(self):
-        h = StreamHandler()
-        h.setLevel(self.level)
-        h.setFormatter(self.formatter)
+    def exception_handler(self, e_type, e_msg, s_frame):
+        """ sys.excepthook = log.exception_handler """
 
-        self.addHandler(h)
-        self._stream_handler = h
+        _e_type_ = 'Exception'
+        _e_msg_  = 'unknown error'
+        filename = ''
+        lineno   = ''
 
-    def _close_stream_handlers(self):
-        for h in self.__stream_handlers():
-            h.close()
-            self.removeHandler(h)
+        if e_type:
+            _e_type_ = e_type.__name__
 
-    def _close_file_handlers(self):
-        for h in self.__file_handlers():
-            h.close()
-            self.removeHandler(h)
+        if e_msg:
+            _e_msg_ = '{}'.format(str(e_msg).replace('"', "'"))
 
-    def __stream_handlers(self):
-        for h in self.handlers:
-            if type(h) == StreamHandler:
-                yield h
+        if s_frame:
+            filename, lineno = stack_frame_filename_lineno()
 
-    def __file_handlers(self):
-        for h in self.handlers:
-            if isinstance(h, FileHandler):
-                yield h
+        error_msg = self.__formatted_error_message(_e_type_, _e_msg_, filename, lineno)
+        self.error(error_msg, exc_info=(e_type, e_msg, s_frame))
 
-    def exception_handler(self, e_type, e_msg, e_trace):
-        def frame_filename():
-            return s_frame.tb_frame.f_code.co_filename
+        # self.close()
 
-        if e_type and e_trace:
-            self.err_msg = str(e_msg).replace('"', "'")
+        if self.exception_callback:
+            self.exception_callback()
 
-            e_type  = e_type.__name__
-            c_frame = s_frame = e_trace
-            has_child = not bool(self.child_desig)
+        self.exception_message = '{}: {}'.format(_e_type_, _e_msg_)
+        return self.exception_message
 
-            # naviagate to most recent stack frame
-            while s_frame.tb_next is not None:
-                if has_child is False:
-                    if self.child_desig in frame_filename():
-                        c_frame = s_frame
-                        has_child = True
+    def __formatted_error_message(self, _e_type_, _e_msg_, filename, lineno):
+        error_msg = dedent('''
+        r_self
+            The result w+resign was added to the game information...
+            
+            <{e_type}>: {e_msg}
+            {filename}, {lineno}
+        r_self
+        \n\n
+        ''').format(e_type=_e_type_,   e_msg=_e_msg_,
+                    filename=filename, lineno=lineno)
 
-                s_frame = s_frame.tb_next
+        r_format = max(len(line) for line in error_msg.split('\n')) + 10
+        r_format = '_^{}'.format(r_format)
+        r_self   = '  {}  '.format(repr(self))
+        r_self   = '{:{}}'.format(r_self, r_format)
+        error_msg = error_msg.replace('r_self', r_self)
 
-            exc_info = (e_type, e_msg, c_frame)
-        else:
-            self.err_msg = ''
-            exc_info = None
+        return error_msg
 
-        # include self.name?
-        log_msg = dedent('''\n\n
-        _______________________________________   vengeance  _____________________________________________
-                          The result 'w+resign' was added to the game information
-        
-        <{}>
-        "{}"
-        _______________________________________   vengeance  _____________________________________________
-        \n\n''').format(e_type, self.err_msg)
-
-        # propagate error up through super class
-        self.error(log_msg, exc_info=exc_info)
-
-        self._close_file_handlers()
-        self.callback()
+    def __repr__(self):
+        name = self.name or '(empty)'
+        return 'vengeance log: {}'.format(name)
 
 
+class colored_streamhandler_cls(StreamHandler):
+    def __init__(self, stream=None):
+        super().__init__(stream)
+
+    # noinspection PyBroadException
+    def emit(self, record):
+        try:
+            color = level_colors.get(record.levelno, 'white')
+            color = color_numbers[color]
+            message = self.format(record) + '\n'
+
+            colored_message_a = '\x1b[{};1m'.format(color)
+            colored_message_b = '{}\x1b[0m'.format(message)
+            colored_message   = colored_message_a + colored_message_b
+
+            self.stream.write(colored_message)
+            self.flush()
+        except RecursionError:
+            raise
+        except Exception:
+            self.handleError(record)

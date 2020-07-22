@@ -1,16 +1,34 @@
 
 import os
-
 import setuptools
-from setuptools import setup
 
+from setuptools import setup
 from textwrap import dedent
 
+__version__ = '1.1.0'
+__release__ = '$release 38'
+long_description = 'https://github.com/michael-ross-ven/vengeance/blob/master/README.md\n(specialize this for pypi.org later)'
 
-__version__ = '1.0.44'
-__release__ = '$release 37'
 
-long_description = 'https://github.com/michael-ross-ven/vengeance/blob/master/README.md (fill this out for pypi.org later)'
+def __make_gencache_folder():
+    try:
+        import shutil
+        import site
+
+        win32com_folder     = site.getsitepackages()[1] + '\\win32com'
+        gencache_folder     = win32com_folder + '\\gen_py'
+        old_gencache_folder = os.environ['userprofile'] + '\\AppData\\Local\\Temp\\gen_py\\'
+
+        if os.path.exists(win32com_folder):
+            if not os.path.exists(gencache_folder):
+                
+                os.makedirs(gencache_folder)
+                if os.path.exists(old_gencache_folder):
+                    shutil.rmtree(old_gencache_folder)
+                    
+    except Exception:
+        pass
+        
 
 
 if __name__ == '__main__':
@@ -32,3 +50,6 @@ if __name__ == '__main__':
             ]
 
           )
+
+    __make_gencache_folder()
+

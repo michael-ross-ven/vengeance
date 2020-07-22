@@ -1,4 +1,5 @@
 
+from collections import namedtuple
 from datetime import date
 from datetime import datetime
 from datetime import timedelta
@@ -7,19 +8,17 @@ from functools import lru_cache
 from ..conditional import dateutil_installed
 
 if dateutil_installed:
-    # noinspection PyUnresolvedReferences
     from dateutil.parser import parse as dateutil_parse
 
-# 2**13: ~22 years of dates
-dates_cachesize = 2**13
+# 2**15: ~32,800 days, ~90 years of dates
+dates_cachesize = 2**15
+excel_epoch     = datetime(1900, 1, 1)
 
 
 def to_datetime(v, d_format=None):
     """
-    :param v:
-        value to be converted
-    :param d_format:
-        datetime.strptime format
+    :param v:        value to be converted
+    :param d_format: datetime.strptime format
     """
     if isinstance(v, str):
         date_time = parse_date_string(v, d_format)
@@ -43,9 +42,27 @@ def to_datetime(v, d_format=None):
     return date_time
 
 
+def parse_timedelta(td):
+    if not isinstance(td, timedelta):
+        raise TypeError('value is not timedelta instance')
+
+    ParsedTimeDelta = namedtuple('ParsedTimeDelta', 'days hours minutes seconds')
+
+    # s = td.seconds
+    # s += td.days * 24 * 60 * 60
+    # mis = td.microseconds
+
+    s = td.total_seconds()
+    m, s = divmod(s, 60)
+    h, m = divmod(m, 60)
+    d, h = divmod(h, 24)
+
+    return ParsedTimeDelta(d, h, m, s)
+
+
 @lru_cache(maxsize=dates_cachesize)
 def is_date(v):
-    """ :return: (bool successful, converted value) """
+    """ :return: (bool success, converted value) """
     try:
         return True, to_datetime(v)
     except (ValueError, TypeError):
@@ -66,11 +83,15 @@ def parse_date_timestamp(v):
 @lru_cache(maxsize=dates_cachesize)
 def parse_date_excel_serial(v):
     """ number of days since 1900-01-01 """
-    excel_epoch = datetime(1900, 1, 1)
     try:
         return excel_epoch + timedelta(days=v)
     except ValueError:
         return None
+
+
+def to_excel_serial(v):
+    v = to_datetime(v)
+    return (v - excel_epoch).days
 
 
 @lru_cache(maxsize=dates_cachesize)

@@ -1,57 +1,72 @@
 
-import _pickle as cpickle       # cPickle was renamed as pickle in python3
+import _pickle as cpickle
 import csv
 import gc
 import os
 import shutil
 
 from datetime import datetime
+from json import JSONDecodeError
 from glob import glob
+
 from .text import json_unhandled_conversion
-from ..conditional import ultrajson_installed
+from .. conditional import ultrajson_installed
 
 if ultrajson_installed:
     import ujson as json
 else:
     import json
 
-binary_extensions = {'.flux', '.bin', '.pkl', '.pickle'}
+pickle_extensions         = {'.flux', '.pkl', '.pickle'}
+notimplemented_extensions = {'.7z',
+                             '.gzip',
+                             '.png',
+                             '.jpg',
+                             '.jpeg',
+                             '.gif',
+                             '.pdf'}
 
 
 def read_file(path,
               encoding=None,
-              fkwargs=None,
-              mode='r'):
+              mode='r',
+              *,
+              filetype=None,
+              fkwargs=None):
 
-    as_bytes = mode.endswith('b')
-    extn     = file_extension(path, include_dot=True)
-    kw       = fkwargs or {}
+    if mode[0] != 'r' or mode[-1] == '+':
+        raise ValueError('invalid read mode: {}'.format(mode))
 
-    __validate_extension(extn)
-    __validate_encoding(as_bytes, encoding, extn)
+    filetype = __validate_filetype(filetype, path)
+    as_bytes = __validate_mode_with_encoding(mode, encoding, filetype)
+    mode     = __validate_mode_with_filetype(as_bytes, mode, filetype)
+    fkwargs  = fkwargs or {}
 
     was_gc_enabled = gc.isenabled()
     gc.disable()
 
-    if extn == '.csv':
-        kw['strict'] = kw.get('strict', True)
+    if filetype == '.csv':
+        fkwargs['strict'] = fkwargs.get('strict', True)
 
         with open(path, mode, encoding=encoding) as f:
-            data = list(csv.reader(f, **kw))
+            data = list(csv.reader(f, **fkwargs))
 
-    elif extn == '.json':
+    elif filetype == '.json':
         with open(path, mode, encoding=encoding) as f:
-            data = json.load(f, **kw)
+            try:
+                data = json.load(f, **fkwargs)
+            except (JSONDecodeError, ValueError) as e:
+                raise ValueError('invalid encoding or malformed json: '
+                                 '\n\t{}\n\t{}'.format(encoding, path)) from e
 
-    elif extn in binary_extensions:
-        if not as_bytes: mode += 'b'
-
+    elif filetype in pickle_extensions:
         with open(path, mode) as f:
-            data = cpickle.load(f, **kw)
+            data = cpickle.load(f, **fkwargs)
 
     elif as_bytes:
         with open(path, mode) as f:
             data = f.read()
+
     else:
         with open(path, mode, encoding=encoding) as f:
             data = f.read()
@@ -65,127 +80,181 @@ def read_file(path,
 def write_file(path,
                data,
                encoding=None,
-               fkwargs=None,
-               mode='w'):
+               mode='w',
+               *,
+               filetype=None,
+               fkwargs=None):
 
-    as_bytes = mode.endswith('b')
-    extn     = file_extension(path, include_dot=True)
-    kw       = fkwargs or {}
+    if not mode[0] in ('w', 'a'):
+        raise ValueError('invalid write mode: {}'.format(mode))
 
-    __validate_extension(extn)
-    __validate_encoding(as_bytes, encoding, extn)
+    filetype = __validate_filetype(filetype, path)
+    as_bytes = __validate_mode_with_encoding(mode, encoding, filetype)
+    mode     = __validate_mode_with_filetype(as_bytes, mode, filetype)
+    fkwargs  = fkwargs or {}
 
     was_gc_enabled = gc.isenabled()
     gc.disable()
 
-    if extn == '.csv':
-        kw['strict'] = kw.get('strict', True)
-        kw['lineterminator'] = kw.get('lineterminator', '\n')
+    if filetype == '.csv':
+        fkwargs['strict'] = fkwargs.get('strict', True)
+        fkwargs['lineterminator'] = fkwargs.get('lineterminator', '\n')
 
         with open(path, mode, encoding=encoding) as f:
-            csv.writer(f, **kw).writerows(data)
+            csv.writer(f, **fkwargs).writerows(data)
 
-    elif extn == '.json':
+    elif filetype == '.json':
+        fkwargs['indent'] = fkwargs.get('indent', 4)
         if not ultrajson_installed:
-            # need a way of passing indent to json_unhandled_conversion
-            kw['indent']  = kw.get('indent', 4)
-            kw['default'] = kw.get('default', json_unhandled_conversion)
+            fkwargs['default'] = fkwargs.get('default',  json_unhandled_conversion)
+        elif 'default' in fkwargs:
+            del fkwargs['default']
 
         with open(path, mode, encoding=encoding) as f:
-            json.dump(data, f, **kw)
+            json.dump(data, f, **fkwargs)
 
-    elif extn in binary_extensions:
-        if not as_bytes: mode += 'b'
-
+    elif filetype in pickle_extensions:
         with open(path, mode) as f:
-            cpickle.dump(data, f, **kw)
+            cpickle.dump(data, f, **fkwargs)
+
+    elif as_bytes:
+        with open(path, mode) as f:
+            f.write(data)
 
     else:
-        if as_bytes:
-            with open(path, mode) as f:
-                f.write(data)
-        else:
-            # v.write() is faster than v.writelines()
-            if not isinstance(data, str):
-                data = '\n'.join([str(v) for v in data])
+        if not isinstance(data, str):                           # f.write() is much faster than f.writelines()
+            data = '\n'.join(str(line) for line in data)
 
-            with open(path, mode, encoding=encoding) as f:
-                f.write(data)
+        with open(path, mode, encoding=encoding) as f:
+            f.write(data)
 
     if was_gc_enabled:
         gc.enable()
 
 
-def __validate_extension(extn):
+def __validate_filetype(filetype, path):
     """ check for file types that require specialized io libraries / protocols """
-    if extn.startswith('.xl') or extn in {'.7z', '.gzip'}:
-        raise NotImplementedError("'{}' file type not supported".format(extn))
+    filetype = filetype or parse_file_extension(path, include_dot=True)
+    filetype = filetype.lower().strip()
+
+    if not filetype.startswith('.'):
+        filetype = '.' + filetype
+
+    if filetype.startswith('.xl') or filetype in notimplemented_extensions:
+        raise NotImplementedError("file type not supported: '{}'".format(filetype))
+
+    return filetype
 
 
-def __validate_encoding(as_bytes, encoding, extn):
+def __validate_mode_with_encoding(mode, encoding, filetype):
+    as_bytes = mode.replace('+', '').endswith('b')
+
     if as_bytes and encoding:
         raise ValueError('as bytes mode does not accept an encoding argument')
 
-    if as_bytes and extn == '.csv':
+    if as_bytes and filetype == '.csv':
         raise ValueError('as bytes mode is incompatable with csv module')
+
+    return as_bytes
+
+
+def __validate_mode_with_filetype(as_bytes, mode, filetype):
+    if not as_bytes and (filetype in pickle_extensions):
+        if mode.endswith('+'):
+            mode = mode[0] + 'b+'
+        else:
+            mode += 'b'
+
+    return mode
 
 
 def clear_dir(filedir):
+    filedir = standardize_dir(filedir, explicit_cwd=True)
     if not os.path.exists(filedir):
         return
 
-    filedir = standardize_dir(filedir)
-    for item in os.listdir(filedir):
-        path = filedir + item
+    del_paths = [filedir + item for item in os.listdir(filedir)]
+    del_paths.sort(reverse=True)
+
+    for path in del_paths:
         if os.path.isdir(path):
             shutil.rmtree(path)
         else:
             os.remove(path)
 
 
-def copy_dir(s_dir, d_dir, exclude_dirs=None):
-    exclude_dirs = exclude_dirs or set()
-
+def copy_dir(s_dir, d_dir, ignore=None, dirs_exist_ok=False):
+    """
+    shutil.copytree will fail if shutil.rmtree hasn't finished deleting folder:
+        PermissionError: [WinError 5] Access is denied
+    """
     s_dir = standardize_dir(s_dir)
     d_dir = standardize_dir(d_dir)
 
-    if not os.path.exists(d_dir):
-        os.makedirs(d_dir)
+    if ignore:
+        if isinstance(ignore, str):
+            ignore = (ignore,)
+        elif isinstance(ignore, set):
+            ignore = tuple(ignore)
 
-    for file_content in os.listdir(s_dir):
-        if file_content in exclude_dirs:
-            continue
+        ignore = shutil.ignore_patterns(*ignore)
 
-        s_path = s_dir + file_content
-        d_path = d_dir + file_content
+    if not dirs_exist_ok and os.path.exists(d_dir):
+        shutil.rmtree(d_dir)
 
-        if os.path.isdir(s_path):
-            shutil.copytree(src=s_path, dst=d_path)
-        else:
-            shutil.copy(src=s_path, dst=d_path)
+    shutil.copytree(src=s_dir, dst=d_dir,
+                    ignore=ignore,
+                    dirs_exist_ok=dirs_exist_ok)
 
 
-def file_creation_date(path):
+def file_creation_datetime(path):
     unix_t = os.path.getctime(path)
     return datetime.fromtimestamp(unix_t)
 
 
-def file_last_modified(path):
+def file_modified_datetime(path):
     unix_t = os.stat(path).st_mtime
     return datetime.fromtimestamp(unix_t)
 
 
-def standardize_dir(filedir, pathsep='/'):
-    """
-    pathsep=os.path.sep?
-    """
+def parse_path(path, pathsep='/', explicit_cwd=False):
+    if os.path.isdir(path):
+        filedir  = path
+        filename = ''
+    else:
+        filedir, filename = os.path.split(path)
+
+    filedir  = standardize_dir(filedir, pathsep, explicit_cwd)
+    filename = standardize_file_name(filename)
+    filename, extn = os.path.splitext(filename)
+
+    return filedir, filename, extn
+
+
+def standardize_path(path, pathsep='/', explicit_cwd=False):
+    filedir, filename, extn = parse_path(path, pathsep, explicit_cwd)
+
+    return filedir + filename + extn
+
+
+def standardize_dir(filedir, pathsep='/', explicit_cwd=False):
+    is_filedir_empty = (filedir == '')
+
+    if not explicit_cwd and is_filedir_empty:
+        return filedir
+
+    if is_filedir_empty:
+        filedir = os.getcwd()
+        is_filedir_empty = False
+
     filedir = (filedir.replace('\\', pathsep)
                       .replace('/', pathsep)
                       .lower()
                       .strip())
 
-    if filedir != '' and not filedir.endswith(pathsep):
-        filedir += pathsep
+    if not filedir.endswith(pathsep):
+        if not is_filedir_empty:
+            filedir += pathsep
 
     return filedir
 
@@ -194,84 +263,38 @@ def standardize_file_name(filename):
     return filename.lower().strip()
 
 
-def standardize_path(path, pathsep='/'):
-    filedir, filename = parse_path(path)
-
-    filedir  = standardize_dir(filedir, pathsep)
+def parse_file_extension(filename, include_dot=True):
     filename = standardize_file_name(filename)
-
-    return filedir + filename
-
-
-def sanatize_file_name(filename):
-    """ replace illegal Windows file name characters with '-'
-
-    (there's an additional set of path characters that are
-     illegal only for Windows' .zip compression)
-    """
-    invalid_chrs = {'\\': '-',
-                    '/':  '-',
-                    ':':  '-',
-                    '*':  '-',
-                    '?':  '-',
-                    '<':  '-',
-                    '>':  '-',
-                    '|':  '-',
-                    '"':  '-'}
-
-    for k, v in invalid_chrs.items():
-        filename = filename.replace(k, v)
-
-    return filename
-
-
-def assert_path_exists(path):
-    filedir, filename = parse_path(path)
-
-    if filedir != '' and not os.path.exists(filedir):
-        raise FileNotFoundError("invalid directory: '{}'".format(filedir))
-
-    if not os.path.exists(path):
-        extn  = file_extension(filename, include_dot=True)
-        retry = filename.replace(extn, '.*')
-        path  = glob(standardize_dir(filedir) + retry)
-
-        if path:
-            msg = "invalid file extension".format(extn)
-        else:
-            msg = "'{}' not found within directory '{}'".format(filename, filedir)
-
-        raise FileNotFoundError(msg)
-
-
-def parse_path(path):
-
-    if os.path.isdir(path):
-        filedir  = path
-        filename = ''
-    else:
-        filedir, filename = os.path.split(path)
-
-    return filedir, filename
-
-
-def file_extension(filename, include_dot=True):
     _, extn = os.path.splitext(filename)
-    if include_dot is False:
-        extn = extn.replace('.', '')
 
-    extn = extn.lower().strip()
+    if include_dot is False:
+        extn = extn.replace('.', '', 1)
 
     return extn
 
 
-def apply_file_extension(filename, extn):
-    if not extn.startswith('.'):
-        extn = '.' + extn
+def validate_path_exists(path):
+    filedir, filename, extn = parse_path(path, pathsep='/', explicit_cwd=True)
 
-    if filename.endswith(extn):
-        return filename
+    if not os.path.exists(filedir):
+        raise FileNotFoundError('directory not found: \n\t{}'.format(filedir))
 
-    return filename + extn
+    path = filedir + filename + extn
+
+    if not os.path.exists(path):
+        glob_paths = glob(filedir + filename + '.*')
+        if glob_paths:
+            extn = parse_file_extension(os.path.split(glob_paths[0])[1], include_dot=True)
+            raise FileNotFoundError('file extension not found: '
+                                    '\n\t{}'
+                                    '\n\t{}'
+                                    '\n\tdid you mean: {}?'.format(filedir, filename, extn))
+
+        raise FileNotFoundError('file not found: '
+                                '\n\t{}'
+                                '\n\t{}'.format(filedir, filename + extn))
+
+    return path
+
 
 

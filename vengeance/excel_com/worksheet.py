@@ -6,7 +6,7 @@ from datetime import datetime
 from pythoncom import com_error as pythoncom_error
 
 from .excel_constants import *
-from .workbook import excel_app_to_foreground
+from .workbook import excel_application_to_foreground
 
 from ..excel_com.excel_address import col_letter
 from ..excel_com.excel_address import col_number
@@ -15,6 +15,7 @@ from ..excel_com.excel_address import max_rows as excel_max_rows
 
 from ..util.iter import iterator_to_list
 from ..util.iter import modify_iteration_depth
+from ..util.iter import is_exhaustable
 
 
 def get_worksheet(wb,
@@ -23,7 +24,7 @@ def get_worksheet(wb,
                   clear_filter=False,
                   activate=False):
 
-    if ws.__class__.__name__ in {'CDispatch', '_Worksheet'}:
+    if is_worksheet_instance(ws):
         return ws
 
     if wb is None:
@@ -42,10 +43,14 @@ def get_worksheet(wb,
 
     if activate:
         ws.Visible = True
-        excel_app_to_foreground(ws.Application)
+        excel_application_to_foreground(ws.Application)
         ws.Activate()
 
     return ws
+
+
+def is_worksheet_instance(o):
+    return o.__class__.__name__ in ('CDispatch', '_Worksheet')
 
 
 def first_row(excel_range, default=1):
@@ -175,33 +180,27 @@ def is_range_empty(excel_range):
     return num_blank == num_cells
 
 
-def activate_sheet(ws):
-    excel_app_to_foreground(ws.Application)
+def activate_worksheet(ws):
+    excel_application_to_foreground(ws.Application)
+
+    ws.Parent.Activate()
+
     ws.Visible = True
     ws.Activate()
 
 
 def write_to_excel_range(v, excel_range):
-    v = iterator_to_list(v)
-    m = modify_iteration_depth(v, 2)
+    m = validate_matrix_within_max_worksheet_dimensions(v)
+    m = list(convert_python_types(m))
 
-    __validate_destination_size(m)
-
-    m = list(__excel_friendly_matrix(m))
     num_cols = len(m[0])
     num_rows = len(m)
+    excel_range_dest = excel_range.Resize(num_rows, num_cols)
 
-    excel_range.Parent.Range(excel_range,
-                             excel_range.Resize(num_rows, num_cols)
-                             ).Value = m
-
-
-def excel_range_rows(excel_range):
-    for row in __convert_excel_errors(excel_range):
-        yield row
+    excel_range.Parent.Range(excel_range, excel_range_dest).Value = m
 
 
-def __convert_excel_errors(excel_range):
+def escape_excel_range_errors(excel_range):
     m = excel_range.Value
     m = modify_iteration_depth(m, 2)
     m = [list(row) for row in m]
@@ -213,7 +212,7 @@ def __convert_excel_errors(excel_range):
         c_0  = cell.Column
 
         for cell_error in range_errors:
-            r = cell_error.Row - r_0
+            r = cell_error.Row    - r_0
             c = cell_error.Column - c_0
             m[r][c] = excel_errors.get(m[r][c], 'unknown error')
 
@@ -223,46 +222,60 @@ def __convert_excel_errors(excel_range):
     return m
 
 
-def __excel_friendly_matrix(m):
-    """ modify matrix values so they can be written to an Excel range without error
-    TODO:
-        profile instance checks
+def convert_python_types(m):
+    """ convert python types so they are compatible with Excel
+
+    for each row in matrix:
+        for each value in row:
+            convert datetime.date to datetime.datetime (pywintypes time?)
+            convert non-primitives to repr()
     """
-    num_cols = len(m[0])
+    # region {closure function}
+    NoneType = type(None)
+
+    def convert_excel_value(v):
+        if isinstance(v, (NoneType, bool, int, float, str)):
+            _v_ = v
+        elif isinstance(v, date):
+            _v_ = datetime(v.year, v.month, v.day)
+        else:
+            _v_ = repr(v)
+
+        return _v_
+    # endregion
+
+    if is_exhaustable(m):
+        # m = iterator_to_list(m)
+        # m = modify_iteration_depth(m, depth=2)
+        raise TypeError('matrix must be a list of lists, not a generator')
+
+    max_cols = len(m[0])
 
     for i, row in enumerate(m):
-        if len(row) != num_cols:
-            raise ValueError('cannot write to Excel, jagged row at index {:,}'.format(i))
+        if (max_cols - len(row)) != 0:
+            raise ValueError('cannot write to Excel worksheet, jagged columns at row {:,}\n\t'.format(i))
 
-        _row_ = []
-        for v in row:
-            if (v is None) or isinstance(v, (bool, int, float, str)):
-                _row_.append(v)
-                continue
-
-            if isinstance(v, date):
-                _v_ = datetime(v.year, v.month, v.day)
-            else:
-                _v_ = repr(v)
-
-            _row_.append(_v_)
-
-        yield _row_
+        yield tuple(convert_excel_value(v) for v in row)
 
 
-def __validate_destination_size(m):
-    """ ensure matrix is within Excel's column and row maximum """
-    num_cols = len(m[0])
+def validate_matrix_within_max_worksheet_dimensions(v):
+    """ ensure matrix fits within Excel's column and row maximum """
+    m = iterator_to_list(v)
+    m = modify_iteration_depth(m, depth=2)
+
     num_rows = len(m)
+    num_cols = max(map(len, m))
+
+    if num_rows > excel_max_rows:
+        raise ValueError("number of rows in matrix ({:,}) exceeds Excel's row limit ({:,})"
+                         .format(num_rows, excel_max_rows))
 
     if num_cols > excel_max_cols:
         raise ValueError("number of columns in matrix ({:,}) exceeds Excel's column limit({:,})"
                          "(did you mean to transpose this matrix first?)"
                          .format(num_cols, excel_max_cols))
 
-    if num_rows > excel_max_rows:
-        raise ValueError("number of rows in matrix ({:,}) exceeds Excel's row limit ({:,})"
-                         .format(num_rows, excel_max_rows))
+    return m
 
 
 def parse_range(excel_range):

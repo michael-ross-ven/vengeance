@@ -40,7 +40,7 @@ def col_number(col_str):
     __assert_valid_column_letter(col_str)
 
     col_int = 0
-    col_str = col_str.upper()
+    col_str = str(col_str).upper()
 
     for i, c in enumerate(col_str, 1):
         p = len(col_str) - i

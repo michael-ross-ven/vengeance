@@ -4,31 +4,32 @@ import re
 # noinspection PyUnresolvedReferences
 from pythoncom import com_error as pythoncom_error
 
-from collections import OrderedDict
+from .flux_row_cls import lev_row_cls
 
-from ..excel_com.worksheet import activate_sheet
-from ..excel_com.worksheet import first_col
-from ..excel_com.worksheet import last_col
-from ..excel_com.worksheet import first_row
-from ..excel_com.worksheet import last_row
-from ..excel_com.worksheet import excel_range_rows
-from ..excel_com.worksheet import clear_worksheet_filter
-from ..excel_com.worksheet import is_filtered
-from ..excel_com.worksheet import write_to_excel_range
-from ..excel_com.worksheet import is_range_empty
-from ..excel_com.worksheet import parse_range
+from ..conditional import ordereddict
 
 from ..excel_com.excel_address import col_letter
 from ..excel_com.excel_address import col_letter_offset
 from ..excel_com.excel_address import col_number
-
 from ..excel_com.excel_constants import *
 
-from ..util.iter import map_numeric_indices
-from ..util.iter import modify_iteration_depth
-from ..util.iter import iterator_to_list
+from ..excel_com.worksheet import activate_worksheet
+from ..excel_com.worksheet import clear_worksheet_filter
+from ..excel_com.worksheet import escape_excel_range_errors
+from ..excel_com.worksheet import first_col
+from ..excel_com.worksheet import first_row
+from ..excel_com.worksheet import is_filtered
+from ..excel_com.worksheet import is_range_empty
+from ..excel_com.worksheet import is_worksheet_instance
+from ..excel_com.worksheet import last_col
+from ..excel_com.worksheet import last_row
+from ..excel_com.worksheet import parse_range
+from ..excel_com.worksheet import write_to_excel_range
 
-from .flux_row_cls import lev_row_cls
+from ..util.iter import iterator_to_list
+from ..util.iter import map_to_numeric_indices
+from ..util.iter import modify_iteration_depth
+from .. util.text import object_name
 
 
 class excel_levity_cls:
@@ -46,10 +47,10 @@ class excel_levity_cls:
         self.ws = ws
         self.ws_name = ws.Name
         
-        self.is_worksheet_type = (ws.__class__.__name__ == '_Worksheet')
+        self.is_worksheet_type = is_worksheet_instance(ws)
 
-        self.headers   = OrderedDict()
-        self.m_headers = OrderedDict()
+        self.headers   = ordereddict()
+        self.m_headers = ordereddict()
 
         self._named_ranges = {}
 
@@ -115,7 +116,7 @@ class excel_levity_cls:
 
     @property
     def has_headers(self):
-        if self.is_empty:
+        if self.is_empty():
             return False
 
         return bool(self.headers) or bool(self.m_headers)
@@ -126,7 +127,7 @@ class excel_levity_cls:
 
     @property
     def first_empty_row(self):
-        if self.is_empty:
+        if self.is_empty():
             return self.header_r or self.meta_r or 1
 
         a = '{}{}:{}{}'.format(self.first_c, self.first_r,
@@ -143,7 +144,7 @@ class excel_levity_cls:
     @property
     def first_empty_column(self):
         """ determines the first available empty column in sheet """
-        if self.is_empty:
+        if self.is_empty():
             c = self.first_c
         else:
             c = col_letter_offset(self.last_c, 1)
@@ -158,7 +159,6 @@ class excel_levity_cls:
     def num_rows(self):
         return int(self.last_r) - int(self.first_r) + 1
 
-    @property
     def is_empty(self):
         if self.last_r > self.first_r:
             return False
@@ -170,26 +170,26 @@ class excel_levity_cls:
         return is_range_empty(self.ws.Range(a))
 
     def rows(self, r_1='*h', r_2='*l'):
-        if self.is_empty:
+        if self.is_empty():
             return [[]]
 
         a = '*f {}:*l {}'.format(r_1, r_2)
         excel_range = self.excel_range(a)
 
-        return (row for row in excel_range_rows(excel_range))
+        return escape_excel_range_errors(excel_range)
 
-    def flux_rows(self, r_1='*h', r_2='*l'):
-        if self.is_empty:
+    def lev_rows(self, r_1='*h', r_2='*l'):
+        if self.is_empty():
             return [[]]
 
         if self.headers:
-            headers = map_numeric_indices(self.headers.keys())
+            headers = map_to_numeric_indices(self.headers.keys())
         elif self.m_headers:
-            headers = map_numeric_indices(self.m_headers.keys())
+            headers = map_to_numeric_indices(self.m_headers.keys())
         else:
             headers = {}
 
-        reserved = headers.keys() & lev_row_cls.class_names
+        reserved = headers.keys() & set(lev_row_cls.reserved_names())
         if reserved:
             raise NameError("reserved name(s) {} found in header row {}"
                             .format(list(reserved), list(headers.keys())))
@@ -200,13 +200,13 @@ class excel_levity_cls:
         r_1 = excel_range.Row
         c_1, c_2 = self.first_c, self.last_c
 
-        for r, row in enumerate(excel_range_rows(excel_range), r_1):
+        for r, row in enumerate(escape_excel_range_errors(excel_range), r_1):
             a = '${}${}:${}${}'.format(c_1, r, c_2, r)
             yield lev_row_cls(headers, row, a)
 
     def activate(self):
         if self.allow_focus:
-            activate_sheet(self.ws)
+            activate_worksheet(self.ws)
 
     def clear_filter(self):
         if not self.has_filter:
@@ -255,7 +255,7 @@ class excel_levity_cls:
             self.set_range_boundaries(index_meta, index_header)
 
         if clear_colors:
-            excel_range.Interior.Color = xlClear
+            excel_range.Interior.Color = xlNone
 
     def set_range_boundaries(self, index_meta=True, index_header=True):
         """ find the edges of data in worksheet
@@ -264,8 +264,8 @@ class excel_levity_cls:
         determine these boundaries correctly
         """
 
-        if self.ws.__class__.__name__ != '_Worksheet':
-            # a chart
+        if not self.is_worksheet_type:
+            # an o that has been moved to its own worksheet
             self.first_c = ''
             self.last_c  = ''
             self.first_r = 0
@@ -320,13 +320,14 @@ class excel_levity_cls:
 
     @classmethod
     def __index_row_headers(cls, excel_range):
-        row = next(excel_range_rows(excel_range))
+        row = excel_range.Rows(1)
+        row = escape_excel_range_errors(row)[0]
         if not any(row):
-            return OrderedDict()
+            return ordereddict()
 
-        start = excel_range.Column
-        headers = map_numeric_indices(row, start)
-        headers = OrderedDict((h, col_letter(v)) for h, v in headers.items())
+        c_1 = excel_range.Column
+        headers = map_to_numeric_indices(row, c_1)
+        headers = ordereddict((h, col_letter(v)) for h, v in headers.items())
 
         return headers
 
@@ -349,6 +350,10 @@ class excel_levity_cls:
         self.headers = self.__index_headers('header_r')
 
     def excel_range(self, reference):
+        if not self.is_worksheet_type:
+            ws_type = object_name(self.ws)
+            raise TypeError('{} is not an Excel worksheet '.format(ws_type))
+
         try:
             a = self.excel_address(reference)
             excel_range = self.ws.Range(a)
@@ -373,57 +378,26 @@ class excel_levity_cls:
 
         return a
 
-    def __validate_within_fixed_destination(self, m, c_1, r_1):
-        """
-        if lev has fixed columns or rows, these should not be exceeded
-        make sure matrix fits in allowed destination space
-        """
-        num_cols = len(m[0])
-        num_rows = len(m)
-
-        first_c, last_c = self._fixed_columns
-        first_r, last_r = self._fixed_rows
-
-        if last_c:
-            first_c = col_number(first_c) or col_number(c_1)
-            last_c  = col_number(last_c)
-            col_max = (last_c - first_c) + 1
-
-            if num_cols > col_max:
-                raise ValueError('Number of columns in data exceeds fixed destination range')
-
-        if last_r:
-            first_r = int(first_r) or int(r_1)
-            last_r  = int(last_r)
-            row_max = (last_r - first_r) + 1
-
-            if num_rows > row_max:
-                raise ValueError('Number of rows in data exceeds fixed destination range')
-
     def __getitem__(self, reference):
         return self.excel_range(reference)
 
     def __setitem__(self, reference, v):
         """ write value(s) to excel range """
         excel_range = self.excel_range(reference)
-        c = excel_range.Column
-        r = excel_range.Row
-
-        v = iterator_to_list(v)
-        m = modify_iteration_depth(v, 2)
-        self.__validate_within_fixed_destination(m, c, r)
+        m = self.__validate_matrix_within_range_boundaries(v, excel_range)
 
         write_to_excel_range(m, excel_range)
 
-        index_meta   = (r <= self.meta_r)
-        index_header = (r <= self.header_r)
+        r_1 = excel_range.Row
+        index_meta   = (r_1 <= self.meta_r)
+        index_header = (r_1 <= self.header_r)
         self.set_range_boundaries(index_meta, index_header)
 
         if self.has_filter:
             self.reapply_filter()
 
     def __iter__(self):
-        for row in self.flux_rows('*f'):
+        for row in self.lev_rows('*f'):
             yield row
 
     def __repr__(self):
@@ -439,6 +413,41 @@ class excel_levity_cls:
             a = '{unknown address}'
 
         return "'{}' {}".format(self.ws_name, a)
+
+    def __validate_matrix_within_range_boundaries(self, v, excel_range):
+        """
+        if lev has fixed columns or rows, these should not be exceeded
+        make sure matrix fits in allowed destination space
+        """
+        m = iterator_to_list(v)
+        m = modify_iteration_depth(m, depth=2)
+
+        col_max = num_cols = len(m[0])
+        row_max = num_rows = len(m)
+
+        first_c, last_c = self._fixed_columns
+        first_r, last_r = self._fixed_rows
+
+        c_1 = excel_range.Column
+        r_1 = excel_range.Row
+
+        if last_c:
+            first_c = col_number(first_c) or col_number(c_1)
+            last_c  = col_number(last_c)
+            col_max = (last_c - first_c) + 1
+
+        if last_r:
+            first_r = int(first_r) or int(r_1)
+            last_r  = int(last_r)
+            row_max = (last_r - first_r) + 1
+
+        if num_cols > col_max:
+            raise ValueError('Number of columns in data exceeds fixed destination range')
+
+        if num_rows > row_max:
+            raise ValueError('Number of rows in data exceeds fixed destination range')
+
+        return m
 
 
 def _named_ranges_in_workbook(wb):

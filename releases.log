@@ -1,4 +1,66 @@
 
+
+2020-07-21
+$release 38
+    version 1.1.0
+
+    tries to make more appropriate gencache folder for win32com in setup.py:
+        os.environ['userprofile'] + '\\AppData\\Local\\Temp\\gen_py\\'
+    
+    filesystem.read_file() and filesystem.write_file()
+        added filetype arg to supercede read / write behavior based on path extension 
+
+    flux_cls
+        .namedrows() method added
+        .join() method added
+        .map_rows() method added
+        .map_rows_append() method added
+
+        deprecated warning added to .index_row() 
+        deprecated warning added to .index_rows()
+        
+        .map_rows() and .map_rows_append()
+            as_namedtuple parameter changed to rowtype
+            
+        in-place methods now return self (for easier method chaining syntax)
+
+        .__setitem__()
+            no longer attempts to transposes one-dimensional values
+            no longer raises Exception when value length != to self.num_rows
+            a single value can be used to implicitly set an entire column of values, eg:
+                flux['column'] = 'somevalue'
+
+        '{🗲jagged🗲}' indicator added to __repr__
+
+    flux_row_cls
+        .reserved_names() classmethod added
+
+        .is_jagged() method added
+        .is_empty() method added
+        .namedrow() method added
+        .join_values() method added
+        
+        .headers property added 
+            (returns safe copy of self._headers)
+
+        ._view_as_array property renamed to .as_array
+        .names property renamed to .header_names
+
+        '{🗲jagged🗲}' indicator added to __repr__
+
+    log_cls
+        __init__() signature changed to
+            def __init__(self, path='',
+                               level='DEBUG',
+                               log_format='%(message)s',
+                               exception_callback=None):
+
+        StreamHandler changed to colored_streamhandler_cls() if stream is not running in terminal
+        
+
+
+        
+
 2020-04-05
 $release 37
     filesystem.read_file() and filesystem.write_file()
