@@ -1,10 +1,7 @@
 
 import gc
 import itertools
-import inspect
 import functools
-import traceback
-import warnings
 
 from datetime import date
 from timeit import default_timer
@@ -30,6 +27,7 @@ def print_runtime(f=None):
             vengeance_message('@{}: {}'.format(function_name(_f_),
                                                format_seconds(elapsed)))
             return retv
+
         return functools_wrapper
 
     if f is None:
@@ -49,7 +47,6 @@ def print_performance(f=None, *, repeat=3):
 
             functools_repeat = functools.partial(itertools.repeat, None)
             was_gc_enabled   = gc.isenabled()
-
             gc.disable()
 
             for _ in functools_repeat(repeat):
@@ -76,6 +73,7 @@ def print_performance(f=None, *, repeat=3):
                 gc.enable()
 
             return retv
+
         return functools_wrapper
 
     if f is None:
@@ -85,37 +83,33 @@ def print_performance(f=None, *, repeat=3):
 
 
 def deprecated(message='deprecated'):
-    stack_frame = traceback.extract_stack(inspect.currentframe(), limit=2)[0]
 
     def deprecated_wrapper(_f_):
         @functools.wraps(_f_)
         def functools_wrapper(*args, **kwargs):
-            nonlocal stack_frame
-
             _message_ = message.replace('"', "'")
             _message_ = '@{}: "{}"'.format(function_name(_f_), _message_)
+
             vengeance_warning(_message_,
                               DeprecationWarning,
-                              stack_frame=stack_frame)
+                              stacklevel=3,
+                              stack_frame=None)
 
             return _f_(*args, **kwargs)
+
         return functools_wrapper
 
     return deprecated_wrapper
 
 
-def vengeance_message(s, printed=True):
-    vs = '\tν: {}'.format(s)
-    if printed:
-        print_unicode(vs)
-
-    return vs
-
-
 def vengeance_warning(message,
                       category=Warning,
-                      stacklevel=2,
+                      stacklevel=3,
                       stack_frame=None):
+
+    import inspect
+    import traceback
+    import warnings
 
     # region {closure functions}
     if stack_frame is None:
@@ -136,8 +130,34 @@ def vengeance_warning(message,
     original_format_warning = warnings.formatwarning
 
     warnings.formatwarning = format_warning
-    warnings.warn(message, category, stacklevel)
+    warnings.warn(message,
+                  category,
+                  stacklevel)
     warnings.formatwarning = original_format_warning
+
+
+def vengeance_message(s, printed=True):
+    vs = '\tν: {}'.format(s)
+    if printed:
+        print_unicode(vs)
+
+    return vs
+
+
+def print_unicode(s):
+    # region {closure functions}
+    def convert_unicode(_s_):
+        _s_ = (_s_.replace('ν', 'v')
+                  .replace('μ', 'u'))
+        _s_ = (_s_.encode('ascii', errors='backslashreplace')
+                  .decode('ascii'))
+        return _s_
+    # endregion
+
+    try:
+        print(s)
+    except UnicodeEncodeError:
+        print(convert_unicode(s))
 
 
 def format_seconds(secs):
@@ -171,22 +191,6 @@ def format_milliseconds(ms):
         f = '{:.0f} ns'.format(ns)
 
     return f
-
-
-def stack_frame_filename_lineno(stack_level=3, stack_frame=None):
-
-    # noinspection PyBroadException
-    try:
-        if stack_frame is None:
-            stack_frame = traceback.extract_stack(inspect.currentframe(), limit=stack_level)[0]
-
-        filename = stack_frame.filename
-        lineno   = stack_frame.lineno
-    except Exception:
-        filename = '(unknown file)'
-        lineno   = 0
-
-    return filename, lineno
 
 
 def function_name(f):
@@ -229,22 +233,6 @@ def json_unhandled_conversion(o):
         return list(o)
 
     raise TypeError('cannot convert type to json ' + repr(o))
-
-
-def print_unicode(s):
-    try:
-        print(s)
-    except UnicodeEncodeError:
-        print(_convert_unicode(s))
-
-
-def _convert_unicode(s):
-    s = (s.replace('ν', 'v')
-          .replace('μ', 'u'))
-
-    s = (s.encode('ascii', errors='backslashreplace')
-          .decode('ascii'))
-    return s
 
 
 

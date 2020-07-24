@@ -10,7 +10,6 @@ from logging import StreamHandler
 from logging import (NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL)
 
 from .. util.filesystem import parse_path
-from .. util.text import stack_frame_filename_lineno
 
 level_colors  = {NOTSET:   'grey',
                  DEBUG:    'grey',
@@ -46,8 +45,10 @@ class log_cls(Logger):
         :param exception_callback:
             function to be called after self.exception_handler()
         """
+        if exception_callback is not None and not callable(exception_callback):
+            raise TypeError('exception_callback must be callable')
 
-        filedir, name, extn = parse_path(path, pathsep='/', explicit_cwd=False)
+        filedir, name, extn = parse_path(path, explicit_cwd=False)
         if isinstance(level, str):
             level = level.upper()
 
@@ -58,7 +59,10 @@ class log_cls(Logger):
         self.exception_message  = ''
 
         self._add_stream_handler(stream=sys.stdout)
-        self._add_file_handler(filedir, name, extn)
+        self.path = self._add_file_handler(filedir, name, extn)
+
+        if exception_callback:
+            sys.excepthook = self.exception_handler
 
     @property
     def stream_handlers(self):
@@ -116,7 +120,7 @@ class log_cls(Logger):
 
     def _add_file_handler(self, filedir, filename, extn):
         if not filedir:
-            return
+            return ''
 
         if not os.path.exists(filedir):
             os.makedirs(filedir)
@@ -130,7 +134,9 @@ class log_cls(Logger):
         h.setFormatter(self.formatter)
         self.addHandler(h)
 
-    def exception_handler(self, e_type, e_msg, s_frame):
+        return path
+
+    def exception_handler(self, e_type, e_msg, e_traceback):
         """ sys.excepthook = log.exception_handler """
 
         _e_type_ = 'Exception'
@@ -144,37 +150,48 @@ class log_cls(Logger):
         if e_msg:
             _e_msg_ = '{}'.format(str(e_msg).replace('"', "'"))
 
-        if s_frame:
-            filename, lineno = stack_frame_filename_lineno()
+        if e_traceback:
+            filename = e_traceback.tb_frame.f_code.co_filename
+            lineno   = e_traceback.tb_lineno
 
-        error_msg = self.__formatted_error_message(_e_type_, _e_msg_, filename, lineno)
-        self.error(error_msg, exc_info=(e_type, e_msg, s_frame))
-
-        # self.close()
+        error_msg = self.__formatted_error_message(_e_type_,
+                                                   _e_msg_,
+                                                   filename,
+                                                   lineno)
+        self.error(error_msg, exc_info=(e_type, e_msg, e_traceback))
 
         if self.exception_callback:
             self.exception_callback()
 
         self.exception_message = '{}: {}'.format(_e_type_, _e_msg_)
+
         return self.exception_message
 
     def __formatted_error_message(self, _e_type_, _e_msg_, filename, lineno):
+
         error_msg = dedent('''
-        r_self
-            The result w+resign was added to the game information...
+        
+        banner_top
+            (The result w+resign was added to the game information)
             
             <{e_type}>: {e_msg}
             {filename}, {lineno}
-        r_self
-        \n\n
+        banner_bottom
+
         ''').format(e_type=_e_type_,   e_msg=_e_msg_,
                     filename=filename, lineno=lineno)
 
-        r_format = max(len(line) for line in error_msg.split('\n')) + 10
-        r_format = '_^{}'.format(r_format)
-        r_self   = '  {}  '.format(repr(self))
-        r_self   = '{:{}}'.format(r_self, r_format)
-        error_msg = error_msg.replace('r_self', r_self)
+        banner_char = '-'
+
+        banner_width  = max(len(line) for line in error_msg.split('\n')) + 10
+        banner_format = '{}^{}'.format(banner_char, banner_width)
+
+        banner_top = '  {}  '.format(repr(self))
+        banner_top = '{:{}}'.format(banner_top, banner_format)
+        banner_bottom = banner_char * banner_width
+
+        error_msg = (error_msg.replace('banner_top', banner_top, 1)
+                              .replace('banner_bottom', banner_bottom, 1))
 
         return error_msg
 
@@ -204,3 +221,4 @@ class colored_streamhandler_cls(StreamHandler):
             raise
         except Exception:
             self.handleError(record)
+

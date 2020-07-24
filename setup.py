@@ -5,8 +5,8 @@ import setuptools
 from setuptools import setup
 from textwrap import dedent
 
-__version__ = '1.1.0'
-__release__ = '$release 38'
+__version__ = '1.1.1'
+__release__ = '$release 39'
 long_description = 'https://github.com/michael-ross-ven/vengeance/blob/master/README.md\n(specialize this for pypi.org later)'
 
 
