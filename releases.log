@@ -1,5 +1,28 @@
 
 
+2020-08-27
+$release 40
+    version 1.1.2
+
+    flux_cls.append_columns() and flux_cls.__setitem__():
+        fixed bug when column values have an empty iterable, eg:
+            v = [(), ('a',), ('b', 'c')]
+            flux_a.append_columns('new_b', values=v)
+
+    filesystem.write_file():
+        fixed bug when filetype == '.json', no longer tries to del fkwargs['default'] 
+        without checking if 'default' is in fkwargs first
+
+        when filetype == '.json', fkwargs['ensure_ascii'] default value added to fkwargs
+
+        fixed bug when when filetype is unspecified, data is now converted to string using pprint.pformat,
+        instead of assuming data is iterable and joining to string by newline
+
+    filesystem.read_file():
+        when filetype == '.csv', fkwargs['nrows'] value specifies number of rows
+
+
+
 2020-07-24
 $release 39
     version 1.1.1

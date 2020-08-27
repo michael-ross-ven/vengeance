@@ -49,8 +49,8 @@ class flux_row_cls:
         values  = list(self.values)
         max_len = max(len(names), len(values))
 
-        names.extend( ['🗲jagged🗲'] * (max_len - len(names)))
-        values.extend(['🗲jagged🗲'] * (max_len - len(values)))
+        names.extend( ['🗲missing🗲'] * (max_len - len(names)))
+        values.extend(['🗲missing🗲'] * (max_len - len(values)))
 
         return numpy.transpose([names, values])
 
@@ -82,7 +82,9 @@ class flux_row_cls:
         return self._headers.keys() == names.keys()
 
     def dict(self):
-        return ordereddict(zip(self._headers.keys(), self.values))
+        # names = self._headers.keys()
+        names = list(self._headers.keys())
+        return ordereddict(zip(names, self.values))
 
     def namedrow(self):
         return SimpleNamespace(**self.dict())
@@ -197,12 +199,17 @@ class flux_row_cls:
             else:
                 raise AttributeError(self.__invalid_name_message(name)) from e
 
-    def __invalid_name_message(self, name):
-        if isinstance(name, slice):
+    def __invalid_name_message(self, invalid_names):
+        if isinstance(invalid_names, slice):
             return 'slice should be used directly on row.values\n(eg, row.values[2:5], not row[2:5])'
 
-        names = '\n\t'.join(str(n) for n in self.header_names)
-        return "\nNo flux_row_cls column named '{}' \navailable columns: \n\t{}".format(name, names)
+        header_names = '\n\t'.join(str(n) for n in self.header_names)
+
+        s = ("\ncolumn name not found: '{}' "
+             "\n\tavailable columns: "
+             "\n\t{}".format(invalid_names, header_names))
+
+        return s
 
     def __len__(self):
         return len(self.values)

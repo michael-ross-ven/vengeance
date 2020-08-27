@@ -11,11 +11,12 @@ from ctypes.wintypes import BOOL
 
 from _ctypes import COMError as ctypes_error
 # from comtypes import COMError as ctypes_error
+
 from comtypes import GUID
 from comtypes import IUnknown
-from comtypes.automation     import IDispatch as comtypes_idispatch
+from comtypes.automation     import IDispatch    as comtypes_idispatch
 from comtypes.client         import CreateObject as comtypes_createobject
-from comtypes.client.dynamic import Dispatch as comtypes_dispatch               # late-bound reference
+from comtypes.client.dynamic import Dispatch     as comtypes_dispatch           # late-bound reference
 
 # noinspection PyUnresolvedReferences
 from pythoncom import com_error as pythoncom_error
@@ -336,7 +337,3 @@ def __is_excel_application_empty(excel_app):
                 return False
 
     return True
-
-
-
-

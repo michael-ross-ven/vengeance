@@ -100,57 +100,6 @@ def iterator_to_list(v):
     return v
 
 
-def divide_sequence(sequence, num_divisions):
-    """ :return yield n number of divisions from sequence
-
-    eg: {sequence = ['a'] * 10}
-        [('a', 'a', 'a', 'a', 'a'),
-         ('a', 'a', 'a', 'a', 'a')] = divide_sequence(sequence, 2)
-
-         [('a', 'a', 'a', 'a'),
-          ('a', 'a', 'a'),
-          ('a', 'a', 'a')] = divide_sequence(sequence, 3)
-    """
-    # region {closure functions}
-    def adjust_stride_distribution():
-        """
-        if stride_len is not an exact multiple of number of sequence_len,
-        add 1 to items in stride_lens until rounding deficit is covered
-        """
-        _, redistribute = divmod(sequence_len, num_divisions)
-        for i in range(redistribute):
-            stride_lens[i] += 1
-    # endregion
-
-    as_dictionary = False
-    if isinstance(sequence, dict):
-        sequence = tuple(sequence.items())
-        as_dictionary = True
-    elif not is_subscriptable(sequence):
-        sequence = list(sequence)
-
-    sequence_len  = len(sequence)
-    num_divisions = min(sequence_len, num_divisions)
-
-    stride_len  = sequence_len // num_divisions
-    stride_lens = [stride_len for _ in range(num_divisions)]
-    adjust_stride_distribution()
-
-    i_1 = 0
-    for stride_len in stride_lens:
-        i_2 = i_1 + stride_len
-
-        divided = sequence[i_1:i_2]
-        if as_dictionary:
-            divided = dict(divided)
-        else:
-            divided = tuple(divided)
-
-        yield divided
-
-        i_1 = i_2
-
-
 def is_collection(v):
     """ determine if value is an iterable object or data structure
     function used mainly to distinguish data structures from other iterables
@@ -165,10 +114,8 @@ def is_collection(v):
     return isinstance(v, Iterable)
 
 
-# noinspection PyStatementEffect, PyBroadException
+# noinspection PyStatementEffect
 def is_subscriptable(v):
-    # ? return isinstance(v, Sequence)
-
     try:
         v[0]
         return True
@@ -182,9 +129,9 @@ def is_exhaustable(v):
 
 def is_vengeance_class(v):
     bases = set(base_class_names(v))
+
     vengeance_bases = bases & {'flux_cls',
                                'excel_levity_cls'}
-
     return bool(vengeance_bases)
 
 
@@ -193,21 +140,26 @@ def base_class_names(o):
 
 
 def transpose(m, astype=tuple):
-    """ :return generator with transposed elements as either tuples or lists """
-    if astype not in (tuple, list):
-        raise TypeError('astype must be either tuple or list')
-
     if astype is tuple:
-        if iteration_depth(m) == 1:
-            return ((v,) for v in m)
-        else:
-            return zip(*m)
+        return transpose_to_tuples(m)
+    if astype is list:
+        return transpose_to_lists(m)
 
-    elif astype is list:
-        if iteration_depth(m) == 1:
-            return ([v] for v in m)
-        else:
-            return (list(v) for v in zip(*m))
+    raise TypeError('astype parameter must be either tuple or list')
+
+
+def transpose_to_tuples(m):
+    if iteration_depth(m) == 1:
+        return ((v,) for v in m)
+    else:
+        return zip(*m)
+
+
+def transpose_to_lists(m):
+    if iteration_depth(m) == 1:
+        return ([v] for v in m)
+    else:
+        return (list(v) for v in zip(*m))
 
 
 def map_to_numeric_indices(sequence, start=0):
@@ -248,22 +200,19 @@ class OrderedDefaultDict(ordereddict):
         super().__init__()
 
     def append_items(self, items):
-        """ append all values mapped to same key if default_factory is list """
+        """ all items that map to the same key are appended to a list """
         if self.default_factory is not list:
-            raise TypeError('self.default_factory must be list')
+            raise TypeError('self.default_factory function must be list')
 
         if isinstance(items, dict):
             items = list(items.items())
 
-        if len(self) > 0:
-            # items = list(self.items()) + items      # ???
-            self.clear()
-
         for item in items:
-            if len(item) != 2:
-                raise IndexError('each item must be a (key, value) pair')
+            try:
+                k, v = item
+            except Exception as e:
+                raise IndexError('items must be (key, value) pairs') from e
 
-            k, v = item
             self[k].append(v)
 
         return self
@@ -286,6 +235,3 @@ class OrderedDefaultDict(ordereddict):
 
     def ordereddict(self):
         return ordereddict(self.items())
-
-
-

@@ -3,21 +3,24 @@ import _pickle as cpickle
 import csv
 import gc
 import os
+import pprint
 import shutil
 
+from collections import namedtuple
 from datetime import datetime
 from json import JSONDecodeError
 from glob import glob
+from string import ascii_lowercase
 
 from .text import json_unhandled_conversion
-from .. conditional import ultrajson_installed
 
+from .. conditional import ultrajson_installed
 if ultrajson_installed:
     import ujson as json
 else:
     import json
 
-pickle_extensions         = {'.flux', '.pkl', '.pickle'}
+pickle_extensions = {'.flux', '.pkl', '.pickle'}
 notimplemented_extensions = {'.7z',
                              '.gzip',
                              '.png',
@@ -46,10 +49,17 @@ def read_file(path,
     gc.disable()
 
     if filetype == '.csv':
+        fkwargs['nrows']  = fkwargs.get('nrows')
         fkwargs['strict'] = fkwargs.get('strict', True)
 
+        nrows = fkwargs.pop('nrows')
+
         with open(path, mode, encoding=encoding) as f:
-            data = list(csv.reader(f, **fkwargs))
+            data = csv.reader(f, **fkwargs)
+            if isinstance(nrows, int):
+                data = __read_limited_csv_rows(nrows, data)
+            else:
+                data = list(data)
 
     elif filetype == '.json':
         with open(path, mode, encoding=encoding) as f:
@@ -57,7 +67,8 @@ def read_file(path,
                 data = json.load(f, **fkwargs)
             except (JSONDecodeError, ValueError) as e:
                 raise ValueError('invalid encoding or malformed json: '
-                                 '\n\t{}\n\t{}'.format(encoding, path)) from e
+                                 '\n\tpath: {}'
+                                 '\n\tencoding: {}'.format(path, encoding)) from e
 
     elif filetype in pickle_extensions:
         with open(path, mode) as f:
@@ -97,17 +108,19 @@ def write_file(path,
     gc.disable()
 
     if filetype == '.csv':
-        fkwargs['strict'] = fkwargs.get('strict', True)
+        fkwargs['strict']         = fkwargs.get('strict', True)
         fkwargs['lineterminator'] = fkwargs.get('lineterminator', '\n')
 
         with open(path, mode, encoding=encoding) as f:
             csv.writer(f, **fkwargs).writerows(data)
 
     elif filetype == '.json':
-        fkwargs['indent'] = fkwargs.get('indent', 4)
-        if not ultrajson_installed:
-            fkwargs['default'] = fkwargs.get('default',  json_unhandled_conversion)
-        elif 'default' in fkwargs:
+        ensure_ascii = (encoding in (None, 'ascii'))
+        fkwargs['indent']       = fkwargs.get('indent', 4)
+        fkwargs['ensure_ascii'] = fkwargs.get('ensure_ascii', ensure_ascii)
+        fkwargs['default']      = fkwargs.get('default', json_unhandled_conversion)
+
+        if ultrajson_installed:
             del fkwargs['default']
 
         with open(path, mode, encoding=encoding) as f:
@@ -122,8 +135,10 @@ def write_file(path,
             f.write(data)
 
     else:
-        if not isinstance(data, str):                           # f.write() is much faster than f.writelines()
-            data = '\n'.join(str(line) for line in data)
+        if not isinstance(data, (str, bytes)):
+            # f.write() is much faster than f.writelines()
+            data = pprint.pformat(data, **fkwargs)
+            data = data.replace("'", '"')
 
         with open(path, mode, encoding=encoding) as f:
             f.write(data)
@@ -166,6 +181,20 @@ def __validate_mode_with_filetype(as_bytes, mode, filetype):
             mode += 'b'
 
     return mode
+
+
+def __read_limited_csv_rows(nrows, csv_reader):
+    m = []
+    for _ in range(nrows):
+        try:
+            m.append(next(csv_reader))
+        except StopIteration:
+            break
+
+    if not m:
+        m = [[]]
+
+    return m
 
 
 def clear_dir(filedir):
@@ -218,6 +247,10 @@ def file_modified_datetime(path):
 
 
 def parse_path(path, pathsep='/', explicit_cwd=False):
+
+    ParsedPath = namedtuple('ParsedPath', ('directory',
+                                           'filename',
+                                           'extension'))
     if os.path.isdir(path):
         filedir  = path
         filename = ''
@@ -228,7 +261,9 @@ def parse_path(path, pathsep='/', explicit_cwd=False):
     filename = standardize_file_name(filename)
     filename, extn = os.path.splitext(filename)
 
-    return filedir, filename, extn
+    parsed_path = ParsedPath(filedir, filename, extn)
+
+    return parsed_path
 
 
 def standardize_path(path, pathsep='/', explicit_cwd=False):
@@ -238,14 +273,13 @@ def standardize_path(path, pathsep='/', explicit_cwd=False):
 
 
 def standardize_dir(filedir, pathsep='/', explicit_cwd=False):
-    is_filedir_empty = (filedir == '')
 
+    is_filedir_empty = (filedir == '')
     if not explicit_cwd and is_filedir_empty:
         return filedir
 
     if is_filedir_empty:
         filedir = os.getcwd()
-        is_filedir_empty = False
 
     filedir = (filedir.replace('\\', pathsep)
                       .replace('/', pathsep)
@@ -253,8 +287,14 @@ def standardize_dir(filedir, pathsep='/', explicit_cwd=False):
                       .strip())
 
     if not filedir.endswith(pathsep):
-        if not is_filedir_empty:
-            filedir += pathsep
+        filedir += pathsep
+
+    drive_letters = ('{}:{}'.format(c, pathsep) for c in ascii_lowercase)
+
+    for drive_letter in drive_letters:
+        if filedir.startswith(drive_letter):
+            filedir = filedir.replace(drive_letter, drive_letter.upper(), 1)
+            break
 
     return filedir
 
@@ -295,6 +335,7 @@ def validate_path_exists(path):
                                 '\n\t{}'.format(filedir, filename + extn))
 
     return path
+
 
 
 

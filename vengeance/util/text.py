@@ -43,6 +43,7 @@ def print_performance(f=None, *, repeat=3):
         def functools_wrapper(*args, **kwargs):
             retv  = None
             best  = None
+            worst = None
             total = 0.0
 
             functools_repeat = functools.partial(itertools.repeat, None)
@@ -62,10 +63,17 @@ def print_performance(f=None, *, repeat=3):
                 else:
                     best = min(best, elapsed)
 
+                if worst is None:
+                    worst = elapsed
+                else:
+                    worst = max(worst, elapsed)
+
             vengeance_message('@{}'
+                              '\n\t\tworst:   {}'
                               '\n\t\taverage: {}'
                               '\n\t\tbest:    {}'
                               .format(function_name(_f_),
+                                      format_milliseconds(worst),
                                       format_milliseconds(total / repeat),
                                       format_milliseconds(best)))
 
@@ -87,8 +95,7 @@ def deprecated(message='deprecated'):
     def deprecated_wrapper(_f_):
         @functools.wraps(_f_)
         def functools_wrapper(*args, **kwargs):
-            _message_ = message.replace('"', "'")
-            _message_ = '@{}: "{}"'.format(function_name(_f_), _message_)
+            _message_ = '@{}():  "{}"'.format(function_name(_f_), message)
 
             vengeance_warning(_message_,
                               DeprecationWarning,
@@ -104,36 +111,42 @@ def deprecated(message='deprecated'):
 
 def vengeance_warning(message,
                       category=Warning,
-                      stacklevel=3,
+                      stacklevel=2,
                       stack_frame=None):
-
     import inspect
+    import sys
     import traceback
     import warnings
+
+    original_formatwarning = warnings.formatwarning
 
     # region {closure functions}
     if stack_frame is None:
         stack_frame = traceback.extract_stack(inspect.currentframe(), limit=stacklevel)[0]
 
-    def format_warning(_message_, *_):
+    def vengeance_formatwarning(*_):
+        nonlocal category
+        nonlocal message
         nonlocal stack_frame
 
-        w_s = ('\tν: <{w_type}> {w_message}'
+        w_category = object_name(category)
+        w_message  = message.replace('"', '').replace('\n', '\n\t   ')
+
+        w_s = ('\tν: <{w_category}> {w_message}'
                '\n\tν: File "{filename}", line {lineno}'
-               '\n\n'.format(w_type=object_name(category),
-                             w_message=_message_,
+               '\n\n'.format(w_category=w_category,
+                             w_message=w_message,
                              filename=stack_frame.filename,
                              lineno=stack_frame.lineno))
         return w_s
     # endregion
 
-    original_format_warning = warnings.formatwarning
+    warnings.formatwarning = vengeance_formatwarning
+    warnings.warn(message)
+    warnings.formatwarning = original_formatwarning
 
-    warnings.formatwarning = format_warning
-    warnings.warn(message,
-                  category,
-                  stacklevel)
-    warnings.formatwarning = original_format_warning
+    sys.stdout.flush()
+    sys.stderr.flush()
 
 
 def vengeance_message(s, printed=True):
@@ -165,32 +178,30 @@ def format_seconds(secs):
 
 
 def format_milliseconds(ms):
-    ns  = ms * 1000000
-    mis = ms * 1000
-    s   = ms / 1000
+    ns = ms * 1000000
+    us = ms * 1000
+    s  = ms / 1000
 
     m, s = divmod(s, 60)
     h, m = divmod(m, 60)
     d, h = divmod(h, 24)
 
     if d >= 1:
-        f = '{:.0f} days, {:.0f} hours'.format(d, h)
+        f_ms = '{:.0f}d {:.0f}h {:.0f}m'.format(d, h, m)
     elif h >= 1:
-        f = '{:.0f} hours, {:.0f} minutes'.format(h, m)
+        f_ms = '{:.0f}h {:.0f}m {:.0f}s'.format(h, m, s)
     elif m >= 1:
-        f = '{:.0f} minutes, {:.0f} seconds'.format(m, s)
+        f_ms = '{:.0f}m {:.0f}s'.format(m, s)
     elif s >= 1:
-        f = '{:.2f} seconds'.format(s)
+        f_ms = '{:.2f} seconds'.format(s)
     elif ms >= 1:
-        f = '{:.0f} ms'.format(ms)
-    elif ms >= 0.1:
-        f = '{:.2f} ms'.format(ms)
-    elif mis >= 1:
-        f = '{:.0f} μs'.format(mis)
+        f_ms = '{:.1f} ms'.format(ms)
+    elif us >= 1:
+        f_ms = '{:.0f} μs'.format(us)
     else:
-        f = '{:.0f} ns'.format(ns)
+        f_ms = '{:.0f} ns'.format(ns)
 
-    return f
+    return f_ms
 
 
 def function_name(f):
@@ -210,32 +221,27 @@ def object_name(o):
 
 
 def json_dumps_extended(o, indent=4, ensure_ascii=False):
+    """ if ultrajson not installed, use json_unhandled_conversion() as default function  """
     if ultrajson_installed:
-        return json.dumps(o, indent=indent)
+        return json.dumps(o,
+                          indent=indent,
+                          ensure_ascii=ensure_ascii)
+    else:
+        return json.dumps(o,
+                          indent=indent,
+                          ensure_ascii=ensure_ascii,
+                          default=json_unhandled_conversion)
 
-    s = json.dumps(o,
-                   indent=indent,
-                   default=json_unhandled_conversion,
-                   ensure_ascii=ensure_ascii)
 
-    return s
-
-
-def json_unhandled_conversion(o):
+def json_unhandled_conversion(v):
     """
-    json can not convert certain python objects to
-    string representations like dates, sets, etc
+    convert certain python objects to json string representations, eg:
+        date, datetime, set
     """
-    if isinstance(o, date):
-        return o.isoformat()
+    if isinstance(v, date):
+        return v.isoformat()
+    if isinstance(v, set):
+        return list(v)
 
-    if isinstance(o, set):
-        return list(o)
-
-    raise TypeError('cannot convert type to json ' + repr(o))
-
-
-
-
-
+    raise TypeError("Object of type '{}' is not JSON serializable".format(object_name(v)))
 

@@ -10,56 +10,49 @@ from logging import StreamHandler
 from logging import (NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL)
 
 from .. util.filesystem import parse_path
-
-level_colors  = {NOTSET:   'grey',
-                 DEBUG:    'grey',
-                 INFO:     'blue',
-                 WARNING:  'yellow',
-                 ERROR:    'red',
-                 CRITICAL: 'red'}
-color_numbers = {'white':   30,
-                 'red':     31,
-                 'orange':  32,
-                 'yellow':  33,
-                 'blue':    34,
-                 'magenta': 35,
-                 'green':   36,
-                 'bronze':  37,
-                 'grey':    29}
+from .. util.filesystem import standardize_dir
+from .. util.text import object_name
+from .. util.text import vengeance_message
 
 
 class log_cls(Logger):
-    def __init__(self, path='',
+
+    def __init__(self, path_or_name='',
                        level='DEBUG',
                        log_format='%(message)s',
                        exception_callback=None):
         """
-        :param path:
-            if path includes directory, a file handler
-            is added at that location, otherwise
-            path is used as name of logger
+        :param path_or_name:
+            parsed to determine name of logger
+            if path_or_name includes directory or file extension, a file handler is added
         :param log_format:
             format to be applied to handlers
             eg log_format:
                 '[%(asctime)s] [%(levelname)s] %(message)s'
         :param exception_callback:
-            function to be called after self.exception_handler()
+            function to be invoked when self.exception_handler() is called
+            sys.excepthook is automatically set to self.exception_handler if
+            exception_callback is a valid function
         """
-        if exception_callback is not None and not callable(exception_callback):
+        if (exception_callback is not None) and not callable(exception_callback):
             raise TypeError('exception_callback must be callable')
 
-        filedir, name, extn = parse_path(path, explicit_cwd=False)
+        filedir, logname, extn = parse_path(path_or_name, explicit_cwd=False)
         if isinstance(level, str):
-            level = level.upper()
+            level = level.upper().strip()
 
-        super().__init__(name, level)
+        super().__init__(logname, level)
 
+        self.path      = self.__set_path(filedir, logname, extn)
         self.formatter = Formatter(log_format)
+
         self.exception_callback = exception_callback
         self.exception_message  = ''
+        self.banner_character   = '*'
+        self.banner_width       = None
 
-        self._add_stream_handler(stream=sys.stdout)
-        self.path = self._add_file_handler(filedir, name, extn)
+        self._add_stream_handler(sys.stdout)
+        self._add_file_handler(self.path)
 
         if exception_callback:
             sys.excepthook = self.exception_handler
@@ -88,7 +81,9 @@ class log_cls(Logger):
             h.setFormatter(self.formatter)
 
     def add_parent_log(self, p_log):
-        assert id(p_log) != id(self)
+        if id(p_log) == id(self):
+            raise ValueError('parent log and self are the same')
+
         self.parent = p_log
         self.close_stream_handlers()
 
@@ -118,15 +113,9 @@ class log_cls(Logger):
         h.setFormatter(self.formatter)
         self.addHandler(h)
 
-    def _add_file_handler(self, filedir, filename, extn):
-        if not filedir:
-            return ''
-
-        if not os.path.exists(filedir):
-            os.makedirs(filedir)
-
-        extn = extn or '.log'
-        path = filedir + filename + extn
+    def _add_file_handler(self, path):
+        if not path:
+            return
 
         h = FileHandler(path, mode='w', encoding='utf-8')
 
@@ -134,89 +123,145 @@ class log_cls(Logger):
         h.setFormatter(self.formatter)
         self.addHandler(h)
 
-        return path
-
     def exception_handler(self, e_type, e_msg, e_traceback):
-        """ sys.excepthook = log.exception_handler """
+        """
+        sys.excepthook = log.exception_handler
 
-        _e_type_ = 'Exception'
-        _e_msg_  = 'unknown error'
-        filename = ''
-        lineno   = ''
+        try:
+            1 / 0
+        except:
+            log.exception_handler(*sys.exc_info())
+        """
+        try:
+            self.exception_message = self.__formatted_exception_message(e_type, e_msg, e_traceback)
+        except Exception:
+            self.exception_message = 'error occurred in log_cls.__formatted_exception_message()'
+            vengeance_message(self.exception_message)
 
-        if e_type:
-            _e_type_ = e_type.__name__
-
-        if e_msg:
-            _e_msg_ = '{}'.format(str(e_msg).replace('"', "'"))
-
-        if e_traceback:
-            filename = e_traceback.tb_frame.f_code.co_filename
-            lineno   = e_traceback.tb_lineno
-
-        error_msg = self.__formatted_error_message(_e_type_,
-                                                   _e_msg_,
-                                                   filename,
-                                                   lineno)
-        self.error(error_msg, exc_info=(e_type, e_msg, e_traceback))
+        self.error(self.exception_message, exc_info=(e_type, e_msg, e_traceback))
 
         if self.exception_callback:
             self.exception_callback()
 
-        self.exception_message = '{}: {}'.format(_e_type_, _e_msg_)
-
         return self.exception_message
 
-    def __formatted_error_message(self, _e_type_, _e_msg_, filename, lineno):
+    def __formatted_exception_message(self, e_type, e_msg, e_traceback):
+        title_message = '(The result w:resign was added to the game information ...)'
 
-        error_msg = dedent('''
-        
-        banner_top
-            (The result w+resign was added to the game information)
+        _e_type_ = 'Exception'
+        _e_msg_  = 'unknown error'
+        filename = 'unknown'
+        lineno   = 'unknown'
+
+        if e_type:
+            _e_type_ = object_name(e_type)
+        if e_msg:
+            _e_msg_ = '{}'.format(str(e_msg).replace('"', "'"))
+        if e_traceback:
+            filename = e_traceback.tb_frame.f_code.co_filename
+            lineno   = e_traceback.tb_lineno
+
+        if isinstance(self.banner_width, int):
+            banner_width = self.banner_width
+        else:
+            banner_width = max([len(title_message),
+                                *[len(line) for line in str(_e_msg_).split('\n')],
+                                *[len(line) for line in str(filename).split('\n')]]) + 10
+            banner_width = max(banner_width, 90)
+
+        # banner_top    = '{}^{}'.format(self.banner_character, banner_width)
+        # banner_top    = '{:{}}'.format('  ' + repr(self) + '  ', banner_top)
+        # banner_bottom = banner_char * len(banner_top)
+
+        banner_top    = self.banner_character * banner_width
+        banner_bottom = self.banner_character * banner_width
+
+        exception_message = dedent('''
+        {banner_top}
+            {title_message}
+            {repr_self}
             
-            <{e_type}>: {e_msg}
-            {filename}, {lineno}
-        banner_bottom
+            <{e_type}> {e_msg}
+            File: {filename}
+            Line: {lineno}
+        {banner_bottom}
+        
+        ''').format(banner_top=banner_top,
+                    title_message=title_message,
+                    repr_self=repr(self),
+                    e_type=_e_type_,
+                    e_msg=_e_msg_,
+                    filename=filename,
+                    lineno=lineno,
+                    banner_bottom=banner_bottom)
 
-        ''').format(e_type=_e_type_,   e_msg=_e_msg_,
-                    filename=filename, lineno=lineno)
+        return exception_message
 
-        banner_char = '-'
+    @staticmethod
+    def __set_path(filedir, logname, extn):
+        if extn == '.py':
+            extn = ''
 
-        banner_width  = max(len(line) for line in error_msg.split('\n')) + 10
-        banner_format = '{}^{}'.format(banner_char, banner_width)
+        if not (filedir or extn):
+            return ''
 
-        banner_top = '  {}  '.format(repr(self))
-        banner_top = '{:{}}'.format(banner_top, banner_format)
-        banner_bottom = banner_char * banner_width
+        filedir = standardize_dir(filedir, explicit_cwd=True)
+        if not os.path.exists(filedir):
+            os.makedirs(filedir)
 
-        error_msg = (error_msg.replace('banner_top', banner_top, 1)
-                              .replace('banner_bottom', banner_bottom, 1))
+        extn = extn or '.log'
+        path = filedir + logname + extn
 
-        return error_msg
+        return path
 
     def __repr__(self):
-        name = self.name or '(empty)'
-        return 'vengeance log: {}'.format(name)
+        return 'vengeance log: {}'.format(self.name)
 
 
 class colored_streamhandler_cls(StreamHandler):
+
+    # https://en.wikipedia.org/wiki/ANSI_escape_code
+    level_colors  = {NOTSET:   'grey',
+                     DEBUG:    'grey',
+                     INFO:     'white',
+                     WARNING:  'bright_yellow',
+                     ERROR:    'red',
+                     CRITICAL: 'bright_magenta'}
+    ascii_escapes = {'end':            '\x1b[0m',       # misc
+                     'bold':           '\x1b[1m',
+                     'italic':         '\x1b[3m',
+                     'underline':      '\x1b[4m',
+
+                     'grey':           '\x1b[29m',      # colors
+                     'white':          '\x1b[30m',
+                     'red':            '\x1b[31m',
+                     'orange':         '\x1b[32m',
+                     'yellow':         '\x1b[33m',
+                     'blue':           '\x1b[34m',
+                     'magenta':        '\x1b[35m',
+                     'green':          '\x1b[36m',
+                     'bronze':         '\x1b[37m',
+                     'bright_red':     '\x1b[91m',
+                     'bright_yellow':  '\x1b[93m',
+                     'bright_magenta': '\x1b[95m'}
+
     def __init__(self, stream=None):
         super().__init__(stream)
 
-    # noinspection PyBroadException
     def emit(self, record):
         try:
-            color = level_colors.get(record.levelno, 'white')
-            color = color_numbers[color]
-            message = self.format(record) + '\n'
+            escapes    = self.ascii_escapes
+            color_name = self.level_colors.get(record.levelno, 'grey')
 
-            colored_message_a = '\x1b[{};1m'.format(color)
-            colored_message_b = '{}\x1b[0m'.format(message)
-            colored_message   = colored_message_a + colored_message_b
+            colored_message = ('{asci_color}{asci_effect}{message}{ascii_end}\n'
+                               .format(asci_color=escapes[color_name],
+                                       asci_effect=escapes['bold'],
+                                       message=self.format(record),
+                                       ascii_end=escapes['end']))
 
             self.stream.write(colored_message)
             self.flush()
+
         except RecursionError:
             raise
         except Exception:
