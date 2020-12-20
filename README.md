@@ -12,42 +12,40 @@ One nice-to-have in this kind of data however, would be to make each row in the 
 of by integer indices, eg
 
     for row in matrix:
-        row.field_a
+        row[17]              (what's in that 18th column again?)
 
     for row in matrix:
-        row[17]              (did I count those columns correctly?)
+        row.field_a
 
 
-#### Two possible approaches for implementing this nice-to-have are:
+#### Two possible approaches for implementing this "nice-to-have" feature are:
 
 1) Convert rows to dictionaries (a JSON-like approach)
 
     However, using duplicate dictionary instances for every row has a high memory
-    footprint, makes renaming or modifying columns an expensive operation,
-    and row values can't be accessed by numerical index, eg
+    footprint, and makes renaming or modifying columns an expensive operation, eg
     
         [
-            {'col_a': 1, 'col_b': 'b', 'col_c': 'c'},
-            {'col_a': 2, 'col_b': 'b', 'col_c': 'c'},
-            {'col_a': 3, 'col_b': 'b', 'col_c': 'c'}
+            {'col_a': 'a', 'col_b': 'b', 'col_c': 'c'},
+            {'col_a': 'a', 'col_b': 'b', 'col_c': 'c'},
+            {'col_a': 'a', 'col_b': 'b', 'col_c': 'c'}
         ]
 
 2) Convert rows to namedtuples
 
     Namedtuples do not have per-instance dictionaries, so they have a 
-    light memory footprint and row values can be accessed by numerical index.
-    Unfortunately, tuple values are stored read-only, which makes 
-    any modifications to their field names or values much more complicated. What we 
-    are after is something that behaves like a namedlist
+    light memory footprint. Unfortunately, tuple values are stored read-only, which makes 
+    any modifications tricky. What we are really after is something that 
+    behaves more like a namedlist
 
-#### Doesn't a pandas DataFrame already do this?
+#### Isn't this just a reinvention of a pandas DataFrame?
 
-Yes, but in a DataFrame, data is stored in column-major order (vectorized), and going row-by-row in a DataFrame 
+In a DataFrame, data is stored in column-major order (vectorized), and going row-by-row in a DataFrame 
 (df.iterrows()) suffers from poor performance. Column-major organization also requires specialized methods 
-for nearly every modification, which can lead to very convoluted syntax.
+for nearly every operation, which can lead to very convoluted syntax.
 
-The most natural way to think about the data is that **each row is some entity, and each column is a property of that row**, 
-Reading and modifying values along row-major iteration are much more intuitive, and doesn't require vectorization
+The most natural way to think about the data is that **each row is some entity, and each column is a property of that row**. 
+Reading and modifying values along row-major iteration is much more intuitive, and doesn't require vectorization syntax 
 to be taken into account.
 
     row-major order:
