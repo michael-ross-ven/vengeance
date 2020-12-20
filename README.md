@@ -15,7 +15,7 @@ of by integer indices, eg
         row[17]              (what's in that 18th column again?)
 
     for row in matrix:
-        row.field_a
+        row.customer_id
 
 
 #### Two possible approaches for implementing this "nice-to-have" feature are:
@@ -41,7 +41,7 @@ of by integer indices, eg
 #### Isn't this just a reinvention of a pandas DataFrame?
 
 In a DataFrame, data is stored in column-major order (vectorized), and going row-by-row in a DataFrame 
-(df.iterrows()) suffers from poor performance. Column-major organization also requires specialized methods 
+suffers from poor performance. Column-major organization also requires specialized methods 
 for nearly every operation, which can lead to very convoluted syntax.
 
 The most natural way to think about the data is that **each row is some entity, and each column is a property of that row**. 
