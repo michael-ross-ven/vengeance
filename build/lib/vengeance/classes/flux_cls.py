@@ -36,7 +36,7 @@ class flux_cls:
     """ primary data management class
 
     * converts a list of lists (a matrix) to a list of flux_row_cls objects
-    * similar to a pandas DataFrame, but optimized for row-major ordered operations
+    * similar to a pandas DataFrame, but optimized for row-major ordered operations (df.iterrows())
 
     eg:
         matrix = [['col_a', 'col_b', 'col_c'],
@@ -272,12 +272,25 @@ class flux_cls:
     def columns(self, *names):
         names = self.__standardize_variable_arity_arguments(names, 1)
 
+        rva = self.row_values_accessor(names)
+        col = (rva(row) for row in self.matrix[1:])
+
         is_single_column = (iteration_depth(names) == 1
                             and len(names) == 1)
+        if not is_single_column:
+            col = list(col)
+            col = transpose_to_lists(col)
+
+        return col
+
+    def columns2(self, *names):
+        names = self.__standardize_variable_arity_arguments(names, 1)
 
         rva = self.row_values_accessor(names)
         col = [rva(row) for row in self.matrix[1:]]
 
+        is_single_column = (iteration_depth(names) == 1
+                            and len(names) == 1)
         if not is_single_column:
             col = list(transpose_to_lists(col))
 

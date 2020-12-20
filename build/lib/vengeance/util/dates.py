@@ -120,7 +120,7 @@ def parse_date_string(s, d_format):
             date_time = __parse_date_dateutil(s)
         else:
             from .text import vengeance_message
-            vengeance_message("('python-dateutil' package not installed)")
+            print(vengeance_message("('python-dateutil' package not installed)"))
 
     return date_time
 

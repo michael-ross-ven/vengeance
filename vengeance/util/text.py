@@ -7,12 +7,18 @@ from datetime import date
 from timeit import default_timer
 
 from ..conditional import is_tty_console
+from ..conditional import is_utf_console
 from ..conditional import ultrajson_installed
 
 if ultrajson_installed:
     import ujson as json
 else:
     import json
+
+if is_utf_console:
+    __vengeance_character__ = 'ν'       # utf nu: chr(957)
+else:
+    __vengeance_character__ = 'v'
 
 
 def print_runtime(f=None):
@@ -25,8 +31,8 @@ def print_runtime(f=None):
             toc  = default_timer()
             elapsed = -(tic - toc)
 
-            vengeance_message('@{}: {}'.format(function_name(_f_),
-                                               format_seconds(elapsed)))
+            print(vengeance_message('@{}: {}'.format(function_name(_f_),
+                                                     format_seconds(elapsed))))
             return retv
 
         return functools_wrapper
@@ -69,14 +75,17 @@ def print_performance(f=None, *, repeat=3):
                 else:
                     worst = max(worst, elapsed)
 
-            vengeance_message('@{}'
-                              '\n\t\tworst:   {}'
-                              '\n\t\taverage: {}'
-                              '\n\t\tbest:    {}'
-                              .format(function_name(_f_),
-                                      format_milliseconds(worst),
-                                      format_milliseconds(total / repeat),
-                                      format_milliseconds(best)))
+            s = ('@{}'
+                 '\n\t\tbest:    {}'
+                 '\n\t\taverage: {}'
+                 '\n\t\tworst:   {}'
+                 .format(function_name(_f_),
+                         format_milliseconds(best),
+                         format_milliseconds(total / repeat),
+                         format_milliseconds(worst)))
+            s = vengeance_message(s)
+
+            print(s)
 
             if was_gc_enabled:
                 gc.enable()
@@ -133,23 +142,21 @@ def styled(message,
     return styled_message
 
 
-def vengeance_message(message, printed=True):
-    vs = '\tν: {}'.format(message)
-    if printed:
-        try:
-            print(vs)
-        except UnicodeEncodeError:
-            print(unicode_to_ascii(vs))
+def vengeance_message(message):
+    return '\t{}: {}'.format(__vengeance_character__,
+                             message)
 
-    return vs
+
+def print_u(message):
+    try:
+        print(message)
+    except UnicodeEncodeError:
+        print(unicode_to_ascii(message))
 
 
 def unicode_to_ascii(message):
-    message = (message.replace('ν', 'v')
-                      .replace('μ', 'u')
-                      .encode('ascii', errors='backslashreplace')
-                      .decode('ascii'))
-    return message
+    return (message.encode('ascii', errors='backslashreplace')
+                   .decode('ascii'))
 
 
 def deprecated(message='deprecated'):
@@ -185,8 +192,9 @@ def vengeance_warning(message,
         fileloc = ''
     elif stackframe is None:
         stackframe = traceback.extract_stack(inspect.currentframe(), limit=stacklevel)[0]
-        fileloc = '\n\tν: File "{filename}", line {lineno}'.format(filename=stackframe.filename,
-                                                                   lineno=stackframe.lineno)
+        fileloc = '\n\t{vc}: File "{filename}", line {lineno}'.format(vc=__vengeance_character__,
+                                                                      filename=stackframe.filename,
+                                                                      lineno=stackframe.lineno)
 
     def vengeance_formatwarning(*_, **__):
         nonlocal category
@@ -196,9 +204,10 @@ def vengeance_warning(message,
         w_category = object_name(category)
         w_message  = message.replace('"', '').replace('\n', '\n\t   ')
 
-        w_s = ('\tν: <{w_category}> {w_message}'
+        w_s = ('\t{vc}: <{w_category}> {w_message}'
                '{fileloc}'
-               '\n\n'.format(w_category=w_category,
+               '\n\n'.format(vc=__vengeance_character__,
+                             w_category=w_category,
                              w_message=w_message,
                              fileloc=fileloc))
         return w_s
@@ -237,7 +246,10 @@ def format_milliseconds(ms):
     elif ms >= 1:
         f_ms = '{:.1f} ms'.format(ms)
     elif us >= 1:
-        f_ms = '{:.0f} μs'.format(us)
+        if is_utf_console:
+            f_ms = '{:.0f} μs'.format(us)
+        else:
+            f_ms = '{:.0f} mi s'.format(us)
     else:
         f_ms = '{:.0f} ns'.format(ns)
 

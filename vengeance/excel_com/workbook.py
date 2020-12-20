@@ -1,5 +1,6 @@
 
 import ctypes
+import os
 import pythoncom
 
 from _ctypes import COMError as ctypes_error
@@ -12,10 +13,11 @@ from ctypes.wintypes import BOOL
 
 from comtypes import GUID
 from comtypes import IUnknown
-from comtypes.automation      import IDispatch    as comtypes_idispatch
+
 from comtypes.client          import CreateObject as comtypes_createobject
-from comtypes.client.dynamic  import Dispatch     as comtypes_dispatch           # late-bound reference
-from win32com.client.gencache import EnsureDispatch                              # early-bound reference
+from comtypes.automation      import IDispatch    as comtypes_idispatch
+from comtypes.client.dynamic  import Dispatch     as comtypes_dispatch
+from win32com.client.gencache import EnsureDispatch                          # early-bound references
 
 # noinspection PyUnresolvedReferences
 from pythoncom import com_error as pythoncom_error
@@ -23,6 +25,7 @@ from pythoncom import com_error as pythoncom_error
 from ..util.filesystem import standardize_path
 from ..util.filesystem import validate_path_exists
 
+from ..util.text import styled
 from ..util.text import vengeance_message
 from ..util.text import vengeance_warning
 from .excel_constants import *
@@ -142,7 +145,7 @@ def __open_workbook_dispatch(path, excel_app,
     excel_app = __validate_excel_application(excel_app, windowstate)
 
     if read_only:
-        vengeance_message('(opening workbook as read-only ...)')
+        print(vengeance_message('(opening workbook as read-only ...)'))
 
     excel_app.DisplayAlerts = False
     wb = excel_app.Workbooks.Open(path, update_links, read_only)
@@ -196,7 +199,7 @@ def empty_excel_application(windowstate=None):
     for excel_app in all_excel_instances():
 
         if __is_excel_application_empty(excel_app):
-            vengeance_message('utilizing empty Excel instance: {}'.format(excel_app.Hwsd))
+            print(vengeance_message('utilizing empty Excel instance: {}'.format(excel_app.Hwsd)))
             excel_application_to_foreground(excel_app, windowstate)
 
             return excel_app
@@ -227,7 +230,7 @@ def all_excel_instances():
 
 
 def reload_all_add_ins(excel_app):
-    vengeance_message('reloading Excel add-ins...')
+    print(vengeance_message('reloading Excel add-ins...'))
 
     for add_in in excel_app.AddIns:
         if add_in.Installed:
@@ -289,30 +292,26 @@ def __excel_application_from_window_handle(window_h):
                                byref(xl_guid),
                                byref(obj_ptr))
 
-    # comtypes Dispatch() call rejected; user may be editing cell
+    # comtypes Dispatch() call rejected: user may be editing cell
     try:
         com_ptr   = comtypes_dispatch(obj_ptr).Application
         excel_app = __comtype_pointer_to_pythoncom_object(com_ptr, comtypes_idispatch)
     except (ctypes_error, pythoncom_error, NameError) as e:
-        raise ChildProcessError('remote procedure call to Excel Application rejected\n\n'
-                                '(check if cursor is still active within a cell somewhere, '
-                                'Excel will reject automation calls while waiting on '
-                                'user input)') from e
+        raise ChildProcessError('Remote Procedure Call to Excel Application rejected. '
+                                '\n'
+                                '\n\t(Excel will reject automation calls while waiting on user input, '
+                                '\n\tcheck if cursor is still active within a cell somewhere)') from e
 
-    # win32com Dispatch() call rejected; COM files corrupted
+    # win32com Dispatch() call rejected: COM files may be corrupted
     try:
         return EnsureDispatch(excel_app)
     except AttributeError as e:
-        import subprocess
-        import win32com
 
-        gc_folder = win32com.__gen_path__
-        subprocess.call('explorer "{}"'.format(gc_folder))
-
-        raise ChildProcessError('\nError dispatching Excel Application from win32com module. \n'
-                                'Deleting the contents of the gencache folder, then rerunning may resolve the error\n'
-                                '\t(win32com gencache folder location: {})\n'
-                                .format(gc_folder)) from e
+        __move_win32com_gencache_folder()
+        raise ChildProcessError('Error dispatching Excel Application from win32com module. '
+                                '\n'
+                                '\n\t(Deleting the contents of the win32com gen_py folder '
+                                'may resolve the error)') from e
 
 
 # noinspection PyTypeChecker
@@ -339,3 +338,46 @@ def __is_excel_application_empty(excel_app):
                 return False
 
     return True
+
+
+def __move_win32com_gencache_folder():
+    """ move win32com gen_py cache files from temp to site-packages folder """
+    try:
+        from pathlib import Path
+        import shutil
+        import subprocess
+        import win32com
+
+        old_gcf = __default_gencache_folder()
+        new_gcf = __site_gencache_folder()
+
+        if not os.path.exists(old_gcf):
+            old_gcf = win32com.__gen_path__
+            if old_gcf == new_gcf:
+                return
+
+        s = styled(vengeance_message('Attempting to reset win32com gencache folder ...\n'),
+                   'yellow',
+                   'bold')
+        print(s)
+
+        if os.path.exists(old_gcf):
+            subprocess.call('explorer.exe "{}"'.format(Path(old_gcf).parent))
+            shutil.rmtree(old_gcf)
+
+        if not os.path.exists(new_gcf):
+            subprocess.call('explorer.exe "{}"'.format(Path(new_gcf).parent))
+            os.makedirs(new_gcf)
+
+    except Exception:
+        pass
+
+
+def __default_gencache_folder():
+    return os.environ['userprofile'] + '\\AppData\\Local\\Temp\\gen_py\\'
+
+
+def __site_gencache_folder():
+    import site
+    return site.getsitepackages()[1] + '\\win32com\\gen_py\\'
+

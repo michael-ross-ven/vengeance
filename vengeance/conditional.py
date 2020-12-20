@@ -4,13 +4,17 @@
 import sys
 from collections import OrderedDict
 
+python_version = sys.version_info
+is_pypy        = ('__pypy__' in sys.builtin_module_names)
+is_tty_console = (hasattr(sys.stdout, 'isatty') and sys.stdout.isatty())
+is_utf_console = ('utf' in sys.stdout.encoding.lower())
 
 """ ordereddict:
     starting at python 3.6 the built-in dict is both 
     insertion-ordered AND compact, using about half the 
     memory of collections.OrderedDict
 """
-if sys.version_info >= (3, 6):
+if python_version >= (3, 6):
     ordereddict = dict
 else:
     ordereddict = OrderedDict
@@ -43,10 +47,6 @@ try:
     line_profiler_installed = True
 except ImportError:
     line_profiler_installed = False
-
-
-is_pypy        = ('__pypy__' in sys.builtin_module_names)
-is_tty_console = hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
 
 # dateutil_installed      = False
 # ultrajson_installed     = False

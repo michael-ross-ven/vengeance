@@ -147,7 +147,7 @@ class log_cls(Logger):
             self.exception_message = self.__formatted_exception_message(e_type, e_msg, e_traceback)
         except Exception:
             self.exception_message = 'error occurred in log_cls.__formatted_exception_message()'
-            vengeance_message(self.exception_message)
+            print(vengeance_message(self.exception_message))
 
         self.error(self.exception_message, exc_info=(e_type, e_msg, e_traceback))
 

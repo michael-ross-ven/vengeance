@@ -1,4 +1,13 @@
 
+2020-12-20
+$release 42
+    version 1.1.4
+
+    flux_cls.columns():
+        now returns iterator instead of list
+    
+
+
 2020-12-18
 $release 41
     version 1.1.3
