@@ -42,7 +42,10 @@ of by integer indices, eg
 
 In a DataFrame, data is stored in column-major order (vectorized), and going row-by-row in a DataFrame 
 suffers from poor performance. Column-major organization also requires specialized methods 
-for nearly every operation, which can lead to very convoluted syntax.
+for nearly every operation, which can lead to very convoluted syntax
+
+    # wait, what does this do again?
+    df.groupby('subgroup', as_index=False).apply(lambda x: (x['col1'].head(1), x.shape[0], x['start'].iloc[-1] - x['start'].iloc[0]))
 
 The most natural way to think about the data is that **each row is some entity, and each column is a property of that row**. 
 Reading and modifying values along row-major iteration is much more intuitive, and doesn't require vectorization syntax 
