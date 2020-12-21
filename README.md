@@ -6,16 +6,15 @@
 (TODO: cleanup typos in this readme)
 
 Values stored as list of lists (ie, a matrix) should be able to be easily managed with pure Python,  
-without the need for a massive or complex library.
-
-One nice-to-have in this kind of data however, would be to make each row in the matrix accessible by column names instead 
+without the need for a massive or complex library. One nice-to-have in this kind of data however, 
+would be to make each row in the matrix accessible by column names instead 
 of by integer indices, eg
 
     for row in matrix:
-        row[17]              (what's in that 18th column again?)
+        row[17]              # What's in that 18th column again? Did any of the columns get reordered?
 
     for row in matrix:
-        row.customer_id
+        row.customer_id      # Oh, duh
 
 
 #### Two possible approaches for implementing this "nice-to-have" feature are:
@@ -45,7 +44,9 @@ suffers from poor performance. Column-major organization also requires specializ
 for nearly every operation, which can lead to very convoluted syntax
 
     # wait, what does this do again?
-    df.groupby('subgroup', as_index=False).apply(lambda x: (x['col1'].head(1), x.shape[0], x['start'].iloc[-1] - x['start'].iloc[0]))
+    df.groupby('subgroup', as_index=False).apply(lambda x: (x['col1'].head(1), 
+                                                            x.shape[0], 
+                                                            x['start'].iloc[-1] - x['start'].iloc[0]))
 
 The most natural way to think about the data is that **each row is some entity, and each column is a property of that row**. 
 Reading and modifying values along row-major iteration is much more intuitive, and doesn't require vectorization syntax 
