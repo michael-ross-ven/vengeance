@@ -1,19 +1,19 @@
 
-""" determine python interpreter version and which site-packages are installed """
-
+import os
 import sys
 from collections import OrderedDict
 
-python_version = sys.version_info
-is_pypy        = ('__pypy__' in sys.builtin_module_names)
-is_tty_console = (hasattr(sys.stdout, 'isatty') and sys.stdout.isatty())
-is_utf_console = ('utf' in sys.stdout.encoding.lower())
+python_version      = sys.version_info
+is_pypy_interpreter = ('__pypy__' in sys.builtin_module_names)
+is_windows_os       = (os.name == 'nt')
+is_tty_console      = (hasattr(sys.stdout, 'isatty') and sys.stdout.isatty())
+is_utf_console      = ('utf' in sys.stdout.encoding.lower())
 
-""" ordereddict:
+''' ordereddict:
     starting at python 3.6 the built-in dict is both 
     insertion-ordered AND compact, using about half the 
     memory of collections.OrderedDict
-"""
+'''
 if python_version >= (3, 6):
     ordereddict = dict
 else:
@@ -48,7 +48,14 @@ try:
 except ImportError:
     line_profiler_installed = False
 
+# is_pypy_interpreter = True
+# is_windows_os       = True
 # dateutil_installed      = False
 # ultrajson_installed     = False
 # line_profiler_installed = False
+
+# determines if excel_com module should be loaded in __init__
+loads_excel_module = (not is_pypy_interpreter) and is_windows_os
+pass
+
 

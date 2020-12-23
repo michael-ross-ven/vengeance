@@ -4,8 +4,8 @@ import setuptools
 from setuptools import setup
 
 
-__version__ = '1.1.4'
-__release__ = '$release 42'
+__version__ = '1.1.5'
+__release__ = '$release 43'
 long_description = ('https://github.com/michael-ross-ven/vengeance/blob/master/README.md'
                     '\n<br/>(specialize this for pypi.org later)')
 

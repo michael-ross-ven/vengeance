@@ -16,9 +16,9 @@ else:
     import json
 
 if is_utf_console:
-    __vengeance_character__ = 'ν'       # utf nu: chr(957)
+    __vengeance_prefix__ = (' '*4) + 'ν: '    # nu: chr(957)
 else:
-    __vengeance_character__ = 'v'
+    __vengeance_prefix__ = (' '*4) + 'v: '    # ascii
 
 
 def print_runtime(f=None):
@@ -76,9 +76,9 @@ def print_performance(f=None, *, repeat=3):
                     worst = max(worst, elapsed)
 
             s = ('@{}'
-                 '\n\t\tbest:    {}'
-                 '\n\t\taverage: {}'
-                 '\n\t\tworst:   {}'
+                 '\n        best:    {}'
+                 '\n        average: {}'
+                 '\n        worst:   {}'
                  .format(function_name(_f_),
                          format_milliseconds(best),
                          format_milliseconds(total / repeat),
@@ -103,48 +103,51 @@ def print_performance(f=None, *, repeat=3):
 # noinspection DuplicatedCode
 def styled(message,
            color_style=None,
-           text_style=None):
+           effect_style=None):
 
-    ascii_escapes = {'bold':           '\x1b[1m',       # effects
-                     'italic':         '\x1b[3m',
-                     'underline':      '\x1b[4m',
-                     'grey':           '\x1b[29m',      # colors
-                     'white':          '\x1b[30m',
-                     'red':            '\x1b[31m',
-                     'orange':         '\x1b[32m',
-                     'yellow':         '\x1b[33m',
-                     'blue':           '\x1b[34m',
-                     'magenta':        '\x1b[35m',
-                     'green':          '\x1b[36m',
-                     'bronze':         '\x1b[37m',
-                     'bright red':     '\x1b[91m',
-                     'bright yellow':  '\x1b[93m',
-                     'bright magenta': '\x1b[95m',
-                     'bright cyan':    '\x1b[96m',
-                     'end':            '\x1b[0m',       # misc
-                     '':               '',
-                     None:             ''}
+    # region {escape codes}
+    effect_codes = {'bold':      '\x1b[1m',
+                    'italic':    '\x1b[3m',
+                    'underline': '\x1b[4m',
+                    'end':       '\x1b[0m',
+                    '':          '',
+                    None:        ''}
+    color_codes = {'grey':           '\x1b[29m',
+                   'white':          '\x1b[30m',
+                   'red':            '\x1b[31m',
+                   'orange':         '\x1b[32m',
+                   'yellow':         '\x1b[33m',
+                   'blue':           '\x1b[34m',
+                   'magenta':        '\x1b[35m',
+                   'green':          '\x1b[36m',
+                   'bronze':         '\x1b[37m',
+                   'bright red':     '\x1b[91m',
+                   'bright yellow':  '\x1b[93m',
+                   'bright magenta': '\x1b[95m',
+                   'bright cyan':    '\x1b[96m',
+                   '':               '',
+                   None:             ''}
+    # endregion
 
-    if color_style not in ascii_escapes:
+    if color_style not in color_codes:
         raise KeyError('invalid color: {}'.format(color_style))
-    if text_style not in ascii_escapes:
-        raise KeyError('invalid style: {}'.format(text_style))
+    if effect_style not in effect_codes:
+        raise KeyError('invalid style: {}'.format(effect_style))
 
-    # TTY console doesn't support ascii escapes
-    if is_tty_console:
+    if is_tty_console:          # TTY console doesn't support ascii escapes
         return message
 
+    effect_end     = effect_codes['end']
     styled_message = ('{ascii_color}{effect_start}{message}{effect_end}'
-                       .format(ascii_color=ascii_escapes[color_style],
-                               effect_start=ascii_escapes[text_style],
+                       .format(ascii_color=color_codes[color_style],
+                               effect_start=effect_codes[effect_style],
                                message=message,
-                               effect_end=ascii_escapes['end']))
+                               effect_end=effect_end))
     return styled_message
 
 
 def vengeance_message(message):
-    return '\t{}: {}'.format(__vengeance_character__,
-                             message)
+    return __vengeance_prefix__ + message
 
 
 def print_u(message):
@@ -164,8 +167,7 @@ def deprecated(message='deprecated'):
     def deprecated_wrapper(_f_):
         @functools.wraps(_f_)
         def functools_wrapper(*args, **kwargs):
-            _message_ = '@{}():  "{}"'.format(function_name(_f_), message)
-
+            _message_ = "@{}: '{}'".format(function_name(_f_), message)
             vengeance_warning(_message_,
                               DeprecationWarning,
                               stacklevel=3,
@@ -182,44 +184,49 @@ def vengeance_warning(message,
                       category=Warning,
                       stacklevel=2,
                       stackframe=None):
-    import inspect
-    import sys
-    import traceback
+    # import sys
     import warnings
 
     # region {closure functions}
-    if stacklevel is None:
-        fileloc = ''
-    elif stackframe is None:
+    if isinstance(stacklevel, int) and stackframe is None:
+        import inspect
+        import traceback
         stackframe = traceback.extract_stack(inspect.currentframe(), limit=stacklevel)[0]
-        fileloc = '\n\t{vc}: File "{filename}", line {lineno}'.format(vc=__vengeance_character__,
-                                                                      filename=stackframe.filename,
-                                                                      lineno=stackframe.lineno)
 
     def vengeance_formatwarning(*_, **__):
+        nonlocal stackframe
         nonlocal category
         nonlocal message
-        nonlocal fileloc
+
+        aligned_indent = ' ' * len(__vengeance_prefix__)
 
         w_category = object_name(category)
-        w_message  = message.replace('"', '').replace('\n', '\n\t   ')
+        w_message  = message.replace('\n', '\n' + aligned_indent)
 
-        w_s = ('\t{vc}: <{w_category}> {w_message}'
-               '{fileloc}'
-               '\n\n'.format(vc=__vengeance_character__,
-                             w_category=w_category,
-                             w_message=w_message,
-                             fileloc=fileloc))
-        return w_s
+        line_1 = '<{}> {}'.format(w_category, w_message)
+        if stackframe is None:
+            line_2 = 'File {unknown}, line {unknown}'
+        else:
+            line_2 = 'File "{}", line {}'.format(stackframe.filename, stackframe.lineno)
+
+        line_1 = vengeance_message(line_1)
+        line_2 = aligned_indent + line_2
+        w_message = '{}\n{}\n'.format(line_1, line_2)
+
+        # w_message = styled(w_message, 'yellow', 'bold')
+
+        return w_message
     # endregion
 
     original_formatwarning = warnings.formatwarning
+
     warnings.formatwarning = vengeance_formatwarning
     warnings.warn(message)
     warnings.formatwarning = original_formatwarning
 
-    sys.stdout.flush()
-    sys.stderr.flush()
+    # print(end='')
+    # sys.stdout.flush()
+    # sys.stderr.flush()
 
 
 def format_seconds(secs):

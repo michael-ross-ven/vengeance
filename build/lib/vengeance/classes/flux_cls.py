@@ -135,18 +135,22 @@ class flux_cls:
                       filetype=None,
                       fkwargs=None):
 
-        filetype = filetype or parse_file_extension(path)
+        if filetype is None:
+            filetype = parse_file_extension(path, include_dot=True)
+        elif not filetype.startswith('.'):
+            filetype += '.'
+
+        filetype = filetype.lower()
 
         if filetype == '.csv':
-            flux = self.to_csv(path, encoding, fkwargs=fkwargs)
+            return self.to_csv(path, encoding, fkwargs=fkwargs)
         elif filetype == '.json':
-            flux = self.to_json(path, encoding, fkwargs=fkwargs)
+            return self.to_json(path, encoding, fkwargs=fkwargs)
         elif filetype in pickle_extensions:
-            flux = self.serialize(path, fkwargs=fkwargs)
-        else:
-            raise ValueError("invalid file extension for '{}'".format(path))
+            return self.serialize(path, fkwargs=fkwargs)
 
-        return flux
+        raise ValueError("invalid filetype: '{}' \nfiletype must be in {}"
+                         .format(filetype, ['.csv', '.json'] + list(pickle_extensions)))
 
     @classmethod
     def from_file(cls, path,
@@ -155,7 +159,12 @@ class flux_cls:
                        filetype=None,
                        fkwargs=None):
 
-        filetype = filetype or parse_file_extension(path)
+        if filetype is None:
+            filetype = parse_file_extension(path, include_dot=True)
+        elif not filetype.startswith('.'):
+            filetype += '.'
+
+        filetype = filetype.lower()
 
         if filetype == '.csv':
             return cls.from_csv(path, encoding, fkwargs=fkwargs)
@@ -164,7 +173,8 @@ class flux_cls:
         if filetype in pickle_extensions:
             return cls.deserialize(path, fkwargs=fkwargs)
 
-        raise ValueError("invalid file extension for '{}'".format(path))
+        raise ValueError("invalid filetype: '{}' \nfiletype must be in {}"
+                         .format(filetype, ['.csv', '.json'] + list(pickle_extensions)))
 
     def to_csv(self, path,
                      encoding=None,
@@ -283,19 +293,6 @@ class flux_cls:
 
         return col
 
-    def columns2(self, *names):
-        names = self.__standardize_variable_arity_arguments(names, 1)
-
-        rva = self.row_values_accessor(names)
-        col = [rva(row) for row in self.matrix[1:]]
-
-        is_single_column = (iteration_depth(names) == 1
-                            and len(names) == 1)
-        if not is_single_column:
-            col = list(transpose_to_lists(col))
-
-        return col
-
     def rows(self, r_1=0, r_2=None):
         return (row.values for row in self.matrix[r_1:r_2])
 
@@ -340,8 +337,8 @@ class flux_cls:
         return self
 
     def execute_commands(self, commands, profiler=False):
-        profiler = self.__validate_profiler_function(profiler)
         commands = self.__parse_commands(commands)
+        profiler = self.__validate_profiler_function(profiler)
 
         completed_commands = []
         for command in commands:

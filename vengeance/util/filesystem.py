@@ -1,7 +1,4 @@
 
-from .. conditional import cpickle
-from .. conditional import ultrajson_installed
-
 import csv
 import gc
 import os
@@ -15,6 +12,8 @@ from glob import glob
 from string import ascii_lowercase
 
 from . text import json_unhandled_conversion
+from .. conditional import cpickle
+from .. conditional import ultrajson_installed
 
 if ultrajson_installed:
     import ujson as json
@@ -274,7 +273,7 @@ def parse_path(path,
 
 def parse_file_extension(filename, include_dot=True):
     _, extension = os.path.splitext(filename)
-    if (include_dot is False) and (extension.startswith('.')):
+    if (include_dot is False) and extension.startswith('.'):
         extension = extension[1:]
 
     return extension

@@ -306,7 +306,6 @@ def __excel_application_from_window_handle(window_h):
     try:
         return EnsureDispatch(excel_app)
     except AttributeError as e:
-
         __move_win32com_gencache_folder()
         raise ChildProcessError('Error dispatching Excel Application from win32com module. '
                                 '\n'

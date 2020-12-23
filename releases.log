@@ -1,11 +1,25 @@
 
+2020-12-23
+$release 43
+    version 1.1.5
+
+    *** added loads_excel_module flag to conditional ***:
+        attempt to load Excel module in __init__, but allow it to fail if it's not expected to support Windows COM
+        loads_excel_module = (not is_pypy_interpreter) and is_windows_os
+        *** this flag allows flux_cls to be used independently from Excel functionality on a broader range of platforms ***
+
+    flux_cls.columns2() removed: 
+        (leftover from performance testing)
+
+
+
 2020-12-20
 $release 42
     version 1.1.4
 
     flux_cls.columns():
         now returns iterator instead of list
-    
+
 
 
 2020-12-18
