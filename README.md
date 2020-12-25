@@ -1,10 +1,9 @@
 ## Managing tabular data shouldn't be complicated.
-
-#### See https://github.com/michael-ross-ven/vengeance_unittest project for examples. 
-#### Start with *flux_example.py* and *excel_levity_example.py*
+---
+##### See https://github.com/michael-ross-ven/vengeance_unittest project for examples.
+##### Start with *flux_example.py* and *excel_levity_example.py*
 \
 \
-
 Values stored as list of lists (ie, a matrix) should be able to be easily managed with pure Python,  
 without the need for a massive or complex library. An additional nice-to-have with these matrices however, 
 would be to make values in each row accessible by column names instead of by integer indices, eg
@@ -48,8 +47,7 @@ and making it less clear to see the one-- and preferably only one --obvious way 
                                                             x.shape[0], 
                                                             x['start'].iloc[-1] - x['start'].iloc[0]))
 
-Row-major order is the most natural way to think about the data, where **each row is some entity, and each column is a property of that row**. 
-Reading and modifying values along row-by-row iteration is much more intuitive, and doesn't require vectorization optimzation 
+Row-major order is the most natural way to think about the data, where **each row is some entity, and each column is a property of that row**. Reading and modifying values along row-by-row iteration is much more intuitive, and doesn't require vectorization optimzation 
 to be taken into account.
 
     row-major order:
@@ -62,8 +60,7 @@ to be taken into account.
          {'col_a': ['a', 'a', 'a'],
           'col_a': ['b', 'b', 'b'],
           'col_a': ['c', 'c', 'c']}
-\
-\
+
 
 #### Example usage for flux_cls:
     matrix = [['col_a', 'col_b', 'col_c'],
@@ -78,7 +75,7 @@ to be taken into account.
 
       a = row[-1]
       row[-1] = 'bleh'
-\
+
 
     col = flux['col_a']
     flux['col_z'] = ['bleh'] * len(flux)
