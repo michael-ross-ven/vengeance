@@ -1,4 +1,5 @@
-/vengeance.egg-info
+/build
 /dist
+/vengeance.egg-info
 /vengeance/.idea
 /vengeance/__pycache__

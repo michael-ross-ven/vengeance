@@ -1,14 +1,13 @@
 ## Managing tabular data shouldn't be complicated.
 
-#### (See https://github.com/michael-ross-ven/vengeance_unittest project for examples, start with *flux_example.py* and *excel_levity_example.py*)
+#### See https://github.com/michael-ross-ven/vengeance_unittest project for examples. 
+#### Start with *flux_example.py* and *excel_levity_example.py*
 \
 \
-(TODO: cleanup typos in this readme)
 
 Values stored as list of lists (ie, a matrix) should be able to be easily managed with pure Python,  
-without the need for a massive or complex library. One nice-to-have in this kind of data however, 
-would be to make each row in the matrix accessible by column names instead 
-of by integer indices, eg
+without the need for a massive or complex library. An additional nice-to-have with these matrices however, 
+would be to make values in each row accessible by column names instead of by integer indices, eg
 
     for row in matrix:
         row[17]              # What's in that 18th column again? Did any of the columns get reordered?
@@ -35,21 +34,22 @@ of by integer indices, eg
     Namedtuples do not have per-instance dictionaries, so they have a 
     light memory footprint. Unfortunately, tuple values are stored read-only, which makes 
     any modifications tricky. What we are really after is something that 
-    behaves more like a namedlist
+    behaves more like a namespace.
 
 #### Isn't this just a reinvention of a pandas DataFrame?
 
-In a DataFrame, data is stored in column-major order (vectorized), and going row-by-row in a DataFrame 
-suffers from poor performance. Column-major organization also requires specialized methods 
-for nearly every operation, which can lead to very convoluted syntax
+In a DataFrame, data is stored in column-major order, and there is a huge performance penalty 
+for any row-by-row iteration. A DataFrame also requires specialized methods 
+for nearly every operation (to take advantage of vectorization), which can lead to very convoluted syntax, 
+and making it less clear to see the one-- and preferably only one --obvious way to do it.
 
-    # wait, what does this do again?
+    # wait, do I have this right?
     df.groupby('subgroup', as_index=False).apply(lambda x: (x['col1'].head(1), 
                                                             x.shape[0], 
                                                             x['start'].iloc[-1] - x['start'].iloc[0]))
 
-The most natural way to think about the data is that **each row is some entity, and each column is a property of that row**. 
-Reading and modifying values along row-major iteration is much more intuitive, and doesn't require vectorization syntax 
+Row-major order is the most natural way to think about the data, where **each row is some entity, and each column is a property of that row**. 
+Reading and modifying values along row-by-row iteration is much more intuitive, and doesn't require vectorization optimzation 
 to be taken into account.
 
     row-major order:
@@ -62,7 +62,8 @@ to be taken into account.
          {'col_a': ['a', 'a', 'a'],
           'col_a': ['b', 'b', 'b'],
           'col_a': ['c', 'c', 'c']}
-
+\
+\
 
 #### Example usage for flux_cls:
     matrix = [['col_a', 'col_b', 'col_c'],
@@ -73,16 +74,17 @@ to be taken into account.
 
     for row in flux:
       a = row.col_a
-      row.col_b = 'blah'
+      row.col_b = 'bleh'
 
-      a = row.values[-1]
-      row.values[-1] = 'blah'
+      a = row[-1]
+      row[-1] = 'bleh'
+\
 
     col = flux['col_a']
-    flux['col_z'] = ['blah'] * len(flux)
+    flux['col_z'] = ['bleh'] * len(flux)
     rows = flux.matrix[10:20]
 
-    flux.insert_rows(i=5, rows=[['blah', 'blah', 'blah']] * 10)
+    flux.insert_rows(i=5, rows=[['bleh', 'bleh', 'bleh']] * 10)
     flux.rename_columns({'col_a': 'renamed_a',
                          'col_b': 'renamed_b'})
 
