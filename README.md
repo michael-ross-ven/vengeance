@@ -40,7 +40,7 @@ would be to make values in each row accessible by column names instead of by int
 In a DataFrame, data is stored in column-major order, and there is a huge performance penalty 
 for any row-by-row iteration. A DataFrame also requires specialized methods 
 for nearly every operation (to take advantage of vectorization), which can lead to very convoluted syntax, 
-and making it less clear to see the one-- and preferably only one --obvious way to do it.
+and makes it less clear to see the one-- and preferably only one --obvious way to do it.
 
     # wait, do I have this right?
     df.groupby('subgroup', as_index=False).apply(lambda x: (x['col1'].head(1), 
@@ -62,12 +62,12 @@ to be taken into account.
           'col_a': ['c', 'c', 'c']}
 
 
-#### Example usage for flux_cls:
+#### Example usage for vengeance.flux_cls:
     matrix = [['col_a', 'col_b', 'col_c'],
               ['a',     'b',     'c'],
               ['a',     'b',     'c'],
               ['a',     'b',     'c']]
-    flux = flux_cls(matrix)
+    flux = vengeance.flux_cls(matrix)
 
     for row in flux:
       a = row.col_a
