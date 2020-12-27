@@ -21,7 +21,7 @@ else:
     __vengeance_prefix__ = (' '*4) + 'v: '    # ascii
 
 
-def print_runtime(f=None):
+def print_runtime(f):
 
     def runtime_wrapper(_f_):
         @functools.wraps(_f_)
@@ -31,16 +31,15 @@ def print_runtime(f=None):
             toc  = default_timer()
             elapsed = -(tic - toc)
 
-            print(vengeance_message('@{}: {}'.format(function_name(_f_),
-                                                     format_seconds(elapsed))))
+            s = '@{}: {}'.format(function_name(_f_), format_seconds(elapsed))
+            s = vengeance_message(s)
+            print(s)
+
             return retv
 
         return functools_wrapper
 
-    if f is None:
-        return runtime_wrapper
-    else:
-        return runtime_wrapper(f)
+    return runtime_wrapper(f)
 
 
 def print_performance(f=None, *, repeat=3):
@@ -65,6 +64,9 @@ def print_performance(f=None, *, repeat=3):
                 elapsed = -(tic - toc)
                 total  += elapsed
 
+                # best  = elapsed if (best is None)  else min(best, elapsed)
+                # worst = elapsed if (worst is None) else max(worst, elapsed)
+
                 if best is None:
                     best = elapsed
                 else:
@@ -84,7 +86,6 @@ def print_performance(f=None, *, repeat=3):
                          format_milliseconds(total / repeat),
                          format_milliseconds(worst)))
             s = vengeance_message(s)
-
             print(s)
 
             if was_gc_enabled:
@@ -150,18 +151,6 @@ def vengeance_message(message):
     return __vengeance_prefix__ + message
 
 
-def print_u(message):
-    try:
-        print(message)
-    except UnicodeEncodeError:
-        print(unicode_to_ascii(message))
-
-
-def unicode_to_ascii(message):
-    return (message.encode('ascii', errors='backslashreplace')
-                   .decode('ascii'))
-
-
 def deprecated(message='deprecated'):
 
     def deprecated_wrapper(_f_):
@@ -184,7 +173,6 @@ def vengeance_warning(message,
                       category=Warning,
                       stacklevel=2,
                       stackframe=None):
-    # import sys
     import warnings
 
     # region {closure functions}
@@ -225,6 +213,7 @@ def vengeance_warning(message,
     warnings.formatwarning = original_formatwarning
 
     # print(end='')
+    # import sys
     # sys.stdout.flush()
     # sys.stderr.flush()
 

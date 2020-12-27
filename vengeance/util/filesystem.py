@@ -20,7 +20,7 @@ if ultrajson_installed:
 else:
     import json
 
-pickle_extensions = {'.flux', '.pkl', '.pickle'}
+pickle_extensions = {'.flux_a', '.pkl', '.pickle'}
 
 
 def read_file(path,

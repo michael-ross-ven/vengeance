@@ -5,6 +5,10 @@ from collections import defaultdict
 from ..conditional import ordereddict
 
 
+class IterationDepthError(TypeError):
+    pass
+
+
 def modify_iteration_depth(v, depth=0):
     """
     (this function is heavily utilized to correctly un-nest
@@ -184,11 +188,11 @@ def map_to_numeric_indices(sequence, start=0):
         else:
             v_s = str(v)
 
-        if v in nonunique:
-            v_s = '{}_{}'.format(v, nonunique[v] + 1)
+        if v_s in nonunique:
+            v_s = '{}_{}'.format(v, nonunique[v_s] + 1)
 
         indices[v_s] = i
-        nonunique[v] += 1
+        nonunique[v_s] += 1
 
     return indices
 

@@ -14,21 +14,27 @@ if numpy_installed:
 class flux_row_cls:
     @classmethod
     def reserved_names(cls):
-        reserved = [v.replace('_flux_row_cls', '') for v in vars(flux_row_cls).keys()]
-        reserved.extend(['_headers', 'values'])
-        return sorted(reserved)
+        reserved = [v for v in vars(flux_row_cls).keys()
+                      if not v.startswith('_flux_row_cls')]
+        reserved.append('_headers')
+        reserved.append('values')
+        reserved.sort()
+
+        return reserved
 
     def __init__(self, headers, values):
         """
         :param headers: OrderedDict of {'header': int}
-            include_headers is a single dictionary passed byref from the flux_cls to many flux_row_cls instances
+            headers is a single dictionary passed byref from the flux_cls to many flux_row_cls instances
             this eliminates need for all flux_row_cls objects to maintain a seprate copy of these mappings and
             allows for centralized and instantaneous updatdes
         :param values: list of underlying data
 
-        (properties must be set on self.__dict__ instead of directly on self to prevent
-         premature __setattr__ lookups)
+        properties must be set on self.__dict__ instead of directly on self to prevent
+        premature __setattr__ lookups
         """
+        # self._headers
+        # self.values
         self.__dict__['_headers'] = headers
         self.__dict__['values']   = values
 
@@ -82,16 +88,15 @@ class flux_row_cls:
         return self._headers.keys() == names.keys()
 
     def dict(self):
-        names = list(self._headers.keys())
+        names = self.header_names
         return ordereddict(zip(names, self.values))
 
     def namedrow(self):
         return SimpleNamespace(**self.dict())
 
+    # noinspection PyArgumentList
     def namedtuple(self):
-        FluxRow = namedtuple('FluxRow', self._headers.keys())
-
-        # noinspection PyArgumentList
+        FluxRow = namedtuple('FluxRow', self.header_names)
         return FluxRow(*self.values)
 
     # noinspection PyProtectedMember,PyUnusedLocal
@@ -109,29 +114,19 @@ class flux_row_cls:
             copy_from
             copy_intersection
         """
-        names = on_columns
 
         headers_a = self._headers
-        values_a  = self.values
+        headers_b = determine_names(row_b)
 
-        headers_b = None
+        values_a  = self.values
         values_b  = None
 
-        has_values = False
-        try:
-            headers_b = row_b._headers
-            values_b  = row_b.values
-            has_values = True
-        except AttributeError as e:
-            if hasattr(row_b, '_fields'):
-                headers_b = dict(row_b._fields)
-            elif hasattr(row_b, '__dict__'):
-                headers_b = row_b.__dict__
-            elif isinstance(row_b, dict):
-                headers_b = row_b
-            else:
-                raise TypeError('must be (flux_row_cls, namedtuple) instance') from e
+        if isinstance(row_b, flux_row_cls):
+            values_b = row_b.values
 
+        has_values = (values_b is not None)
+
+        names = on_columns
         if not names:
             names = headers_a.keys() & headers_b.keys()
             if not names:
@@ -155,7 +150,7 @@ class flux_row_cls:
             i = self._headers.get(name, name)
             return self.values[i]
         except (TypeError, IndexError) as e:
-            raise AttributeError(self.__invalid_name_message(name)) from e
+            raise AttributeError(invalid_name_message(self.header_names, name)) from e
 
     def __getitem__(self, name):
         """ eg:
@@ -168,7 +163,7 @@ class flux_row_cls:
             if isinstance(name, slice):
                 return self.values[name]
 
-            raise AttributeError(self.__invalid_name_message(name)) from e
+            raise AttributeError(invalid_name_message(self.header_names, name)) from e
 
     def __setattr__(self, name, value):
         """ eg:
@@ -181,7 +176,7 @@ class flux_row_cls:
             if name in self.__dict__:
                 self.__dict__[name] = value
             else:
-                raise AttributeError(self.__invalid_name_message(name)) from e
+                raise AttributeError(invalid_name_message(self.header_names, name)) from e
 
     def __setitem__(self, name, value):
         """ eg:
@@ -196,19 +191,19 @@ class flux_row_cls:
             elif isinstance(name, slice):
                 self.values[name] = value
             else:
-                raise AttributeError(self.__invalid_name_message(name)) from e
+                raise AttributeError(invalid_name_message(self.header_names, name)) from e
 
-    def __invalid_name_message(self, invalid_names):
-        if isinstance(invalid_names, slice):
-            return 'slice should be used directly on row.values\n(eg, row.values[2:5], not row[2:5])'
-
-        header_names = '\n\t'.join(str(n) for n in self.header_names)
-
-        s = ("\ncolumn name not found: '{}' "
-             "\n\tavailable columns: "
-             "\n\t{}".format(invalid_names, header_names))
-
-        return s
+    # def __invalid_name_message(self, invalid_names):
+    #     if isinstance(invalid_names, slice):
+    #         return 'slice should be used directly on row.values\n(eg, row.values[2:5], not row[2:5])'
+    #
+    #     header_names = '\n\t'.join(str(n) for n in self.header_names)
+    #
+    #     s = ("\ncolumn name not found: '{}' "
+    #          "\n\tavailable columns: "
+    #          "\n\t{}".format(invalid_names, header_names))
+    #
+    #     return s
 
     def __len__(self):
         return len(self.values)
@@ -251,4 +246,32 @@ class flux_row_cls:
             values = 'i: {:,}   {}'.format(self.__dict__['i'], values)
 
         return '{}{}'.format(is_jagged, values)
+
+
+def invalid_name_message(header_names, invalid_names):
+    if isinstance(invalid_names, slice):
+        return 'slice should be used directly on row.values\n(eg, row.values[2:5], not row[2:5])'
+
+    s = '\n\t'.join(str(n) for n in header_names)
+    s = ("\ncolumn name not found: '{}' "
+         "\n\tavailable columns: "
+         "\n\t{}".format(invalid_names, s))
+
+    return s
+
+
+# noinspection PyProtectedMember
+def determine_names(row):
+    if isinstance(row, flux_row_cls):
+        headers = row._headers
+    elif hasattr(row, '_fields'):
+        headers = dict(row._fields)
+    elif hasattr(row, '__dict__'):
+        headers = row.__dict__
+    elif isinstance(row, dict):
+        headers = row
+    else:
+        raise TypeError('invalid row type {}'.format(row)) from e
+
+    return headers
 

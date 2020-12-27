@@ -4,10 +4,10 @@ import setuptools
 from setuptools import setup
 
 
-__version__ = '1.1.5'
-__release__ = '$release 43'
+__version__ = '1.1.6'
+__release__ = '$release 44'
 long_description = ('https://github.com/michael-ross-ven/vengeance/blob/master/README.md'
-                    '\n<br/>(specialize this for pypi.org later)')
+                    '\n\n(specialize this for pypi.org later)')
 
 
 def __move_win32com_gencache_folder():
@@ -53,8 +53,7 @@ if __name__ == '__main__':
           packages=setuptools.find_packages(),
           classifiers=[
               "Programming Language :: Python :: 3",
-              "License :: OSI Approved :: MIT License",
-              "Operating System :: Microsoft :: Windows"
+              "License :: OSI Approved :: MIT License"
             ]
 
           )
