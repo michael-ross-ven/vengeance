@@ -18,6 +18,7 @@ class flux_row_cls:
                       if not v.startswith('_flux_row_cls')]
         reserved.append('_headers')
         reserved.append('values')
+
         reserved.sort()
 
         return reserved
@@ -33,8 +34,6 @@ class flux_row_cls:
         properties must be set on self.__dict__ instead of directly on self to prevent
         premature __setattr__ lookups
         """
-        # self._headers
-        # self.values
         self.__dict__['_headers'] = headers
         self.__dict__['values']   = values
 
@@ -48,15 +47,16 @@ class flux_row_cls:
         if not numpy_installed:
             raise ImportError('numpy site-package not installed')
 
-        if not self.is_jagged():
-            return numpy.transpose([self.header_names, self.values])
-
-        names   = self.header_names
+        names   = list(self._headers.keys())
         values  = list(self.values)
+
         max_len = max(len(names), len(values))
 
-        names.extend( ['🗲missing🗲'] * (max_len - len(names)))
-        values.extend(['🗲missing🗲'] * (max_len - len(values)))
+        names.extend(['🗲missing header🗲'] * (max_len - len(names)))
+        values.extend(['🗲missing value🗲'] * (max_len - len(values)))
+
+        names  = numpy.array(names, dtype=object)
+        values = numpy.array(values, dtype=object)
 
         return numpy.transpose([names, values])
 
@@ -104,19 +104,10 @@ class flux_row_cls:
         """ copies all values where header names are shared with flux_row_b
         :type row_b: flux_row_cls
         :type on_columns: shared column names
-
-        rename ?
-            join
-            join_to
-
-            copy_shared
-            copy_overlapping_values
-            copy_from
-            copy_intersection
         """
 
         headers_a = self._headers
-        headers_b = determine_names(row_b)
+        headers_b = self.__determine_names(row_b)
 
         values_a  = self.values
         values_b  = None
@@ -149,8 +140,8 @@ class flux_row_cls:
         try:
             i = self._headers.get(name, name)
             return self.values[i]
-        except (TypeError, IndexError) as e:
-            raise AttributeError(invalid_name_message(self.header_names, name)) from e
+        except (TypeError, IndexError):
+            raise AttributeError(self.__invalid_name_message(self.header_names, name)) from None
 
     def __getitem__(self, name):
         """ eg:
@@ -159,11 +150,11 @@ class flux_row_cls:
         try:
             i = self._headers.get(name, name)
             return self.values[i]
-        except (TypeError, IndexError) as e:
+        except (TypeError, IndexError):
             if isinstance(name, slice):
                 return self.values[name]
 
-            raise AttributeError(invalid_name_message(self.header_names, name)) from e
+            raise AttributeError(self.__invalid_name_message(self.header_names, name)) from None
 
     def __setattr__(self, name, value):
         """ eg:
@@ -172,11 +163,11 @@ class flux_row_cls:
         try:
             i = self._headers.get(name, name)
             self.values[i] = value
-        except (TypeError, IndexError) as e:
+        except (TypeError, IndexError):
             if name in self.__dict__:
                 self.__dict__[name] = value
             else:
-                raise AttributeError(invalid_name_message(self.header_names, name)) from e
+                raise AttributeError(self.__invalid_name_message(self.header_names, name)) from None
 
     def __setitem__(self, name, value):
         """ eg:
@@ -185,25 +176,13 @@ class flux_row_cls:
         try:
             i = self._headers.get(name, name)
             self.values[i] = value
-        except (TypeError, IndexError) as e:
+        except (TypeError, IndexError):
             if name in self.__dict__:
                 self.__dict__[name] = value
             elif isinstance(name, slice):
                 self.values[name] = value
             else:
-                raise AttributeError(invalid_name_message(self.header_names, name)) from e
-
-    # def __invalid_name_message(self, invalid_names):
-    #     if isinstance(invalid_names, slice):
-    #         return 'slice should be used directly on row.values\n(eg, row.values[2:5], not row[2:5])'
-    #
-    #     header_names = '\n\t'.join(str(n) for n in self.header_names)
-    #
-    #     s = ("\ncolumn name not found: '{}' "
-    #          "\n\tavailable columns: "
-    #          "\n\t{}".format(invalid_names, header_names))
-    #
-    #     return s
+                raise AttributeError(self.__invalid_name_message(self.header_names, name)) from None
 
     def __len__(self):
         return len(self.values)
@@ -231,9 +210,9 @@ class flux_row_cls:
 
     def __repr__(self):
         if self.is_jagged():
-            is_jagged = '🗲jagged🗲   '
+            jagged = '🗲jagged🗲   '
         else:
-            is_jagged = ''
+            jagged = ''
 
         if self.is_header_row():
             values = ', '.join(str(n) for n in self.header_names)
@@ -245,33 +224,33 @@ class flux_row_cls:
         if 'i' in self.__dict__:
             values = 'i: {:,}   {}'.format(self.__dict__['i'], values)
 
-        return '{}{}'.format(is_jagged, values)
+        return '{}{}'.format(jagged, values)
 
+    @staticmethod
+    def __invalid_name_message(header_names, invalid_names):
+        if isinstance(invalid_names, slice):
+            return 'slice should be used directly on row.values\n(eg, row.values[2:5], not row[2:5])'
 
-def invalid_name_message(header_names, invalid_names):
-    if isinstance(invalid_names, slice):
-        return 'slice should be used directly on row.values\n(eg, row.values[2:5], not row[2:5])'
+        s = '\n\t'.join(str(n) for n in header_names)
+        s = ("column name not found, '{}' "
+             "\navailable columns: "
+             "\n\t{}".format(invalid_names, s))
 
-    s = '\n\t'.join(str(n) for n in header_names)
-    s = ("\ncolumn name not found: '{}' "
-         "\n\tavailable columns: "
-         "\n\t{}".format(invalid_names, s))
+        return s
 
-    return s
+    # noinspection PyProtectedMember
+    @staticmethod
+    def __determine_names(row):
+        if isinstance(row, flux_row_cls):
+            headers = row._headers
+        elif hasattr(row, '_fields'):
+            headers = dict(row._fields)
+        elif hasattr(row, '__dict__'):
+            headers = row.__dict__
+        elif isinstance(row, dict):
+            headers = row
+        else:
+            raise TypeError('invalid row type {}'.format(row))
 
-
-# noinspection PyProtectedMember
-def determine_names(row):
-    if isinstance(row, flux_row_cls):
-        headers = row._headers
-    elif hasattr(row, '_fields'):
-        headers = dict(row._fields)
-    elif hasattr(row, '__dict__'):
-        headers = row.__dict__
-    elif isinstance(row, dict):
-        headers = row
-    else:
-        raise TypeError('invalid row type {}'.format(row)) from e
-
-    return headers
+        return headers
 

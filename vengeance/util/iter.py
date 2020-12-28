@@ -214,8 +214,8 @@ class OrderedDefaultDict(ordereddict):
         for item in items:
             try:
                 k, v = item
-            except Exception as e:
-                raise IndexError('items must be (key, value) pairs') from e
+            except Exception:
+                raise IndexError('items must be (key, value) pairs') from None
 
             self[k].append(v)
 

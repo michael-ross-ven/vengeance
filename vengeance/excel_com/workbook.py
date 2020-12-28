@@ -296,21 +296,21 @@ def __excel_application_from_window_handle(window_h):
     try:
         com_ptr   = comtypes_dispatch(obj_ptr).Application
         excel_app = __comtype_pointer_to_pythoncom_object(com_ptr, comtypes_idispatch)
-    except (ctypes_error, pythoncom_error, NameError) as e:
+    except (ctypes_error, pythoncom_error, NameError):
         raise ChildProcessError('Remote Procedure Call to Excel Application rejected. '
                                 '\n'
                                 '\n\t(Excel will reject automation calls while waiting on user input, '
-                                '\n\tcheck if cursor is still active within a cell somewhere)') from e
+                                '\n\tcheck if cursor is still active within a cell somewhere)') from None
 
     # win32com Dispatch() call rejected: COM files may be corrupted
     try:
         return EnsureDispatch(excel_app)
-    except AttributeError as e:
+    except AttributeError:
         __move_win32com_gencache_folder()
         raise ChildProcessError('Error dispatching Excel Application from win32com module. '
                                 '\n'
                                 '\n\t(Deleting the contents of the win32com gen_py folder '
-                                'may resolve the error)') from e
+                                'may resolve the error)') from None
 
 
 # noinspection PyTypeChecker

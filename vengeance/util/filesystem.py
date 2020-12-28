@@ -58,10 +58,10 @@ def read_file(path,
         with open(path, mode, encoding=encoding) as f:
             try:
                 data = json.load(f, **fkwargs)
-            except (JSONDecodeError, ValueError) as e:
+            except (JSONDecodeError, ValueError):
                 raise ValueError('invalid encoding or malformed json: '
                                  '\n\tpath: {}'
-                                 '\n\tencoding: {}'.format(path, encoding)) from e
+                                 '\n\tencoding: {}'.format(path, encoding)) from None
 
     elif filetype in pickle_extensions:
         with open(path, mode) as f:
