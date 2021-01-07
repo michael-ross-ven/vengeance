@@ -1,11 +1,4 @@
 
-# from ..conditional import is_pypy
-
-# if not is_pypy:
-#
-# else:
-#
-
 from datetime import date
 from datetime import datetime
 

@@ -20,25 +20,37 @@ from ...util.text import object_name
 class excel_levity_cls:
     allow_focus = False
 
-    def __init__(self, ws,
-                       *,
+    def __init__(self, ws, *,
                        first_c=None,
                        last_c=None,
                        meta_r=0,
                        header_r=0,
                        first_r=0,
                        last_r=0):
+        """
+        self.is_worksheet_type, ie
+            a chart that has been moved to its own worksheet
+        """
+
+        if (not isinstance(meta_r, int) or
+             not isinstance(header_r, int) or
+             not isinstance(first_r, int) or
+             not isinstance(last_r, int)):
+
+            raise TypeError('rows must be an integer')
 
         self.ws = ws
-        self.ws_name = ws.Name
+        if hasattr(ws, 'Name'):
+            self.ws_name = ws.Name
+        else:
+            self.ws_name = ''
 
         self.is_worksheet_type = worksheet.is_worksheet_instance(ws)
 
         self.headers   = ordereddict()
         self.m_headers = ordereddict()
 
-        self._named_ranges = {}
-
+        self._named_ranges  = {}
         self._fixed_columns = first_c, last_c
         self._fixed_rows    = first_r, last_r
 
@@ -250,7 +262,6 @@ class excel_levity_cls:
         """
 
         if not self.is_worksheet_type:
-            # an o that has been moved to its own worksheet
             self.first_c = ''
             self.last_c  = ''
             self.first_r = 0
@@ -277,12 +288,13 @@ class excel_levity_cls:
 
         r_1 = max(self.meta_r, self.header_r) + 1
         r_2 = used_range.Rows.Count
+
         a = '{}{}:{}{}'.format(self.first_c, r_1,
                                self.last_c,  r_2)
         excel_range = self.ws.Range(a)
 
         self.first_r = first_r or worksheet.first_row(excel_range, default=r_1)
-        self.last_r  = last_r  or worksheet.last_row(excel_range, default=self.first_r)
+        self.last_r  = last_r  or worksheet.last_row(excel_range,  default=self.first_r)
 
         self.first_c = excel_address.col_letter(self.first_c)
         self.last_c  = excel_address.col_letter(self.last_c)

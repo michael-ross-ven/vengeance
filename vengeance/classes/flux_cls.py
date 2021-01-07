@@ -199,10 +199,11 @@ class flux_cls:
                       *,
                       fkwargs=None):
 
-        # h = self.header_names
-        # j = [ordereddict(zip(h, row.values)) for row in self.matrix[1:]]
+        fkwargs = fkwargs or {}
 
-        j = [row.dict() for row in self.matrix[1:]]
+        h = tuple(self.header_names)
+        j = [ordereddict(zip(h, row.values)) for row in self.matrix[1:]]
+
         if path is None:
             return json_dumps_extended(j, **fkwargs)
 
@@ -214,26 +215,8 @@ class flux_cls:
                        encoding=None,
                        *,
                        fkwargs=None):
-        """
-        if isinstance(j, dict):
-            {"col_a": "col_b",
-             "a": "b",
-             "a": "b",
-             "a": "b"}
 
-            items = iter(j.items())
-            m = [list(next(items))] + \
-                [list(item) for item in items]
-        else:
-            [
-                {"col_a": "a",
-                 "col_b": "b"},
-                {"col_a": "a",
-                 "col_b": "b"}
-            ]
-        """
         j = read_file(path, encoding, filetype='.json', fkwargs=fkwargs)
-
         if isinstance(j, dict):
             raise TypeError('json data should be a list of dictionaries, eg: '
                             '\n['
@@ -267,6 +250,7 @@ class flux_cls:
         you should be sure no malicious actors have access to the location of these files
         """
         write_file(path, self, filetype='.flux', fkwargs=fkwargs)
+
         return self
 
     @classmethod
@@ -556,11 +540,13 @@ class flux_cls:
 
         return self
 
-    def identify_jagged_rows(self):
+    def jagged_rows(self):
+        JaggedRow = namedtuple('JaggedRow', ('i', 'row'))
+
         num_cols = self.num_cols
         for i, row in enumerate(self.matrix):
             if len(row.values) != num_cols:
-                yield i, row
+                yield JaggedRow(i, row)
 
     def insert_rows(self, i, rows):
         if self.is_empty():
@@ -780,42 +766,30 @@ class flux_cls:
 
         return ordereddict(items).keys()
 
-    def search(self, names, value, r_1=1, r_2=None):
-        """ :return: yield (i, row) namedtuple where values match search value """
-        Item = namedtuple('Item', 'i row')
-        rva  = self.row_values_accessor(names)
-
-        any_found = False
-        for i, row in enumerate(self.matrix[r_1:r_2], r_1):
-            if rva(row) == value:
-                any_found = True
-                yield Item(i, row)
-
-        if not any_found:
-            yield Item(None, None)
-
     def contiguous(self, *names):
         """ :return: yield (value, i_1, i_2) namedtuple where values are contiguous
 
         (contiguous values may only span a single row ie, i_1 == i_2)
         """
-        Item = namedtuple('Item', 'value i_1 i_2')
-        rva  = self.row_values_accessor(names)
+        if self.num_rows <= 0:
+            raise IndexError('matrix has no rows')
+
+        ContiguousRows = namedtuple('ContiguousRows', ('i_1', 'i_2', 'rows'))
 
         i_1 = 1
-        v_2 = v_1 = rva(self.matrix[i_1])
 
-        for i, row in enumerate(self.matrix[2:], 2):
+        rva = self.row_values_accessor(names)
+        v_1 = rva(self.matrix[1])
+
+        for i_2, row in enumerate(self.matrix[2:], 2):
             v_2 = rva(row)
-            i_2 = i - 1
 
             if v_2 != v_1:
-                yield Item(v_1, i_1, i_2)
-
+                yield ContiguousRows(i_1, i_2 - 1, self.matrix[i_1:i_2])
                 v_1 = v_2
-                i_1 = i
+                i_1 = i_2
 
-        yield Item(v_2, i_1, self.num_rows)
+        yield ContiguousRows(i_1, self.num_rows, self.matrix[i_1:])
 
     def label_row_indices(self, start=0):
         """ meant to assist with debugging;
@@ -979,7 +953,7 @@ class flux_cls:
 
     def __repr__(self):
         if self.is_empty():
-            return '()'
+            return '⟪ ⟫'
 
         if self.is_jagged():
             is_jagged = '🗲jagged🗲   '
@@ -987,7 +961,7 @@ class flux_cls:
             is_jagged = ''
 
         headers = ', '.join(str(n) for n in self.header_names)
-        headers = '{' + headers + '}'
+        headers = '⟪ ' + headers + ' ⟫'
 
         return '{}{}  ({:,})'.format(is_jagged, headers, self.num_rows)
 
@@ -1027,21 +1001,20 @@ class flux_cls:
         first_row = m[0]
 
         if isinstance(first_row, flux_row_cls):
+            is_header_row = first_row.is_header_row()
+
             m = [[*row.values] for row in m]
-            if not first_row.is_header_row():
+            if not is_header_row:
                 m.insert(0, first_row.header_names)
 
         elif hasattr(first_row, '__dict__'):
-            m = [list(row.__dict__.values()) for row in m]
+            m = [list(first_row.__dict__.keys())] + \
+                [list(row.__dict__.values()) for row in m]
 
-            __dict__ = first_row.__dict__
-            names  = list(__dict__.keys())
-            values = map_to_numeric_indices(__dict__.values())
-            values = list(values.keys())
-            is_header_row = (names == values)
-
-            if not is_header_row:
-                m.insert(0, names)
+        elif hasattr(first_row, '_fields'):
+            # noinspection PyProtectedMember
+            m = [list(first_row._fields)] + \
+                [list(row) for row in m]
 
         elif iteration_depth(m, first_element_only=True) < 2:
             raise IterationDepthError('matrix must have at least two dimensions (ie, a list of lists)')

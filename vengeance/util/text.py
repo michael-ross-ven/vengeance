@@ -16,9 +16,9 @@ else:
     import json
 
 if is_utf_console:
-    __vengeance_prefix__ = (' '*4) + 'ν: '    # nu: chr(957)
+    __vengeance_prefix__ = '\tν: '    # nu: chr(957)
 else:
-    __vengeance_prefix__ = (' '*4) + 'v: '    # ascii
+    __vengeance_prefix__ = '\tv: '    # ascii
 
 
 def print_runtime(f):
@@ -103,8 +103,8 @@ def print_performance(f=None, *, repeat=3):
 
 # noinspection DuplicatedCode
 def styled(message,
-           color_style=None,
-           effect_style=None):
+           color_style='dark magenta',
+           effect_style='bold'):
 
     # region {escape codes}
     effect_codes = {'bold':      '\x1b[1m',
@@ -126,6 +126,7 @@ def styled(message,
                    'bright yellow':  '\x1b[93m',
                    'bright magenta': '\x1b[95m',
                    'bright cyan':    '\x1b[96m',
+                   'dark magenta':   '\x1b[38;2;150;40;105m',
                    '':               '',
                    None:             ''}
     # endregion
@@ -186,7 +187,9 @@ def vengeance_warning(message,
         nonlocal category
         nonlocal message
 
-        aligned_indent = ' ' * len(__vengeance_prefix__)
+        aligned_indent = len(__vengeance_prefix__.replace('\t', ''))
+        aligned_indent = ' ' * aligned_indent
+        aligned_indent = '\t' + aligned_indent
 
         w_category = object_name(category)
         w_message  = message.replace('\n', '\n' + aligned_indent)

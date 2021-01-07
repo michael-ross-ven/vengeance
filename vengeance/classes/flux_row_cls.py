@@ -49,13 +49,12 @@ class flux_row_cls:
 
         names   = list(self._headers.keys())
         values  = list(self.values)
-
         max_len = max(len(names), len(values))
 
         names.extend(['🗲missing header🗲'] * (max_len - len(names)))
         values.extend(['🗲missing value🗲'] * (max_len - len(values)))
 
-        names  = numpy.array(names, dtype=object)
+        names  = numpy.array(names,  dtype=object)
         values = numpy.array(values, dtype=object)
 
         return numpy.transpose([names, values])
@@ -210,13 +209,13 @@ class flux_row_cls:
 
     def __repr__(self):
         if self.is_jagged():
-            jagged = '🗲jagged🗲   '
+            is_jagged = '🗲jagged🗲   '
         else:
-            jagged = ''
+            is_jagged = ''
 
         if self.is_header_row():
             values = ', '.join(str(n) for n in self.header_names)
-            values = '{' + values + '}'
+            values = '⟪ ' + values + ' ⟫'
         else:
             values = (repr(self.values).replace('"', '')
                                        .replace("'", ''))
@@ -224,7 +223,7 @@ class flux_row_cls:
         if 'i' in self.__dict__:
             values = 'i: {:,}   {}'.format(self.__dict__['i'], values)
 
-        return '{}{}'.format(jagged, values)
+        return '{}{}'.format(is_jagged, values)
 
     @staticmethod
     def __invalid_name_message(header_names, invalid_names):

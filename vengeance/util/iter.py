@@ -134,9 +134,7 @@ def is_exhaustable(v):
 def is_vengeance_class(v):
     bases = set(base_class_names(v))
 
-    vengeance_bases = bases & {'flux_cls',
-                               'excel_levity_cls'}
-    return bool(vengeance_bases)
+    return bool(bases & {'flux_cls', 'excel_levity_cls'})
 
 
 def base_class_names(o):

@@ -140,6 +140,14 @@ def __open_workbook_dispatch(path, excel_app,
                              update_links,
                              read_only,
                              windowstate):
+    """
+    excel_app.DisplayAlerts = False
+        what if file not loaded completely?
+        what about dialog message?
+
+    excel_app.Workbooks.Open
+        other options: password, etc
+    """
 
     path = validate_path_exists(path)
     excel_app = __validate_excel_application(excel_app, windowstate)
