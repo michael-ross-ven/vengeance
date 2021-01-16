@@ -63,7 +63,7 @@ def modify_iteration_depth(v, depth=0):
 def iteration_depth(v, first_element_only=True):
     """
     (this function is heavily utilized to correctly un-nest
-     arguments in invariable arity flux_cls methods, so make sure
+     arguments in variable arity flux_cls methods, so make sure
      you dont fuck anything up if you change anything here !!)
 
     eg:
@@ -118,23 +118,43 @@ def is_collection(v):
     return isinstance(v, Iterable)
 
 
-# noinspection PyStatementEffect
-def is_subscriptable(v):
+# noinspection PyStatementEffect,PyBroadException
+def is_subscriptable(o):
     try:
-        v[0]
+        o[0]
         return True
     except Exception:
         return False
 
 
-def is_exhaustable(v):
-    return hasattr(v, '__next__')
+def is_exhaustable(o):
+    return hasattr(o, '__next__')
 
 
-def is_vengeance_class(v):
-    bases = set(base_class_names(v))
+def standardize_variable_arity_arguments(v, depth):
+    # region {closure function}
+    def exhaust_iterator(a):
+        if is_subscriptable(a) and (is_exhaustable(a[0]) or isinstance(a[0], range)):
+            return iterator_to_list(a[0])
 
-    return bool(bases & {'flux_cls', 'excel_levity_cls'})
+        return iterator_to_list(a)
+    # endregion
+
+    v = exhaust_iterator(v)
+    v = modify_iteration_depth(v, depth)
+    v = exhaust_iterator(v)
+
+    return v
+
+
+def is_vengeance_class(o):
+    bases = set(base_class_names(o))
+    return bool(bases & {'flux_cls',
+                         'excel_levity_cls'})
+
+
+def is_namedtuple_class(o):
+    return isinstance(o, tuple) and (type(o) is not tuple)
 
 
 def base_class_names(o):
@@ -143,21 +163,21 @@ def base_class_names(o):
 
 def transpose(m, astype=tuple):
     if astype is tuple:
-        return transpose_to_tuples(m)
+        return transpose_as_tuples(m)
     if astype is list:
-        return transpose_to_lists(m)
+        return transpose_as_lists(m)
 
     raise TypeError('astype parameter must be either tuple or list')
 
 
-def transpose_to_tuples(m):
+def transpose_as_tuples(m):
     if iteration_depth(m) == 1:
         return ((v,) for v in m)
     else:
         return zip(*m)
 
 
-def transpose_to_lists(m):
+def transpose_as_lists(m):
     if iteration_depth(m) == 1:
         return ([v] for v in m)
     else:
@@ -178,7 +198,7 @@ def map_to_numeric_indices(sequence, start=0):
          'b_2': 3} = map_numeric_indices(['a', 'b', 'c', 'b'])
     """
     indices   = ordereddict()
-    nonunique = defaultdict(int)
+    nonunique = defaultdict(lambda: 1)
 
     for i, v in enumerate(sequence, start):
         if isinstance(v, bytes):
@@ -186,11 +206,11 @@ def map_to_numeric_indices(sequence, start=0):
         else:
             v_s = str(v)
 
-        if v_s in nonunique:
-            v_s = '{}_{}'.format(v, nonunique[v_s] + 1)
+        if v_s in indices:
+            nonunique[v_s] += 1
+            v_s = '{}_{}'.format(v_s, nonunique[v_s])
 
         indices[v_s] = i
-        nonunique[v_s] += 1
 
     return indices
 
@@ -207,7 +227,7 @@ class OrderedDefaultDict(ordereddict):
             raise TypeError('self.default_factory function must be list')
 
         if isinstance(items, dict):
-            items = list(items.items())
+            items = items.items()
 
         for item in items:
             try:

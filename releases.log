@@ -1,4 +1,21 @@
 
+2021-01-16
+$release 46
+    version 1.1.9
+
+    flux_cls:
+        .__init__():
+            performance optimization (15% improvement) by turning off garbage collection
+
+        .as_preview() method deleted
+        .as_array() method added
+
+        .__repr__() enhanced
+
+        .header_names changed from a property to a method
+
+
+
 2021-01-07
 $release 45
     version 1.1.8

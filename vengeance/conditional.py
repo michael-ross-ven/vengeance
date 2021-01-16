@@ -48,14 +48,13 @@ try:
 except ImportError:
     line_profiler_installed = False
 
-# is_pypy_interpreter = True
-# is_windows_os       = True
+# is_pypy_interpreter     = True
+# is_windows_os           = True
 # dateutil_installed      = False
 # ultrajson_installed     = False
 # line_profiler_installed = False
 
 # determines if excel_com module should be loaded in __init__
 loads_excel_module = (not is_pypy_interpreter) and is_windows_os
-pass
 
 

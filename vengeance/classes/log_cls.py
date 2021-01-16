@@ -17,19 +17,20 @@ from logging import (NOTSET,
 from .. util.filesystem import parse_path
 from .. util.filesystem import standardize_dir
 from .. util.text import object_name
-from .. util.text import vengeance_message
+from .. util.text import styled
 
 from .. conditional import is_tty_console
 
 
 class log_cls(Logger):
-    banner_character   = '*'
-    banner_width       = None
+    banner_character = '*'
+    banner_width     = None
 
     def __init__(self, path_or_name='',
                        level='DEBUG',
                        log_format='%(message)s',
-                       exception_callback=None):
+                       exception_callback=None,
+                       colored_statements=True):
         """
         :param path_or_name:
             parsed to determine name of logger
@@ -43,27 +44,23 @@ class log_cls(Logger):
             sys.excepthook is automatically set to self.exception_handler if
             exception_callback is a valid function
         """
-
         if (exception_callback is not None) and not callable(exception_callback):
             raise TypeError('exception_callback must be callable')
 
-        (filedir,
-         logname,
-         extension) = parse_path(path_or_name, explicit_cwd=False)
+        p_path = parse_path(path_or_name, explicit_cwd=False)
+
         if isinstance(level, str):
             level = level.upper().strip()
 
-        super().__init__(logname, level)
+        super().__init__(p_path.filename, level)
 
-        self.path      = self.__set_path(filedir, logname, extension)
+        self.path      = self.__set_path(p_path.directory, p_path.filename, p_path.extension)
         self.formatter = Formatter(log_format)
 
         self.exception_callback = exception_callback
         self.exception_message  = ''
-        # self.banner_character   = '*'
-        # self.banner_width       = None
 
-        self._add_stream_handler(sys.stdout)
+        self._add_stream_handler(sys.stdout, colored_statements)
         self._add_file_handler(self.path)
 
         if exception_callback:
@@ -87,7 +84,7 @@ class log_cls(Logger):
 
         return handlers
 
-    def reset_format(self, log_format):
+    def set_format(self, log_format):
         self.formatter = Formatter(log_format)
         for h in self.handlers:
             h.setFormatter(self.formatter)
@@ -113,9 +110,10 @@ class log_cls(Logger):
             h.close()
             self.removeHandler(h)
 
-    def _add_stream_handler(self, stream):
-        # TTY console doesn't support ascii escapes
-        if is_tty_console:
+    def _add_stream_handler(self, stream, colored_statements):
+        if not colored_statements:
+            h = StreamHandler(stream)
+        elif is_tty_console:                    # TTY console doesn't support ascii escapes
             h = StreamHandler(stream)
         else:
             h = colored_streamhandler_cls(stream)
@@ -143,12 +141,8 @@ class log_cls(Logger):
         except:
             log.exception_handler(*sys.exc_info())
         """
-        try:
-            self.exception_message = self.__formatted_exception_message(e_type, e_msg, e_traceback)
-        except Exception:
-            self.exception_message = 'error occurred in log_cls.__formatted_exception_message()'
-            print(vengeance_message(self.exception_message))
 
+        self.exception_message = self.__formatted_exception_message(e_type, e_msg, e_traceback)
         self.error(self.exception_message, exc_info=(e_type, e_msg, e_traceback))
 
         if self.exception_callback:
@@ -166,8 +160,10 @@ class log_cls(Logger):
 
         if e_type:
             _e_type_ = object_name(e_type)
+
         if e_msg:
             _e_msg_ = '{}'.format(str(e_msg).replace('"', "'"))
+
         if e_traceback:
             filename = e_traceback.tb_frame.f_code.co_filename
             lineno   = e_traceback.tb_lineno
@@ -176,39 +172,34 @@ class log_cls(Logger):
             banner_width = self.banner_width
         else:
             banner_width = max([len(title_message),
-                                *[len(line) for line in str(_e_msg_).split('\n')],
-                                *[len(line) for line in str(filename).split('\n')]]) + 10
+                              *[len(line) for line in str(_e_msg_).split('\n')],
+                              *[len(line) for line in str(filename).split('\n')]]) + 10
             banner_width = max(banner_width, 90)
 
-        banner_top    = self.banner_character * banner_width
-        banner_bottom = self.banner_character * banner_width
+        banner = self.banner_character * banner_width
 
         exception_message = dedent('''
-        {banner_top}
+        {banner}
             {title_message}
             {repr_self}
             
             <{e_type}> {e_msg}
             File: {filename}
             Line: {lineno}
-        {banner_bottom}
+        {banner}
         
-        ''').format(banner_top=banner_top,
+        ''').format(banner=banner,
                     title_message=title_message,
                     repr_self=repr(self),
                     e_type=_e_type_,
                     e_msg=_e_msg_,
                     filename=filename,
-                    lineno=lineno,
-                    banner_bottom=banner_bottom)
+                    lineno=lineno)
 
         return exception_message
 
     @staticmethod
-    def __set_path(filedir, logname, extension):
-        if extension == '.py':
-            extension = ''
-
+    def __set_path(filedir, filename, extension):
         if not (filedir or extension):
             return ''
 
@@ -216,8 +207,10 @@ class log_cls(Logger):
         if not os.path.exists(filedir):
             os.makedirs(filedir)
 
-        extension = extension or '.log'
-        path = filedir + logname + extension
+        if extension == '.py':
+            extension = '.log'
+
+        path = filedir + filename + (extension or '.log')
 
         return path
 
@@ -225,10 +218,7 @@ class log_cls(Logger):
         return 'vengeance log: {}'.format(self.name)
 
 
-# noinspection DuplicatedCode
 class colored_streamhandler_cls(StreamHandler):
-
-    # https://en.wikipedia.org/wiki/ANSI_escape_code
     level_colors  = {NOTSET:   'grey',
                      DEBUG:    'grey',
                      INFO:     'white',
@@ -236,41 +226,16 @@ class colored_streamhandler_cls(StreamHandler):
                      ERROR:    'red',
                      CRITICAL: 'bright magenta'}
 
-    ascii_escapes = {'bold':           '\x1b[1m',       # effects
-                     'italic':         '\x1b[3m',
-                     'underline':      '\x1b[4m',
-                     'grey':           '\x1b[29m',      # colors
-                     'white':          '\x1b[30m',
-                     'red':            '\x1b[31m',
-                     'orange':         '\x1b[32m',
-                     'yellow':         '\x1b[33m',
-                     'blue':           '\x1b[34m',
-                     'magenta':        '\x1b[35m',
-                     'green':          '\x1b[36m',
-                     'bronze':         '\x1b[37m',
-                     'bright red':     '\x1b[91m',
-                     'bright yellow':  '\x1b[93m',
-                     'bright magenta': '\x1b[95m',
-                     'bright cyan':    '\x1b[96m',
-                     'end':            '\x1b[0m',       # misc
-                     '':               '',
-                     None:             ''}
-
     def __init__(self, stream=None):
         super().__init__(stream)
 
     def emit(self, record):
+        # noinspection PyBroadException
         try:
-            escapes    = self.ascii_escapes
-            color_name = self.level_colors.get(record.levelno, 'grey')
+            s = self.format(record) + self.terminator
+            s = styled(s, self.level_colors.get(record.levelno, 'grey'), 'bold')
 
-            colored_message = ('{asci_color}{asci_effect}{message}{ascii_end}\n'
-                               .format(asci_color=escapes[color_name],
-                                       asci_effect=escapes['bold'],
-                                       message=self.format(record),
-                                       ascii_end=escapes['end']))
-
-            self.stream.write(colored_message)
+            self.stream.write(s)
             self.flush()
 
         except RecursionError:

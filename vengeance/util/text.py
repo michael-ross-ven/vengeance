@@ -101,10 +101,9 @@ def print_performance(f=None, *, repeat=3):
         return performance_wrapper(f)
 
 
-# noinspection DuplicatedCode
 def styled(message,
-           color_style='dark magenta',
-           effect_style='bold'):
+           color='dark magenta',
+           effect='bold'):
 
     # region {escape codes}
     effect_codes = {'bold':      '\x1b[1m',
@@ -126,25 +125,24 @@ def styled(message,
                    'bright yellow':  '\x1b[93m',
                    'bright magenta': '\x1b[95m',
                    'bright cyan':    '\x1b[96m',
-                   'dark magenta':   '\x1b[38;2;150;40;105m',
+                   'dark magenta':   '\x1b[38;2;170;50;130m',
                    '':               '',
                    None:             ''}
     # endregion
 
-    if color_style not in color_codes:
-        raise KeyError('invalid color: {}'.format(color_style))
-    if effect_style not in effect_codes:
-        raise KeyError('invalid style: {}'.format(effect_style))
+    if color not in color_codes:
+        raise KeyError('invalid color: {}'.format(color))
+    if effect not in effect_codes:
+        raise KeyError('invalid style: {}'.format(effect))
 
     if is_tty_console:          # TTY console doesn't support ascii escapes
         return message
 
-    effect_end     = effect_codes['end']
     styled_message = ('{ascii_color}{effect_start}{message}{effect_end}'
-                       .format(ascii_color=color_codes[color_style],
-                               effect_start=effect_codes[effect_style],
+                       .format(ascii_color=color_codes[color],
+                               effect_start=effect_codes[effect],
                                message=message,
-                               effect_end=effect_end))
+                               effect_end=effect_codes['end']))
     return styled_message
 
 
@@ -221,6 +219,10 @@ def vengeance_warning(message,
     # sys.stderr.flush()
 
 
+def format_vengeance_header(n):
+    return '⟪{}⟫'.format(n)
+
+
 def format_seconds(secs):
     return format_milliseconds(secs * 1000)
 
@@ -271,17 +273,16 @@ def object_name(o):
         return o.__class__.__name__
 
 
-def json_dumps_extended(o, indent=4, ensure_ascii=False):
-    """ if ultrajson not installed, use json_unhandled_conversion() as default function  """
+# def json_dumps_extended(o, indent=4, ensure_ascii=False):
+def json_dumps_extended(o, **kwargs):
+    kwargs['ensure_ascii'] = kwargs.get('ensure_ascii', False)
+    kwargs['indent']       = kwargs.get('indent', 4)
+    kwargs['default']      = kwargs.get('default', json_unhandled_conversion)
+
     if ultrajson_installed:
-        return json.dumps(o,
-                          indent=indent,
-                          ensure_ascii=ensure_ascii)
-    else:
-        return json.dumps(o,
-                          indent=indent,
-                          ensure_ascii=ensure_ascii,
-                          default=json_unhandled_conversion)
+        del kwargs['default']
+
+    return json.dumps(o, **kwargs)
 
 
 def json_unhandled_conversion(v):

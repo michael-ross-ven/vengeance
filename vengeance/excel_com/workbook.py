@@ -4,23 +4,22 @@ import os
 import pythoncom
 
 from _ctypes import COMError as ctypes_error
-from ctypes import POINTER
-from ctypes import PyDLL
+# noinspection PyUnresolvedReferences
+from pythoncom import com_error as pythoncom_error
+
 from ctypes import byref
 from ctypes import c_void_p
 from ctypes import py_object
+from ctypes import POINTER
+from ctypes import PyDLL
 from ctypes.wintypes import BOOL
 
-from comtypes import GUID
 from comtypes import IUnknown
-
 from comtypes.client          import CreateObject as comtypes_createobject
 from comtypes.automation      import IDispatch    as comtypes_idispatch
 from comtypes.client.dynamic  import Dispatch     as comtypes_dispatch
-from win32com.client.gencache import EnsureDispatch                          # early-bound references
 
-# noinspection PyUnresolvedReferences
-from pythoncom import com_error as pythoncom_error
+from win32com.client.gencache import EnsureDispatch                          # early-bound references
 
 from ..util.filesystem import standardize_path
 from ..util.filesystem import validate_path_exists
@@ -40,7 +39,6 @@ xl_main_ascii = 'XLMAIN'.encode('ascii')
 xl_desk_ascii = 'XLDESK'.encode('ascii')
 excel7_ascii  = 'EXCEL7'.encode('ascii')
 
-xl_clsid      = '{00020400-0000-0000-C000-000000000046}'
 corrupt_hwnds = set()
 native_om     = -16
 
@@ -184,7 +182,7 @@ def __validate_excel_application(excel_app, windowstate=None):
 
 def new_excel_application(windowstate=None):
     excel_app = comtypes_createobject('Excel.Application', dynamic=True)
-    excel_app = __comtype_pointer_to_pythoncom_object(excel_app, comtypes_idispatch)
+    excel_app = __iunknown_pointer_to_python_object(excel_app, comtypes_idispatch)
     excel_app = EnsureDispatch(excel_app)
 
     reload_all_add_ins(excel_app)
@@ -269,6 +267,7 @@ def __next_window_handle(window_h=0):
     return FindWindowExA(0, window_h, xl_main_ascii, None)
 
 
+# noinspection PyTypeChecker,PyProtectedMember,PyUnresolvedReferences
 def __excel_application_from_window_handle(window_h):
     """
     comtypes library is used to search windows handles for Excel application,
@@ -278,7 +277,7 @@ def __excel_application_from_window_handle(window_h):
         Expected type [_CT], got Type[IDispatch] instead
         this is probably not correct way to set up this pointer
 
-        from pywintypes import IID
+        from pywintypes import IID?
     """
     global corrupt_hwnds
 
@@ -292,43 +291,46 @@ def __excel_application_from_window_handle(window_h):
         corrupt_hwnds.add(window_h)
         return None
 
-    # noinspection PyTypeChecker
     obj_ptr = POINTER(comtypes_idispatch)()
-    xl_guid = GUID.from_progid(xl_clsid)
     AccessibleObjectFromWindow(excel7_hwnd,
                                native_om,
-                               byref(xl_guid),
+                               byref(obj_ptr._iid_),
                                byref(obj_ptr))
 
-    # comtypes Dispatch() call rejected: user may be editing cell
     try:
         com_ptr   = comtypes_dispatch(obj_ptr).Application
-        excel_app = __comtype_pointer_to_pythoncom_object(com_ptr, comtypes_idispatch)
+        excel_app = __iunknown_pointer_to_python_object(com_ptr, comtypes_idispatch)
     except (ctypes_error, pythoncom_error, NameError):
+
+        # comtypes Dispatch() call rejected: user may be editing cell
         raise ChildProcessError('Remote Procedure Call to Excel Application rejected. '
                                 '\n'
                                 '\n\t(Excel will reject automation calls while waiting on user input, '
                                 '\n\tcheck if cursor is still active within a cell somewhere)') from None
 
-    # win32com Dispatch() call rejected: COM files may be corrupted
     try:
         return EnsureDispatch(excel_app)
     except AttributeError:
+
+        # win32com Dispatch() call rejected: COM files may be corrupted
         __move_win32com_gencache_folder()
+
         raise ChildProcessError('Error dispatching Excel Application from win32com module. '
                                 '\n'
-                                '\n\t(Deleting the contents of the win32com gen_py folder '
-                                'may resolve the error)') from None
+                                '\n\t(contents of the win32com gen_py folder may be corrupt)') from None
 
 
 # noinspection PyTypeChecker
-def __comtype_pointer_to_pythoncom_object(ptr, interface):
-    com_obj          = PyDLL(pythoncom.__file__).PyCom_PyObjectFromIUnknown
-    com_obj.restype  = py_object
-    com_obj.argtypes = (POINTER(IUnknown), c_void_p, BOOL)
+def __iunknown_pointer_to_python_object(com_ptr, interface):
+    function_pointer = PyDLL(pythoncom.__file__).PyCom_PyObjectFromIUnknown
+
+    function_pointer.restype  = py_object
+    function_pointer.argtypes = (POINTER(IUnknown),
+                                 c_void_p,
+                                 BOOL)
 
     # noinspection PyProtectedMember
-    return com_obj(ptr._comobj, byref(interface._iid_), True)
+    return function_pointer(com_ptr._comobj, byref(interface._iid_), True)
 
 
 # noinspection PyUnusedLocal
@@ -347,25 +349,26 @@ def __is_excel_application_empty(excel_app):
     return True
 
 
+# noinspection PyBroadException
 def __move_win32com_gencache_folder():
     """ move win32com gen_py cache files from temp to site-packages folder """
     try:
-        from pathlib import Path
         import shutil
+        import site
         import subprocess
         import win32com
+        from pathlib import Path
 
-        old_gcf = __default_gencache_folder()
-        new_gcf = __site_gencache_folder()
+        old_gcf = os.environ['userprofile'] + '\\AppData\\Local\\Temp\\gen_py\\'
+        new_gcf = site.getsitepackages()[1] + '\\win32com\\gen_py\\'
 
         if not os.path.exists(old_gcf):
             old_gcf = win32com.__gen_path__
-            if old_gcf == new_gcf:
+            if standardize_path(old_gcf) == standardize_path(new_gcf):
                 return
 
-        s = styled(vengeance_message('Attempting to reset win32com gencache folder ...\n'),
-                   'yellow',
-                   'bold')
+        s = vengeance_message('Attempting to reset win32com gencache folder ...\n')
+        s = styled(s, 'yellow', 'bold')
         print(s)
 
         if os.path.exists(old_gcf):
@@ -378,13 +381,3 @@ def __move_win32com_gencache_folder():
 
     except Exception:
         pass
-
-
-def __default_gencache_folder():
-    return os.environ['userprofile'] + '\\AppData\\Local\\Temp\\gen_py\\'
-
-
-def __site_gencache_folder():
-    import site
-    return site.getsitepackages()[1] + '\\win32com\\gen_py\\'
-

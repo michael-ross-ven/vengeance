@@ -1,15 +1,14 @@
 
 import csv
 import gc
+import re
 import os
 import pprint
 import shutil
 
 from collections import namedtuple
 from datetime import datetime
-from json import JSONDecodeError
 from glob import glob
-from string import ascii_lowercase
 
 from . text import json_unhandled_conversion
 from .. conditional import cpickle
@@ -23,12 +22,12 @@ else:
 pickle_extensions = {'.flux', '.pkl', '.pickle'}
 
 
+# noinspection DuplicatedCode
 def read_file(path,
               encoding=None,
               mode='r',
-              *,
               filetype=None,
-              fkwargs=None):
+              **fkwargs):
 
     if mode[0] != 'r' or mode[-1] == '+':
         raise ValueError('invalid read mode: {}'.format(mode))
@@ -38,30 +37,28 @@ def read_file(path,
     mode     = __validate_mode_with_filetype(as_bytes, mode, filetype)
     fkwargs  = fkwargs or {}
 
+    if 'fkwargs' in fkwargs:
+        fkwargs = fkwargs['fkwargs']
+
     was_gc_enabled = gc.isenabled()
     gc.disable()
 
     if filetype == '.csv':
-        fkwargs['nrows']  = fkwargs.get('nrows')
         fkwargs['strict'] = fkwargs.get('strict', True)
-
+        fkwargs['nrows']  = fkwargs.get('nrows')
         nrows = fkwargs.pop('nrows')
 
         with open(path, mode, encoding=encoding) as f:
             data = csv.reader(f, **fkwargs)
-            if isinstance(nrows, int):
-                data = __read_limited_csv_rows(nrows, data)
-            else:
+
+            if nrows is None:
                 data = list(data)
+            else:
+                data = list(__read_limited_csv_rows(data, nrows))
 
     elif filetype == '.json':
         with open(path, mode, encoding=encoding) as f:
-            try:
-                data = json.load(f, **fkwargs)
-            except (JSONDecodeError, ValueError):
-                raise ValueError('invalid encoding or malformed json: '
-                                 '\n\tpath: {}'
-                                 '\n\tencoding: {}'.format(path, encoding)) from None
+            data = json.load(f, **fkwargs)
 
     elif filetype in pickle_extensions:
         with open(path, mode) as f:
@@ -81,13 +78,13 @@ def read_file(path,
     return data
 
 
+# noinspection DuplicatedCode
 def write_file(path,
                data,
                encoding=None,
                mode='w',
-               *,
                filetype=None,
-               fkwargs=None):
+               **fkwargs):
 
     if not mode[0] in ('w', 'a'):
         raise ValueError('invalid write mode: {}'.format(mode))
@@ -96,6 +93,9 @@ def write_file(path,
     as_bytes = __validate_mode_with_encoding(mode, encoding, filetype)
     mode     = __validate_mode_with_filetype(as_bytes, mode, filetype)
     fkwargs  = fkwargs or {}
+
+    if 'fkwargs' in fkwargs:
+        fkwargs = fkwargs['fkwargs']
 
     was_gc_enabled = gc.isenabled()
     gc.disable()
@@ -108,9 +108,8 @@ def write_file(path,
             csv.writer(f, **fkwargs).writerows(data)
 
     elif filetype == '.json':
-        ensure_ascii = (encoding in (None, 'ascii'))
+        fkwargs['ensure_ascii'] = fkwargs.get('ensure_ascii', encoding in (None, 'ascii'))
         fkwargs['indent']       = fkwargs.get('indent', 4)
-        fkwargs['ensure_ascii'] = fkwargs.get('ensure_ascii', ensure_ascii)
         fkwargs['default']      = fkwargs.get('default', json_unhandled_conversion)
 
         if ultrajson_installed:
@@ -184,18 +183,12 @@ def __validate_mode_with_filetype(as_bytes, mode, filetype):
     return mode
 
 
-def __read_limited_csv_rows(nrows, csv_reader):
-    m = []
-    for _ in range(nrows):
-        try:
-            m.append(next(csv_reader))
-        except StopIteration:
-            break
-
-    if not m:
-        m = [[]]
-
-    return m
+def __read_limited_csv_rows(csv_reader, nrows):
+    try:
+        for _ in range(nrows):
+            yield next(csv_reader)
+    except StopIteration:
+        pass
 
 
 def clear_dir(filedir):
@@ -303,12 +296,8 @@ def standardize_dir(filedir,
     if not filedir.endswith(pathsep):
         filedir += pathsep
 
-    drive_letters = ('{}:{}'.format(c, pathsep) for c in ascii_lowercase)
-
-    for drive_letter in drive_letters:
-        if filedir.startswith(drive_letter):
-            filedir = filedir.replace(drive_letter, drive_letter.upper(), 1)
-            break
+    if re.search(r'^[a-z][:][/\\]', filedir):
+        filedir = filedir[0].upper() + filedir[1:]
 
     return filedir
 

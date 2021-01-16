@@ -1,5 +1,5 @@
 
-""" import vengeance as vgc """
+""" import vengeance as ven """
 
 from .version import *
 from .util import *
@@ -15,9 +15,5 @@ loads_excel_module = (not is_pypy_interpreter) and is_windows_os
     vgc.excel_levity_cls, 
     etc 
 '''
-try:
+if loads_excel_module:
     from .excel_com import *
-except ImportError as e:
-    if loads_excel_module:
-        raise e
-
