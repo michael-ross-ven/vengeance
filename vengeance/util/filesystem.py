@@ -167,6 +167,9 @@ def __validate_mode_with_encoding(mode, encoding, filetype):
     if as_bytes and encoding:
         raise ValueError('as bytes mode does not accept an encoding argument')
 
+    if encoding and filetype in pickle_extensions:
+        raise ValueError('pickle module does not accept an encoding argument')
+
     if as_bytes and filetype == '.csv':
         raise ValueError('as bytes mode is incompatable with csv module')
 
@@ -251,6 +254,8 @@ def parse_path(path,
     ParsedPath = namedtuple('ParsedPath', ('directory',
                                            'filename',
                                            'extension'))
+    path = (path.replace('"', '')
+                .replace("'", ''))
     if os.path.isdir(path):
         filedir   = path
         filename  = ''
@@ -290,7 +295,9 @@ def standardize_dir(filedir,
         return filedir
 
     filedir = filedir or os.getcwd()
-    filedir = (filedir.replace('\\', pathsep)
+    filedir = (filedir.replace('"', '')
+                      .replace("'", '')
+                      .replace('\\', pathsep)
                       .replace('/', pathsep))
 
     if not filedir.endswith(pathsep):

@@ -19,7 +19,7 @@ from .. util.filesystem import standardize_dir
 from .. util.text import object_name
 from .. util.text import styled
 
-from .. conditional import is_tty_console
+from .. conditional import is_utf_console
 
 
 class log_cls(Logger):
@@ -48,14 +48,14 @@ class log_cls(Logger):
             raise TypeError('exception_callback must be callable')
 
         p_path = parse_path(path_or_name, explicit_cwd=False)
-
         if isinstance(level, str):
             level = level.upper().strip()
 
         super().__init__(p_path.filename, level)
 
-        self.path      = self.__set_path(p_path.directory, p_path.filename, p_path.extension)
-        self.formatter = Formatter(log_format)
+        self.path       = self.__set_path(p_path.directory, p_path.filename, p_path.extension)
+        self.log_format = log_format
+        self.formatter  = Formatter(log_format)
 
         self.exception_callback = exception_callback
         self.exception_message  = ''
@@ -89,6 +89,14 @@ class log_cls(Logger):
         for h in self.handlers:
             h.setFormatter(self.formatter)
 
+    # noinspection PyProtectedMember
+    def unformat(self, message):
+        lf = (self.formatter._fmt
+                  .replace('%(asctime)s', '')
+                  .replace('%(levelname)s', '')
+                  .replace('%(message)s', ''))
+        return message.replace(lf, '')
+
     def add_parent_log(self, p_log):
         if id(p_log) == id(self):
             raise ValueError('parent log and self are the same')
@@ -113,7 +121,7 @@ class log_cls(Logger):
     def _add_stream_handler(self, stream, colored_statements):
         if not colored_statements:
             h = StreamHandler(stream)
-        elif is_tty_console:                    # TTY console doesn't support ascii escapes
+        elif not is_utf_console:
             h = StreamHandler(stream)
         else:
             h = colored_streamhandler_cls(stream)
@@ -171,14 +179,17 @@ class log_cls(Logger):
         if isinstance(self.banner_width, int):
             banner_width = self.banner_width
         else:
-            banner_width = max([len(title_message),
+            banner_width = max(len(title_message),
                               *[len(line) for line in str(_e_msg_).split('\n')],
-                              *[len(line) for line in str(filename).split('\n')]]) + 10
+                              *[len(line) for line in str(filename).split('\n')]) + 10
             banner_width = max(banner_width, 90)
 
-        banner = self.banner_character * banner_width
+        if isinstance(self.banner_character, str):
+            banner = self.banner_character * banner_width
+        else:
+            banner = ''
 
-        exception_message = dedent('''
+        exception_message = '''
         {banner}
             {title_message}
             {repr_self}
@@ -187,14 +198,15 @@ class log_cls(Logger):
             File: {filename}
             Line: {lineno}
         {banner}
-        
-        ''').format(banner=banner,
-                    title_message=title_message,
-                    repr_self=repr(self),
-                    e_type=_e_type_,
-                    e_msg=_e_msg_,
-                    filename=filename,
-                    lineno=lineno)
+        '''.format(banner=banner,
+                   title_message=title_message,
+                   repr_self=repr(self),
+                   e_type=_e_type_,
+                   e_msg=_e_msg_,
+                   filename=filename,
+                   lineno=lineno)
+
+        exception_message = dedent(exception_message)
 
         return exception_message
 

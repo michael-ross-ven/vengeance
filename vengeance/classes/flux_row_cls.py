@@ -3,8 +3,10 @@ from copy import copy
 from collections import namedtuple
 from types import SimpleNamespace
 
-from ..util.iter import map_to_numeric_indices
-from ..util.text import format_vengeance_header
+from ..util.iter import is_header_row
+from ..util.text import format_header
+from ..util.text import format_header_lite
+from ..util.text import format_integer
 
 from ..conditional import ordereddict
 from ..conditional import numpy_installed
@@ -16,14 +18,11 @@ if numpy_installed:
 class flux_row_cls:
     @classmethod
     def reserved_names(cls):
+        cls_name = '_' + cls.__name__
         reserved = [v for v in vars(flux_row_cls).keys()
-                      if not v.startswith('_flux_row_cls')]
-        reserved.append('_headers')
-        reserved.append('values')
-
-        reserved.sort()
-
-        return reserved
+                      if not v.startswith(cls_name)] + \
+                   ['_headers', 'values']
+        return sorted(reserved)
 
     def __init__(self, headers, values):
         """
@@ -49,17 +48,19 @@ class flux_row_cls:
         if not numpy_installed:
             raise ImportError('numpy site-package not installed')
 
-        names   = [format_vengeance_header(n) for n in self.header_names()]
-        values  = list(self.values)
-        max_len = max(len(names), len(values))
+        names  = [format_header(n) for n in self.header_names()]
+        values = list(self.values)
 
-        names.extend(['🗲'] * (max_len - len(names)))
-        values.extend(['🗲jagged🗲'] * (max_len - len(values)))
+        max_cols = max(len(names), len(values))
+        names.extend(['🗲']          * (max_cols - len(names)))
+        values.extend(['🗲jagged🗲'] * (max_cols - len(values)))
 
-        names  = numpy.array(names,  dtype=object)
-        values = numpy.array(values, dtype=object)
+        if 'r_i' in self.__dict__:
+            names.insert(0,  '⟨r_i⟩')
+            values.insert(0, '⟨{:,}⟩'.format(self.__dict__['r_i']).replace(',', '_'))
 
-        return numpy.transpose([names, values])
+        return numpy.transpose([numpy.array(names,  dtype=object),
+                                numpy.array(values, dtype=object)])
 
     @property
     def headers(self):
@@ -81,11 +82,7 @@ class flux_row_cls:
         was used to modify self._headers values into more suitable dictionary keys,
         like modifying duplicate values to ensure they are unique, etc
         """
-        if not self._headers:
-            return False
-
-        names = map_to_numeric_indices(self.values)
-        return self._headers.keys() == names.keys()
+        return is_header_row(self.values, self._headers)
 
     def dict(self):
         names = self.header_names()
@@ -140,7 +137,23 @@ class flux_row_cls:
             i = self._headers.get(name, name)
             return self.values[i]
         except (TypeError, IndexError):
-            raise AttributeError(self.__name_not_exist_message(name, self.header_names())) from None
+            self.__raise_attribute_error(name, self.headers)
+
+    def __setattr__(self, name, value):
+        """ eg:
+            row.column = o
+        """
+        try:
+            i = self._headers.get(name, name)
+            self.values[i] = value
+        except (TypeError, IndexError) as e:
+
+            if name in self.__dict__:
+                self.__dict__[name] = value
+            elif isinstance(self.values, tuple):
+                raise e
+            else:
+                self.__raise_attribute_error(name, self.headers)
 
     def __getitem__(self, name):
         """ eg:
@@ -153,20 +166,7 @@ class flux_row_cls:
             if isinstance(name, slice):
                 return self.values[name]
 
-            raise AttributeError(self.__name_not_exist_message(name, self.header_names())) from None
-
-    def __setattr__(self, name, value):
-        """ eg:
-            row.column = o
-        """
-        try:
-            i = self._headers.get(name, name)
-            self.values[i] = value
-        except (TypeError, IndexError):
-            if name in self.__dict__:
-                self.__dict__[name] = value
-            else:
-                raise AttributeError(self.__name_not_exist_message(name, self.header_names())) from None
+            self.__raise_attribute_error(name, self.headers)
 
     def __setitem__(self, name, value):
         """ eg:
@@ -175,13 +175,16 @@ class flux_row_cls:
         try:
             i = self._headers.get(name, name)
             self.values[i] = value
-        except (TypeError, IndexError):
-            if name in self.__dict__:
-                self.__dict__[name] = value
+        except (TypeError, IndexError) as e:
+
+            if isinstance(self.values, tuple):
+                raise e
             elif isinstance(name, slice):
                 self.values[name] = value
+            elif name in self.__dict__:
+                self.__dict__[name] = value
             else:
-                raise AttributeError(self.__name_not_exist_message(name, self.header_names())) from None
+                self.__raise_attribute_error(name, self.headers)
 
     def __len__(self):
         return len(self.values)
@@ -209,9 +212,14 @@ class flux_row_cls:
 
     def __repr__(self):
         if 'r_i' in self.__dict__:
-            row_index = 'r_i: {:,}    '.format(self.__dict__['r_i']).replace(',', '_')
+            row_label = format_integer(self.__dict__['r_i'])
+            row_label = format_header_lite(row_label)
+            row_label = '{}   '.format(row_label)
+        elif 'address' in self.__dict__:
+            row_label = format_header_lite(self.__dict__['address'])
+            row_label = '{}   '.format(row_label)
         else:
-            row_index = ''
+            row_label = ''
 
         if self.is_jagged():
             is_jagged = '🗲jagged🗲  '
@@ -220,24 +228,23 @@ class flux_row_cls:
 
         if self.is_header_row():
             values = ', '.join(str(n) for n in self.header_names())
-            values = format_vengeance_header(values)
+            values = format_header(values)
         else:
             values = (repr(self.values).replace('"', '')
                                        .replace("'", ''))
 
-        return '{}{}{}'.format(row_index, is_jagged, values)
+        return ' {}{}{} '.format(row_label, is_jagged, values)
 
     @staticmethod
-    def __name_not_exist_message(invalid_name, header_names):
-        if isinstance(invalid_name, slice):
-            return 'slice should be used directly on row.values\n(eg, row.values[2:5], not row[2:5])'
+    def __raise_attribute_error(invalid, headers):
+        s = '\n\t'.join((repr(n)[1:-1].replace(',', ':')
+                                      .replace("'", '')
+                                      .replace('"', '')) for n in headers.items())
+        s = ("'{}' column name does not exist, available columns: "
+             "\n\t{}".format(invalid, s))
 
-        s = '\n\t'.join(str(n) for n in header_names)
-        s = ("\ncolumn name not found: '{}' "
-             "\navailable columns: "
-             "\n\t{}".format(invalid_name, s))
+        raise AttributeError(s) from None
 
-        return s
 
 
 

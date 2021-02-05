@@ -9,7 +9,45 @@ class IterationDepthError(TypeError):
     pass
 
 
-def modify_iteration_depth(v, depth=0):
+class ColumnNameError(ValueError):
+    pass
+
+
+def iteration_depth(values, first_element_only=True):
+    """
+    (this function is heavily utilized to correctly un-nest
+     arguments in variable arity flux_cls methods, so make sure
+     you dont fuck anything up if you change anything here !!)
+
+    eg:
+        0 = iteration_depth('abc')
+        1 = iteration_depth(['abc'])
+        2 = iteration_depth([[2], [2]])
+
+        items = [1, [2, 2, [3, 3, 3, [4, [5, 5, 5, 5], 4]]]]
+        1 = iteration_depth(items, first_element_only=True)
+        5 = iteration_depth(items, first_element_only=False)
+    """
+    if is_exhaustable(values):
+        raise TypeError('cannot evaluate iteration depth of an exhaustable value')
+    elif not is_collection(values):
+        return 0
+    elif len(values) == 0:
+        return 1
+
+    if isinstance(values, dict):
+        values = tuple(values.values())
+
+    if first_element_only:
+        return 1 + iteration_depth(values[0], first_element_only)
+    else:
+        return 1 + max(iteration_depth(_v_, first_element_only) for _v_ in values)
+
+
+def modify_iteration_depth(values,
+                           depth=None,
+                           depth_offset=None,
+                           first_element_only=True):
     """
     (this function is heavily utilized to correctly un-nest
      arguments in invariable arity flux_cls methods, so make sure
@@ -32,79 +70,65 @@ def modify_iteration_depth(v, depth=0):
 
             # has_multiple_depths = set(iteration_depth(_v_, first_element_only=False) for _v_ in v)
     """
-    # region {closure functions}
-    def is_descendable(value):
-        if not is_collection(value):
-            return False
-        if isinstance(value, dict):
-            return False
-        if any([is_exhaustable(_v_) for _v_ in value]):
-            raise TypeError('cannot modify depth of an exhaustable iterator')
+    if not first_element_only:
+        raise NotImplementedError
+    if depth is None and depth_offset is None:
+        raise ValueError('conflicting values for depth and depth_offset')
+    elif isinstance(depth, int) and isinstance(depth_offset, int):
+        raise ValueError('conflicting values for depth and depth_offset')
 
-        return (is_subscriptable(value) and
-                len(value) == 1)
-    # endregion
+    if depth_offset is None:
+        value_depth  = iteration_depth(values, first_element_only=True)
+        depth_offset = depth - value_depth
 
-    nd = iteration_depth(v, first_element_only=True)
-
-    if nd > depth:
-        for _ in range(nd - depth):
-            if is_descendable(v):
-                v = v[0]
+    if depth_offset < 0:
+        for _ in range(abs(depth_offset)):
+            if is_descendable(values):
+                values = values[0]
             else:
                 break
-    elif nd < depth:
-        for _ in range(depth - nd):
-            v = [v]
 
-    return v
+    elif depth_offset > 0:
+        for _ in range(depth_offset):
+            values = [values]
 
-
-def iteration_depth(v, first_element_only=True):
-    """
-    (this function is heavily utilized to correctly un-nest
-     arguments in variable arity flux_cls methods, so make sure
-     you dont fuck anything up if you change anything here !!)
-
-    eg:
-        0 = iteration_depth('abc')
-        1 = iteration_depth(['abc'])
-        2 = iteration_depth([[2], [2]])
-
-    eg: items = [1, [2, 2, [3, 3, 3, [4, [5, 5, 5, 5], 4]]]]
-        2 = iteration_depth(items, first_element_only=True)
-        5 = iteration_depth(items, first_element_only=False)
-    """
-    if is_exhaustable(v):
-        raise TypeError('cannot evaluate iteration depth of an exhaustable value: {}'.format(v))
-    if not is_collection(v):
-        return 0
-    if len(v) == 0:
-        return 1
-
-    if isinstance(v, dict):
-        v = tuple(v.values())
-
-    if first_element_only:
-        return 1 + iteration_depth(v[0], first_element_only)
-    else:
-        return 1 + max(iteration_depth(_v_, first_element_only) for _v_ in v)
+    return values
 
 
-def iterator_to_list(v):
-    if is_vengeance_class(v):
-        return list(v.rows())
+def standardize_variable_arity_arguments(values,
+                                         depth=None,
+                                         depth_offset=None):
 
-    if is_exhaustable(v):
-        return list(v)
+    if depth is None and depth_offset is None:
+        return values
 
-    if isinstance(v, range):
-        return list(v)
+    # region {closure functions}
+    def descend_iterator(v):
+        if is_descendable(v) and is_exhaustable(v[0]):
+            return iterator_to_collection(v[0])
+        else:
+            return iterator_to_collection(v)
+    # endregion
 
-    return v
+    values = descend_iterator(values)
+    values = modify_iteration_depth(values, depth, depth_offset,
+                                    first_element_only=True)
+
+    return values
 
 
-def is_collection(v):
+def are_indices_contiguous(indices):
+    if len(indices) == 1:
+        return False
+
+    for i_2, i_1 in zip(indices[1:], indices):
+        if i_2 - i_1 != 1:
+            return False
+
+    return True
+
+
+def is_collection(o):
     """ determine if value is an iterable object or data structure
     function used mainly to distinguish data structures from other iterables
 
@@ -112,10 +136,10 @@ def is_collection(v):
         False = is_collection('mike')
         True  = is_collection(['m', 'i' 'k' 'e'])
     """
-    if isinstance(v, (str, bytes, range)):
+    if isinstance(o, (str, bytes, range)):
         return False
 
-    return isinstance(v, Iterable)
+    return isinstance(o, Iterable)
 
 
 # noinspection PyStatementEffect,PyBroadException
@@ -128,23 +152,8 @@ def is_subscriptable(o):
 
 
 def is_exhaustable(o):
-    return hasattr(o, '__next__')
-
-
-def standardize_variable_arity_arguments(v, depth):
-    # region {closure function}
-    def exhaust_iterator(a):
-        if is_subscriptable(a) and (is_exhaustable(a[0]) or isinstance(a[0], range)):
-            return iterator_to_list(a[0])
-
-        return iterator_to_list(a)
-    # endregion
-
-    v = exhaust_iterator(v)
-    v = modify_iteration_depth(v, depth)
-    v = exhaust_iterator(v)
-
-    return v
+    return (hasattr(o, '__next__') or
+            isinstance(o, range))
 
 
 def is_vengeance_class(o):
@@ -154,31 +163,60 @@ def is_vengeance_class(o):
 
 
 def is_namedtuple_class(o):
-    return isinstance(o, tuple) and (type(o) is not tuple)
+    return (isinstance(o, tuple) and
+            type(o) is not tuple)
+
+
+def is_descendable(o):
+    return (is_collection(o) and
+            is_subscriptable(o) and
+            len(o) == 1)
+
+
+def descend_iteration_depth(o):
+    if is_descendable(o):
+        return o[0]
+    else:
+        return o
+
+
+def iterator_to_collection(o):
+    if is_vengeance_class(o):
+        return list(o.rows())
+    elif is_exhaustable(o):
+        return list(o)
+
+    return o
 
 
 def base_class_names(o):
     return [b.__name__ for b in o.__class__.mro()]
 
 
-def transpose(m, astype=tuple):
+def transpose(m, astype=None):
+    m = iterator_to_collection(m)
+    if astype is None:
+        astype = type(m[0])
+
     if astype is tuple:
         return transpose_as_tuples(m)
-    if astype is list:
+    else:
         return transpose_as_lists(m)
-
-    raise TypeError('astype parameter must be either tuple or list')
 
 
 def transpose_as_tuples(m):
-    if iteration_depth(m) == 1:
+    m = iterator_to_collection(m)
+
+    if iteration_depth(m, first_element_only=True) == 1:
         return ((v,) for v in m)
     else:
         return zip(*m)
 
 
 def transpose_as_lists(m):
-    if iteration_depth(m) == 1:
+    m = iterator_to_collection(m)
+
+    if iteration_depth(m, first_element_only=True) == 1:
         return ([v] for v in m)
     else:
         return (list(v) for v in zip(*m))
@@ -188,20 +226,23 @@ def map_to_numeric_indices(sequence, start=0):
     """ :return {value: index} for all items in sequence
 
     values are modified before they are added as keys:
-        non-unique keys are coerced to string and appended with '_{num}'
-        suffix to ensure that indices are incremented correctly
+        * values coerced to string (if not bytes)
+        * non-unique keys are appended with '_{num}' suffix
 
     eg
         {'a':   0,
          'b':   1,
          'c':   2,
-         'b_2': 3} = map_numeric_indices(['a', 'b', 'c', 'b'])
+         'b_2': 3,
+         'b_3': 4} = map_numeric_indices(['a', 'b', 'c', 'b', 'b'])
     """
     indices   = ordereddict()
     nonunique = defaultdict(lambda: 1)
 
     for i, v in enumerate(sequence, start):
-        if isinstance(v, bytes):
+        is_bytes = isinstance(v, bytes)
+
+        if is_bytes:
             v_s = v.decode('utf-8')
         else:
             v_s = str(v)
@@ -210,50 +251,26 @@ def map_to_numeric_indices(sequence, start=0):
             nonunique[v_s] += 1
             v_s = '{}_{}'.format(v_s, nonunique[v_s])
 
+        if is_bytes:
+            v_s = v_s.encode('utf-8')
+
         indices[v_s] = i
 
     return indices
 
 
-class OrderedDefaultDict(ordereddict):
+def is_header_row(values, headers):
+    """ determine if underlying values match headers.keys
 
-    def __init__(self, default):
-        self.default_factory = default
-        super().__init__()
+    headers.keys() == values will not always work, since map_to_numeric_indices()
+    was used to modify names into more suitable dictionary keys, such as
+        * values coerced to string (if not bytes)
+        * non-unique keys are appended with '_{num}' suffix
+    """
+    if not headers:
+        return False
 
-    def append_items(self, items):
-        """ all items that map to the same key are appended to a list """
-        if self.default_factory is not list:
-            raise TypeError('self.default_factory function must be list')
+    return set(headers) == map_to_numeric_indices(values).keys()
 
-        if isinstance(items, dict):
-            items = items.items()
 
-        for item in items:
-            try:
-                k, v = item
-            except Exception:
-                raise IndexError('items must be (key, value) pairs') from None
 
-            self[k].append(v)
-
-        return self
-
-    def __getitem__(self, key):
-        try:
-            return super().__getitem__(key)
-        except KeyError:
-            return self.__missing__(key)
-
-    def __missing__(self, key):
-        if self.default_factory is None:
-            raise KeyError(key)
-
-        self[key] = value = self.default_factory()
-        return value
-
-    def defaultdict(self):
-        return defaultdict(self.default_factory, self.items())
-
-    def ordereddict(self):
-        return ordereddict(self.items())

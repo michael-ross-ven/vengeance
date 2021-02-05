@@ -6,7 +6,6 @@ import functools
 from datetime import date
 from timeit import default_timer
 
-from ..conditional import is_tty_console
 from ..conditional import is_utf_console
 from ..conditional import ultrajson_installed
 
@@ -23,26 +22,23 @@ else:
 
 def print_runtime(f):
 
-    def runtime_wrapper(_f_):
-        @functools.wraps(_f_)
-        def functools_wrapper(*args, **kwargs):
-            tic  = default_timer()
-            retv = _f_(*args, **kwargs)
-            toc  = default_timer()
-            elapsed = -(tic - toc)
+    @functools.wraps(f)
+    def runtime_wrapper(*args, **kwargs):
+        tic  = default_timer()
+        retv = f(*args, **kwargs)
+        toc  = default_timer()
+        elapsed = -(tic - toc)
 
-            s = '@{}: {}'.format(function_name(_f_), format_seconds(elapsed))
-            s = vengeance_message(s)
-            print(s)
+        s = '@{}: {}'.format(function_name(f), format_seconds(elapsed))
+        s = vengeance_message(s)
+        print(s)
 
-            return retv
+        return retv
 
-        return functools_wrapper
-
-    return runtime_wrapper(f)
+    return runtime_wrapper
 
 
-def print_performance(f=None, *, repeat=3):
+def print_performance(f=None, repeat=5):
 
     def performance_wrapper(_f_):
         @functools.wraps(_f_)
@@ -57,15 +53,12 @@ def print_performance(f=None, *, repeat=3):
             gc.disable()
 
             for _ in functools_repeat(repeat):
-                tic  = default_timer() * 1000
+                tic  = default_timer()
                 retv = _f_(*args, **kwargs)
-                toc  = default_timer() * 1000
-
+                toc  = default_timer()
                 elapsed = -(tic - toc)
-                total  += elapsed
 
-                # best  = elapsed if (best is None)  else min(best, elapsed)
-                # worst = elapsed if (worst is None) else max(worst, elapsed)
+                total += elapsed
 
                 if best is None:
                     best = elapsed
@@ -77,14 +70,15 @@ def print_performance(f=None, *, repeat=3):
                 else:
                     worst = max(worst, elapsed)
 
-            s = ('@{}'
-                 '\n        best:    {}'
-                 '\n        average: {}'
-                 '\n        worst:   {}'
+            s = ('@{}, {}'
+                 '\n        {}best:    {}'
+                 '\n        {}average: {}'
+                 '\n        {}worst:   {}'
                  .format(function_name(_f_),
-                         format_milliseconds(best),
-                         format_milliseconds(total / repeat),
-                         format_milliseconds(worst)))
+                         format_header_lite(str(repeat) + ' trials'),
+                         styled('★★★ ', 'blue'),    format_seconds(best),
+                         styled('★★   ', 'blue'), format_seconds(total / repeat),
+                         styled('★    ', 'blue'),    format_seconds(worst)))
             s = vengeance_message(s)
             print(s)
 
@@ -95,14 +89,114 @@ def print_performance(f=None, *, repeat=3):
 
         return functools_wrapper
 
-    if f is None:
-        return performance_wrapper
-    else:
+    if isinstance(f, int):
+        f, repeat = None, f
+
+    if callable(f):
         return performance_wrapper(f)
+    else:
+        return performance_wrapper
+
+
+def deprecated(f=None, message='deprecated'):
+
+    def deprecated_wrapper(_f_):
+        @functools.wraps(_f_)
+        def functools_wrapper(*args, **kwargs):
+
+            # noinspection PyTypeChecker
+            vengeance_warning("@{}: '{}'".format(function_name(_f_), message),
+                              DeprecationWarning,
+                              stacklevel=None,
+                              color='grey',
+                              effect='bold')
+
+            return _f_(*args, **kwargs)
+
+        return functools_wrapper
+
+    if isinstance(f, str):
+        f, message = None, f
+
+    if callable(f):
+        return deprecated_wrapper(f)
+    else:
+        return deprecated_wrapper
+
+
+def vengeance_warning(message,
+                      category=Warning,
+                      stacklevel=2,
+                      stackframe=None,
+                      color=None,
+                      effect=None):
+
+    import inspect
+    import traceback
+    import warnings
+
+    # region {closure functions}
+    aligned_indent = ' ' * len(__vengeance_prefix__.replace('\t', ''))
+    aligned_indent = '\t' + aligned_indent
+
+    def first_non_vengeance_frame():
+        nonlocal stackframe
+
+        is_found = False
+        tb_stack = reversed(traceback.extract_stack())
+
+        for i, stackframe in enumerate(tb_stack):
+            if '\\vengeance\\' not in stackframe.filename:
+                is_found = True
+                break
+
+        if not is_found:
+            stackframe = traceback.extract_stack(inspect.currentframe(), limit=2)[0]
+
+    def extract_frame():
+        nonlocal stackframe
+
+        sl = max(stacklevel, 2)
+        stackframe = traceback.extract_stack(inspect.currentframe(), limit=sl)[0]
+
+    def vengeance_formatwarning(*_, **__):
+        line_1 = message.replace('\n', '\n' + aligned_indent)
+        line_1 = '<{}> {}'.format(object_name(category), line_1)
+        line_1 = vengeance_message(line_1)
+
+        line_2 = 'File "{}", line {}'.format(filename, lineno)
+        line_2 = aligned_indent + line_2
+
+        w_message = ('{}\n{}\n'.format(line_1, line_2)
+                               .replace('\t', '    '))
+        if color or effect:
+            w_message = styled(w_message, color, effect)
+
+        return w_message
+    # endregion
+
+    if stacklevel is None and stackframe is None:
+        first_non_vengeance_frame()
+    elif isinstance(stacklevel, int) and stackframe is None:
+        extract_frame()
+
+    if stackframe is not None:
+        filename = stackframe.filename
+        lineno   = stackframe.lineno
+    else:
+        filename = '{unknown}'
+        lineno   = '{unknown}'
+
+    original_formatwarning = warnings.formatwarning
+    warnings.formatwarning = vengeance_formatwarning
+    warnings.warn(message)
+    warnings.formatwarning = original_formatwarning
+
+    print(end='')
 
 
 def styled(message,
-           color='dark magenta',
+           color='grey',
            effect='bold'):
 
     # region {escape codes}
@@ -135,92 +229,36 @@ def styled(message,
     if effect not in effect_codes:
         raise KeyError('invalid style: {}'.format(effect))
 
-    if is_tty_console:          # TTY console doesn't support ascii escapes
+    if not is_utf_console:
+        return message
+    if not color and not effect:
         return message
 
-    styled_message = ('{ascii_color}{effect_start}{message}{effect_end}'
-                       .format(ascii_color=color_codes[color],
-                               effect_start=effect_codes[effect],
-                               message=message,
-                               effect_end=effect_codes['end']))
-    return styled_message
+    effect_style = color_codes[color] + effect_codes[effect]
+    effect_end   = effect_codes['end']
+    message      = str(message).replace(effect_end, effect_style)
+
+    return ('{effect_style}{message}{effect_end}'
+            .format(effect_style=effect_style,
+                    message=message,
+                    effect_end=effect_end))
 
 
 def vengeance_message(message):
     return __vengeance_prefix__ + message
 
 
-def deprecated(message='deprecated'):
-
-    def deprecated_wrapper(_f_):
-        @functools.wraps(_f_)
-        def functools_wrapper(*args, **kwargs):
-            _message_ = "@{}: '{}'".format(function_name(_f_), message)
-            vengeance_warning(_message_,
-                              DeprecationWarning,
-                              stacklevel=3,
-                              stackframe=None)
-
-            return _f_(*args, **kwargs)
-
-        return functools_wrapper
-
-    return deprecated_wrapper
+def format_header(h=''):
+    return '⟪{}⟫'.format(h)
 
 
-def vengeance_warning(message,
-                      category=Warning,
-                      stacklevel=2,
-                      stackframe=None):
-    import warnings
-
-    # region {closure functions}
-    if isinstance(stacklevel, int) and stackframe is None:
-        import inspect
-        import traceback
-        stackframe = traceback.extract_stack(inspect.currentframe(), limit=stacklevel)[0]
-
-    def vengeance_formatwarning(*_, **__):
-        nonlocal stackframe
-        nonlocal category
-        nonlocal message
-
-        aligned_indent = len(__vengeance_prefix__.replace('\t', ''))
-        aligned_indent = ' ' * aligned_indent
-        aligned_indent = '\t' + aligned_indent
-
-        w_category = object_name(category)
-        w_message  = message.replace('\n', '\n' + aligned_indent)
-
-        line_1 = '<{}> {}'.format(w_category, w_message)
-        if stackframe is None:
-            line_2 = 'File {unknown}, line {unknown}'
-        else:
-            line_2 = 'File "{}", line {}'.format(stackframe.filename, stackframe.lineno)
-
-        line_1 = vengeance_message(line_1)
-        line_2 = aligned_indent + line_2
-        w_message = '{}\n{}\n'.format(line_1, line_2)
-
-        # w_message = styled(w_message, 'yellow', 'bold')
-
-        return w_message
-    # endregion
-
-    original_formatwarning = warnings.formatwarning
-
-    warnings.formatwarning = vengeance_formatwarning
-    warnings.warn(message)
-    warnings.formatwarning = original_formatwarning
-
-    # print(end='')
-    # import sys
-    # sys.stdout.flush()
-    # sys.stderr.flush()
+def format_header_lite(h=''):
+    return '⟨{}⟩'.format(h)
 
 
-def format_vengeance_header(n):
-    return '⟪{}⟫'.format(n)
+def format_integer(i):
+    """ eg: '1_000_000' = format_integer(1000000) """
+    return '{:,}'.format(int(i)).replace(',', '_')
 
 
 def format_seconds(secs):
@@ -243,14 +281,14 @@ def format_milliseconds(ms):
     elif m >= 1:
         f_ms = '{:.0f}m {:.0f}s'.format(m, s)
     elif s >= 1:
-        f_ms = '{:.2f} seconds'.format(s)
+        f_ms = '{:.1f} sec'.format(s)
     elif ms >= 1:
         f_ms = '{:.1f} ms'.format(ms)
     elif us >= 1:
         if is_utf_console:
             f_ms = '{:.0f} μs'.format(us)
         else:
-            f_ms = '{:.0f} mi s'.format(us)
+            f_ms = '{:.0f} mcs'.format(us)
     else:
         f_ms = '{:.0f} ns'.format(ns)
 
@@ -273,7 +311,6 @@ def object_name(o):
         return o.__class__.__name__
 
 
-# def json_dumps_extended(o, indent=4, ensure_ascii=False):
 def json_dumps_extended(o, **kwargs):
     kwargs['ensure_ascii'] = kwargs.get('ensure_ascii', False)
     kwargs['indent']       = kwargs.get('indent', 4)
@@ -294,6 +331,7 @@ def json_unhandled_conversion(v):
         return v.isoformat()
     if isinstance(v, set):
         return list(v)
+    # if isinstance(v, Decimal) ?
 
     raise TypeError("Object of type '{}' is not JSON serializable".format(object_name(v)))
 

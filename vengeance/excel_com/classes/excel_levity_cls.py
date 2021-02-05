@@ -11,7 +11,7 @@ from .. import excel_address
 from .. import worksheet
 from ..excel_constants import *
 
-from ...util.iter import iterator_to_list
+from ...util.iter import iterator_to_collection
 from ...util.iter import map_to_numeric_indices
 from ...util.iter import modify_iteration_depth
 from ...util.text import object_name
@@ -103,11 +103,9 @@ class excel_levity_cls:
     def meta_headers(self):
         return self.m_headers
 
-    @property
     def header_names(self):
         return list(self.headers.keys())
 
-    @property
     def meta_header_names(self):
         return list(self.m_headers.keys())
 
@@ -120,6 +118,9 @@ class excel_levity_cls:
 
     @property
     def has_filter(self):
+        if not self.is_worksheet_type:
+            return False
+
         return bool(self.ws.AutoFilter)
 
     @property
@@ -368,10 +369,10 @@ class excel_levity_cls:
             c_1, r_1 = _reference_to_col_row(self, a_1)
             c_2, r_2 = _reference_to_col_row(self, a_2)
 
-            a = '{}{}:{}{}'.format(c_1, r_1, c_2, r_2)
+            a = '${}${}:${}${}'.format(c_1, r_1, c_2, r_2)
         else:
             c_1, r_1 = _reference_to_col_row(self, reference)
-            a = '{}{}'.format(c_1, r_1)
+            a = '${}${}'.format(c_1, r_1)
 
         return a
 
@@ -380,17 +381,18 @@ class excel_levity_cls:
 
     def __setitem__(self, reference, v):
         """ write value(s) to excel range """
-        excel_range = self.excel_range(reference)
+        excel_range  = self.excel_range(reference)
+
         m = self.__validate_matrix_within_range_boundaries(v, excel_range)
 
+        was_filtered = self.has_filter
         worksheet.write_to_excel_range(m, excel_range)
 
-        r_1 = excel_range.Row
-        index_meta   = (r_1 <= self.meta_r)
-        index_header = (r_1 <= self.header_r)
-        self.set_range_boundaries(index_meta, index_header)
+        r = excel_range.Row
+        self.set_range_boundaries(index_meta=(r   <= self.meta_r),
+                                  index_header=(r <= self.header_r))
 
-        if self.has_filter:
+        if was_filtered:
             self.reapply_filter()
 
     def __iter__(self):
@@ -416,7 +418,7 @@ class excel_levity_cls:
         if lev has fixed columns or rows, these should not be exceeded
         make sure matrix fits in allowed destination space
         """
-        m = iterator_to_list(v)
+        m = iterator_to_collection(v)
         m = modify_iteration_depth(m, depth=2)
 
         col_max = num_cols = len(m[0])
@@ -548,6 +550,8 @@ def __parse_characters_from_digits(reference, col, row):
          (?P<col>^[$]?[a-z]{1,2})(?=[\d* ])
         |(?P<row>[$]?[\d]+$)
     ''', re.X | re.I)
+
+    reference = reference.replace('$', '')
 
     for match in address_re.finditer(reference):
         name  = match.lastgroup

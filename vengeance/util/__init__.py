@@ -5,7 +5,6 @@ from .dates import to_datetime
 from .filesystem import read_file
 from .filesystem import write_file
 
-from .iter import OrderedDefaultDict
 from .iter import transpose
 
 from .text import print_runtime
@@ -20,5 +19,4 @@ __all__ = ['print_runtime',
            'is_date',
            'read_file',
            'write_file',
-           'transpose',
-           'OrderedDefaultDict']
+           'transpose']

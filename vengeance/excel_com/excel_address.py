@@ -1,68 +1,63 @@
 
 import re
 
-max_rows    = 1048575
-max_cols    = 16384             # maximum number of columns in an excel worksheet (office 2010)
-max_str_len = 32767             # largest string that will fit in a single cell
+# for office 2010+
+max_rows = 1048575           # 2**20
+max_cols = 16384             # 2**14
 
 
-def col_letter_offset(col_str, offset):
-    return col_letter(col_number(col_str) + offset)
+def col_letter_offset(cs, offset):
+    return col_letter(col_number(cs) + offset)
 
 
-def col_letter(col_int):
-    """ convert column numbers to character representation """
-    if isinstance(col_int, str):
-        __assert_valid_column_letter(col_int)
-        return col_int
+def col_letter(ci):
+    """ column numbers to string """
+    if isinstance(ci, str):
+        return __validate_column_letter(ci)
 
-    __assert_valid_column_number(col_int)
+    __validate_column_number(ci)
 
-    col_str = ''
-    while col_int > 0:
-        c = (col_int - 1) % 26
-        col_str = chr(c + 65) + col_str
-        col_int = (col_int - c) // 26
+    cs = ''
+    while ci > 0:
+        ci_2 = ((ci - 1) % 26)
+        cs   = chr(ci_2 + 65) + cs
+        ci   = (ci - ci_2) // 26
 
-    return col_str
-
-
-def col_number(col_str):
-    """ convert column letters to int representation """
-    if col_str == '' or col_str is None:
-        return 0
-
-    if isinstance(col_str, (float, int)):
-        col_int = int(col_str)
-        __assert_valid_column_number(col_int)
-        return col_int
-
-    __assert_valid_column_letter(col_str)
-
-    col_int = 0
-    col_str = str(col_str).upper()
-
-    for i, c in enumerate(col_str, 1):
-        p = len(col_str) - i
-        c = ord(c) - 64
-        col_int += c * 26**p
-
-    __assert_valid_column_number(col_int)
-
-    return col_int
+    return cs
 
 
-def __assert_valid_column_letter(col_str):
-    col_re = re.compile('^[a-z]{1,3}$', re.I)
+def col_number(cs):
+    """ column letters to integer """
+    if isinstance(cs, (float, int)):
+        return __validate_column_number(int(cs))
 
-    if not col_re.match(col_str):
-        raise ValueError("'{}' is not a valid Excel column address"
-                         "\n(valid columns should be 'A - {}')"
-                         .format(col_str.upper(), col_letter(max_cols)))
+    cs = __validate_column_letter(cs)
+
+    ci = 0
+    for i, ci_2 in enumerate(cs, 1):
+        ci_2 = ord(ci_2) - 64
+        ci  += ci_2 * 26**(len(cs) - i)
+
+    __validate_column_number(ci)
+
+    return ci
 
 
-def __assert_valid_column_number(col_int):
-    if col_int > max_cols:
-        raise ValueError("column number ({:,}) exceeds Excel's maximum column limit"
-                         .format(col_int))
+def __validate_column_letter(cs):
+    cs = str(cs).upper()
 
+    if not re.search('^[a-z]{1,3}$', cs, re.I):
+        raise ValueError("'{}' is not a valid Excel column address "
+                         "\n(valid columns should be 'A - {}')".format(cs, col_letter(max_cols)))
+
+    return cs
+
+
+def __validate_column_number(ci):
+    if ci < 1:
+        raise ValueError("column number ({:,}) must be >= 1".format(ci))
+
+    if ci > max_cols:
+        raise ValueError("column number ({:,}) exceeds Excel's maximum column limit".format(ci))
+
+    return ci

@@ -13,13 +13,11 @@ from .excel_address import col_number
 from .excel_address import max_cols as excel_max_cols
 from .excel_address import max_rows as excel_max_rows
 
-from ..util.iter import iterator_to_list
+from ..util.iter import iterator_to_collection
 from ..util.iter import modify_iteration_depth
-from ..util.iter import is_exhaustable
 
 
-def get_worksheet(wb,
-                  ws,
+def get_worksheet(wb, ws,
                   *,
                   clear_filter=False,
                   activate=False):
@@ -35,15 +33,12 @@ def get_worksheet(wb,
     except pythoncom_error as e:
         raise NameError("'{}' worksheet not found in '{}'".format(ws, wb.Name)) from e
 
-    # if chart that has been moved to its own worksheet, these calls will fail
-    # if ws.__class__.__name__ != '_Worksheet':
-
     if clear_filter:
         clear_worksheet_filter(ws)
 
     if activate:
-        ws.Visible = True
         excel_application_to_foreground(ws.Application)
+        ws.Visible = True
         ws.Activate()
 
     return ws
@@ -163,13 +158,17 @@ def last_cell(excel_range):
         return excel_range.Cells(excel_range.Cells.Count)
 
 
+# noinspection PyBroadException
 def is_filtered(ws):
-    return (ws.AutoFilter is not None) and bool(ws.AutoFilter.FilterMode)
+    try:
+        return (ws.AutoFilter is not None) and bool(ws.AutoFilter.FilterMode)
+    except Exception:
+        return False
 
 
 # noinspection PyProtectedMember
 def clear_worksheet_filter(ws):
-    if is_filtered(ws):
+    if is_filtered(ws) and is_worksheet_instance(ws):
         ws._AutoFilter.ShowAllData()
 
 
@@ -191,13 +190,12 @@ def activate_worksheet(ws):
 
 def write_to_excel_range(v, excel_range):
     m = validate_matrix_within_max_worksheet_dimensions(v)
-    m = list(convert_python_types(m))
+    m = convert_python_types(m)
 
-    num_cols = len(m[0])
-    num_rows = len(m)
-    excel_range_dest = excel_range.Resize(num_rows, num_cols)
+    a_1 = excel_range.Address
+    a_2 = excel_range.Resize(len(m), len(m[0])).Address
 
-    excel_range.Parent.Range(excel_range, excel_range_dest).Value = m
+    excel_range.Parent.Range(a_1, a_2).Value = m
 
 
 def escape_excel_range_errors(excel_range):
@@ -231,41 +229,41 @@ def convert_python_types(m):
             convert non-primitives to repr()
     """
     # region {closure function}
-    # noinspection PyPep8Naming
-    NoneType = type(None)
+    def convert_excel_value(row):
+        if isinstance(row, tuple):
+            row = list(row)
 
-    def convert_excel_value(v):
-        if isinstance(v, (NoneType, bool, int, float, str)):
-            _v_ = v
-        elif isinstance(v, date):
-            _v_ = datetime(v.year, v.month, v.day)
-        else:
-            _v_ = repr(v)
+        for i, v in enumerate(row):
+            if v in (None, True, False):
+                _v_ = v
+            elif isinstance(v, (bool, int, float, str)):
+                _v_ = v
+            elif isinstance(v, date):
+                _v_ = datetime(v.year, v.month, v.day)
+            else:
+                _v_ = repr(v)
 
-        return _v_
+            row[i] = _v_
+
+        return tuple(row)
     # endregion
 
-    if is_exhaustable(m):
-        # m = iterator_to_list(m)
-        # m = modify_iteration_depth(m, depth=2)
-        raise TypeError('matrix must be a list of lists, not a generator')
-
-    max_cols = len(m[0])
-
-    for i, row in enumerate(m):
-        if (max_cols - len(row)) != 0:
-            raise ValueError('cannot write to Excel worksheet, jagged columns at row {:,}\n\t'.format(i))
-
-        yield tuple(convert_excel_value(v) for v in row)
+    return tuple([convert_excel_value(row) for row in m])
+    # for row in m:
+    #     yield tuple([convert_excel_value(v) for v in row])
 
 
 def validate_matrix_within_max_worksheet_dimensions(v):
     """ ensure matrix fits within Excel's column and row maximum """
-    m = iterator_to_list(v)
+    m = iterator_to_collection(v)
     m = modify_iteration_depth(m, depth=2)
 
     num_rows = len(m)
-    num_cols = max(map(len, m))
+    num_cols = len(m[0])
+
+    for i, row in enumerate(m):
+        if num_cols != len(row):
+            raise ValueError('\ncannot write to Excel worksheet, jagged row in matrix:\n {:,}: {}'.format(i, row))
 
     if num_rows > excel_max_rows:
         raise ValueError("number of rows in matrix ({:,}) exceeds Excel's row limit ({:,})"

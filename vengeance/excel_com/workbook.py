@@ -1,11 +1,12 @@
 
 import ctypes
+import gc
 import os
 import pythoncom
 
-from _ctypes import COMError as ctypes_error
 # noinspection PyUnresolvedReferences
 from pythoncom import com_error as pythoncom_error
+from _ctypes import COMError as ctypes_error
 
 from ctypes import byref
 from ctypes import c_void_p
@@ -27,7 +28,8 @@ from ..util.filesystem import validate_path_exists
 from ..util.text import styled
 from ..util.text import vengeance_message
 from ..util.text import vengeance_warning
-from .excel_constants import *
+# from .import excel_constants
+from .excel_constants import xlMaximized
 
 # Windows api functions
 FindWindowExA              = ctypes.windll.user32.FindWindowExA
@@ -43,15 +45,13 @@ corrupt_hwnds = set()
 native_om     = -16
 
 
-def open_workbook(path,
-                  excel_app='new',
+def open_workbook(path, excel_app='new',
                   *,
                   read_only=False,
                   update_links=True,
                   windowstate=xlMaximized):
 
     wb = get_opened_workbook(path)
-
     if wb is None:
         wb = __open_workbook_dispatch(path,
                                       excel_app,
@@ -107,28 +107,24 @@ def close_workbook(wb, save):
         1) if Workbook is the only one in the Excel application, closes the application as well
         2) correctly releases the com pointer for the workbook
     """
-    import gc
-
     if save and wb.ReadOnly:
         raise AssertionError("'{}' is open as read-only, cannot save and close".format(wb.Name))
 
     excel_app = wb.Application
+
     display_alerts = excel_app.DisplayAlerts
-
-    if save:
-        wb.Save()
-
     excel_app.DisplayAlerts = False
-    wb.Close()
+    wb.Close(save)
+    excel_app.DisplayAlerts = display_alerts
+
     wb = None
     del wb
 
     if excel_app.Workbooks.Count == 0:
         excel_app.Quit()
+
         excel_app = None
         del excel_app
-    else:
-        excel_app.DisplayAlerts = display_alerts
 
     gc.collect()
 
@@ -180,7 +176,7 @@ def __validate_excel_application(excel_app, windowstate=None):
     return excel_app
 
 
-def new_excel_application(windowstate=None):
+def new_excel_application(windowstate=xlMaximized):
     excel_app = comtypes_createobject('Excel.Application', dynamic=True)
     excel_app = __iunknown_pointer_to_python_object(excel_app, comtypes_idispatch)
     excel_app = EnsureDispatch(excel_app)
@@ -201,7 +197,7 @@ def any_excel_application(windowstate=None):
     return excel_app
 
 
-def empty_excel_application(windowstate=None):
+def empty_excel_application(windowstate=xlMaximized):
     for excel_app in all_excel_instances():
 
         if __is_excel_application_empty(excel_app):
@@ -252,14 +248,26 @@ def reload_all_add_ins(excel_app):
     print()
 
 
+# noinspection PyUnusedLocal,PyBroadException
 def excel_application_to_foreground(excel_app, windowstate=None):
-    if windowstate not in (None, xlNormal, xlMaximized):
-        raise ValueError('windowstate must be in: (None, xlNormal, xlMaximized)')
-
     if windowstate is not None:
-        excel_app.WindowState = windowstate
+        try:
+            excel_app.WindowState = windowstate
+        except Exception:
+            pass
 
     excel_app.Visible = True
+
+    if excel_app.Visible is False and excel_app.Workbooks.Count == 0:
+        wb = excel_app.Workbooks.Add()
+        excel_app.Visible = True
+        wb.Close(False)
+
+        wb = None
+        del wb
+
+        gc.collect()
+
     SetForegroundWindow(excel_app.Hwnd)
 
 
@@ -284,8 +292,8 @@ def __excel_application_from_window_handle(window_h):
     if window_h in corrupt_hwnds:
         return None
 
-    desk_hwnd   = FindWindowExA(window_h,  None, xl_desk_ascii, None)
-    excel7_hwnd = FindWindowExA(desk_hwnd, None, excel7_ascii,  None)
+    xl_desk_hwnd = FindWindowExA(window_h,    None,  xl_desk_ascii, None)
+    excel7_hwnd  = FindWindowExA(xl_desk_hwnd, None, excel7_ascii,  None)
 
     if excel7_hwnd == 0:
         corrupt_hwnds.add(window_h)
