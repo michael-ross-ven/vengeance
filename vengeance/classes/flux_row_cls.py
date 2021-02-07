@@ -233,7 +233,7 @@ class flux_row_cls:
             values = (repr(self.values).replace('"', '')
                                        .replace("'", ''))
 
-        return ' {}{}{} '.format(row_label, is_jagged, values)
+        return '{}{}{} '.format(row_label, is_jagged, values)
 
     @staticmethod
     def __raise_attribute_error(invalid, headers):

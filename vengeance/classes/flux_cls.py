@@ -22,6 +22,7 @@ from ..util.iter import is_subscriptable
 from ..util.iter import is_vengeance_class
 from ..util.iter import standardize_variable_arity_arguments
 from ..util.iter import iteration_depth
+from ..util.iter import iterator_to_collection
 from ..util.iter import map_to_numeric_indices
 from ..util.iter import are_indices_contiguous
 from ..util.iter import modify_iteration_depth
@@ -105,27 +106,26 @@ class flux_cls:
             raise ImportError('numpy site-package not installed')
 
         # region {closure functions}
-        max_cols = max(max(len(row.values) for row in self.matrix[r_1:r_2]),
-                       self.num_cols)
-
         def enum_start_index():
             if r_1 < 0:
-                return max(1, self.num_rows + r_1)
-            elif r_1 == 0:
-                return 1
+                return max(1, len(self.matrix) + r_1)
             else:
                 return r_1
         # endregion
 
-        _rif_ = '     {}     '
-        r_i = format_header_lite(_rif_.format('r_i'))
-        h   = [format_header(' {} '.format(n)) for n in self.header_names()]
+        max_cols = max(max(len(row.values) for row in self.matrix[r_1:r_2]),
+                       self.num_cols)
+
+        _rif_ = '⟨{}⟩'
+
+        r_i = _rif_.format('r_i')
+        h   = [format_header(n) for n in self.header_names()]
         j   = ['🗲'] * (max_cols - len(h))
 
         m = [[r_i, *h, *j]]
         for r_i, row in enumerate(self.matrix[r_1:r_2], enum_start_index()):
             r_i = format_integer(row.__dict__.get('r_i', r_i))
-            r_i = format_header_lite(_rif_.format(r_i))
+            r_i = _rif_.format(r_i)
             v   = row.values
             j   = ['🗲jagged🗲'] * (max_cols - len(v))
 
@@ -149,8 +149,9 @@ class flux_cls:
         return True
 
     def has_duplicate_pointers(self):
-        """ if row.values share pointers to the same underlying list (row.values),
-        this will usually cause unwanted behaviors to any modifications
+        """
+        if row.values share pointers to the same underlying list,
+        this will usually cause unwanted behaviors to any modifications of row.values
         """
         row_ids = set()
 
@@ -277,18 +278,7 @@ class flux_cls:
             raise TypeError('function is a classmethod, should be called from flux_cls, not flux')
 
         j = read_file(path, encoding, filetype='.json', fkwargs=fkwargs)
-
-        if not j:
-            m = [[]]
-        else:
-            first_row = j[0]
-            if isinstance(first_row, dict):
-                m = [list(first_row.keys())] + \
-                    [list(row.values()) for row in j]
-            else:
-                m = j
-
-        return cls(m)
+        return cls(j)
 
     def serialize(self, path, **fkwargs):
         """
@@ -426,39 +416,38 @@ class flux_cls:
         return completed_commands
 
     def matrix_by_headers(self, *names):
+        names = standardize_variable_arity_arguments(names, depth=1)
+
         if self.is_empty():
             raise ValueError('matrix is empty')
 
-        names = standardize_variable_arity_arguments(names, depth=1)
         if not names:
             return self
 
         if isinstance(names, dict):
             names = [names]
 
-        headers = self.headers
+        headers = self.headers.copy()
         names   = [self.__validate_renamed_or_inserted_column(name, headers) for name in names]
 
         if self.num_rows == 0:
-            (self.headers, self.matrix) = self.__validate_headers_and_matrix([names], headers=None)
-            return self
+            return self.reset_matrix([names])
 
-        columns = [row.values for row in self.matrix[1:]]
-        columns = list(transpose(columns))
-
-        new_column = [None for _ in range(self.num_rows)]
+        headers = dict(sorted(headers.items(), key=lambda item: item[-1]))
+        all_columns = list(transpose(row.values for row in self.matrix[1:]))
+        new_column  = [None] * self.num_rows
 
         m = []
         for n in names:
             if n in headers:
-                column = columns[headers[n]]
+                column = all_columns[headers[n]]
             else:
                 column = new_column
 
             m.append([n] + column)
 
-        m = list(transpose(m))
-        (self.headers, self.matrix) = self.__validate_headers_and_matrix(m, headers=None)
+        m = transpose(m)
+        self.reset_matrix(m)
 
         return self
 
@@ -466,12 +455,12 @@ class flux_cls:
         if not isinstance(old_to_new_mapping, dict):
             raise TypeError('old_to_new_mapping must be a dictionary')
 
-        header_names = self.header_names()
+        names = self.header_names()
         for h_old, h_new in old_to_new_mapping.items():
             i = self.headers[h_old]
-            header_names[i] = h_new
+            names[i] = h_new
 
-        self.reset_headers(header_names)
+        self.reset_headers(names)
 
         return self
 
@@ -553,37 +542,29 @@ class flux_cls:
         return self
 
     def insert_rows(self, i, rows):
+        rows = modify_iteration_depth(iterator_to_collection(rows), depth=2)
 
         if self.is_empty():
-            (self.headers,
-             self.matrix) = self.__validate_headers_and_matrix(rows, headers=None)
+            return self.reset_matrix(rows)
 
-            return self
-
-        _, m = self.__validate_headers_and_matrix(rows, self.headers)
         replace_headers = (i == 0)
 
+        _, m = self.__validate_headers_and_matrix(rows, self.headers)
         if replace_headers:
             self.reset_headers(m.pop(0).values)
             i = 1
-        else:
-            if len(m) > len(rows):
-                del m[0]
-
-            if len(rows) != len(m):
-                raise AssertionError('author error')
+        elif m[0].is_header_row():
+            del m[0]
 
         self.matrix[i:i] = m
 
         return self
 
     def append_rows(self, rows):
+        rows = modify_iteration_depth(iterator_to_collection(rows), depth=2)
 
         if self.is_empty():
-            (self.headers,
-             self.matrix) = self.__validate_headers_and_matrix(rows, headers=None)
-
-            return self
+            return self.reset_matrix(rows)
 
         _, m = self.__validate_headers_and_matrix(rows, self.headers)
         if m[0].is_header_row():
@@ -628,7 +609,7 @@ class flux_cls:
             if k in d:
                 yield row, d[k]
 
-    def sort(self, *names, reverse=None):
+    def sort(self, *names, reverse=False):
         """ in-place sort
 
         eg:
@@ -636,12 +617,16 @@ class flux_cls:
             flux.sort('col_a', 'col_b', 'col_c',
                       reverse=[True, False, True])
         """
+        names = standardize_variable_arity_arguments(names, depth=1)
+        if not names:
+            return self
+
         self.matrix[1:] = self.__sort_rows(self.matrix[1:],
                                            names,
                                            reverse)
         return self
 
-    def sorted(self, *names, reverse=None):
+    def sorted(self, *names, reverse=False):
         """ :return: sorted flux_cls
 
         eg:
@@ -649,37 +634,37 @@ class flux_cls:
             flux = flux.sorted('col_a', 'col_b', 'col_c',
                                reverse=[False, True, True])
         """
+        names = standardize_variable_arity_arguments(names, depth=1)
+        if not names:
+            return self.copy()
+
         flux = self.copy()
         flux.matrix[1:] = self.__sort_rows(flux.matrix[1:],
                                            names,
                                            reverse)
         return flux
 
-    def __sort_rows(self, rows, names, s_orders):
-        """
-        names    = reversed(names)
-        s_orders = reversed(s_orders)
-            # sort priority proceeds in reverse s_orders of names submitted
-            # rightmost name sorted first, leftmost name sorted last
-        """
-        if isinstance(s_orders, bool):
-            s_orders = [s_orders]
-        else:
-            s_orders = s_orders or []
+    def __sort_rows(self, rows, names, reverse):
+        reverse = [bool(rev) for rev in standardize_variable_arity_arguments(reverse, depth=1)]
+        reverse = [*reverse,
+                   *[False]*(len(names) - len(reverse))]
 
-        if not isinstance(s_orders, (list, tuple)):
-            raise TypeError('reverse must be a list of booleans')
+        all_true  = all(rev is True  for rev in reverse)
+        all_false = all(rev is False for rev in reverse)
 
-        names = modify_iteration_depth(names, depth=1)
-        for _ in range(len(names) - len(s_orders)):
-            s_orders.append(False)
+        if all_true or all_false:
+            rva = self.row_values_accessor(names)
+            rows.sort(key=rva, reverse=reverse[0])
 
-        names    = reversed(names)
-        s_orders = reversed(s_orders)
+            return rows
 
-        for name, s_order in zip(names, s_orders):
+        # last name is sorted first, first name is sorted last
+        names   = reversed(names)
+        reverse = reversed(reverse)
+
+        for name, rev in zip(names, reverse):
             rva = self.row_values_accessor(name)
-            rows.sort(key=rva, reverse=bool(s_order))
+            rows.sort(key=rva, reverse=rev)
 
         return rows
 
@@ -924,7 +909,7 @@ class flux_cls:
 
         if self.is_jagged():
             if self.has_duplicate_pointers():
-                is_jagged = '🗲jagged *duplicates🗲  '
+                is_jagged = '🗲jagged (**dup)🗲  '
             else:
                 is_jagged = '🗲jagged🗲  '
         else:
@@ -937,7 +922,7 @@ class flux_cls:
         headers = ', '.join(str(n) for n in self.header_names())
         headers = format_header(headers)
 
-        return ' {}{}{} '.format(is_jagged, num_rows, headers)
+        return '{}{}{} '.format(is_jagged, num_rows, headers)
 
     # region {validation functions}
     @staticmethod
@@ -984,7 +969,7 @@ class flux_cls:
             if row_first.is_header_row():
                 m = [[*row.values] for row in m]
             else:
-                m = [list(row_first.header_names())] + \
+                m = [[*row_first.header_names()]] + \
                     [[*row.values] for row in m]
 
         # list of namedtuples

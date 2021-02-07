@@ -28,7 +28,7 @@ from ..util.filesystem import validate_path_exists
 from ..util.text import styled
 from ..util.text import vengeance_message
 from ..util.text import vengeance_warning
-# from .import excel_constants
+
 from .excel_constants import xlMaximized
 
 # Windows api functions

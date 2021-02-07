@@ -1,10 +1,19 @@
 
+2021-02-07
+$release 48
+    version 1.1.11
+
+    flux_cls:
+        minor bug fixes / optimizations
+
+
+
 2021-02-05
 $release 47
     version 1.1.10
 
     flux_cls:
-        bug fixes / optimizations
+        minor bug fixes / optimizations
 
 
 

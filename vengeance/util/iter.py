@@ -270,7 +270,10 @@ def is_header_row(values, headers):
     if not headers:
         return False
 
-    return set(headers) == map_to_numeric_indices(values).keys()
+    value_names  = map_to_numeric_indices(values).keys()
+    header_names = set(headers)
+
+    return value_names == header_names
 
 
 

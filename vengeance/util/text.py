@@ -104,10 +104,9 @@ def deprecated(f=None, message='deprecated'):
         @functools.wraps(_f_)
         def functools_wrapper(*args, **kwargs):
 
-            # noinspection PyTypeChecker
-            vengeance_warning("@{}: '{}'".format(function_name(_f_), message),
+            vengeance_warning('@{}: "{}"'.format(function_name(_f_), message),
                               DeprecationWarning,
-                              stacklevel=None,
+                              stacklevel=4,
                               color='grey',
                               effect='bold')
 
@@ -126,16 +125,18 @@ def deprecated(f=None, message='deprecated'):
 
 def vengeance_warning(message,
                       category=Warning,
-                      stacklevel=2,
+                      stacklevel=3,
                       stackframe=None,
                       color=None,
-                      effect=None):
+                      effect='bold'):
 
     import inspect
     import traceback
     import warnings
 
     # region {closure functions}
+    stacklevel_min = 3
+
     aligned_indent = ' ' * len(__vengeance_prefix__.replace('\t', ''))
     aligned_indent = '\t' + aligned_indent
 
@@ -151,12 +152,12 @@ def vengeance_warning(message,
                 break
 
         if not is_found:
-            stackframe = traceback.extract_stack(inspect.currentframe(), limit=2)[0]
+            stackframe = traceback.extract_stack(inspect.currentframe(), limit=stacklevel_min)[0]
 
     def extract_frame():
         nonlocal stackframe
 
-        sl = max(stacklevel, 2)
+        sl = max(stacklevel, stacklevel_min)
         stackframe = traceback.extract_stack(inspect.currentframe(), limit=sl)[0]
 
     def vengeance_formatwarning(*_, **__):
