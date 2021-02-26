@@ -1,8 +1,8 @@
 
 from copy import copy
 from collections import namedtuple
-from types import SimpleNamespace
 
+from ..util.iter import namespace
 from ..util.iter import is_header_row
 from ..util.text import format_header
 from ..util.text import format_header_lite
@@ -16,13 +16,10 @@ if numpy_installed:
 
 
 class flux_row_cls:
+
     @classmethod
     def reserved_names(cls):
-        cls_name = '_' + cls.__name__
-        reserved = [v for v in vars(flux_row_cls).keys()
-                      if not v.startswith(cls_name)] + \
-                   ['_headers', 'values']
-        return sorted(reserved)
+        return ['_headers', 'values'] + dir(cls)
 
     def __init__(self, headers, values):
         """
@@ -40,8 +37,8 @@ class flux_row_cls:
 
     @property
     def as_array(self):
-        """ to help with debugging: meant to trigger a debugging feature in PyCharm
-
+        """
+        to help with debugging: meant to trigger a debugging feature in PyCharm
         PyCharm will recognize the ndarray and enable the "...view as array"
         option in the debugger which displays values in a special window as a table
         """
@@ -51,14 +48,19 @@ class flux_row_cls:
         names  = [format_header(n) for n in self.header_names()]
         values = list(self.values)
 
-        max_cols = max(len(names), len(values))
-        names.extend(['🗲']          * (max_cols - len(names)))
-        values.extend(['🗲jagged🗲'] * (max_cols - len(values)))
+        c_m = max(len(names), len(values))
+        names.extend(['🗲']          * (c_m - len(names)))
+        values.extend(['🗲jagged🗲'] * (c_m - len(values)))
+
+        if 'address' in self.__dict__:
+            names.insert(0,  '⟨address⟩')
+            values.insert(0, '⟨{}⟩'.format(self.__dict__['address']))
 
         if 'r_i' in self.__dict__:
             names.insert(0,  '⟨r_i⟩')
             values.insert(0, '⟨{:,}⟩'.format(self.__dict__['r_i']).replace(',', '_'))
 
+        # noinspection PyUnresolvedReferences
         return numpy.transpose([numpy.array(names,  dtype=object),
                                 numpy.array(values, dtype=object)])
 
@@ -78,18 +80,15 @@ class flux_row_cls:
     def is_header_row(self):
         """ determine if underlying values match self._headers.keys
 
-        self.names == self.values will not always work, since map_numeric_indices()
+        self.names == self.values will not always work, since map_values_to_enum()
         was used to modify self._headers values into more suitable dictionary keys,
         like modifying duplicate values to ensure they are unique, etc
         """
         return is_header_row(self.values, self._headers)
 
-    def dict(self):
-        names = self.header_names()
-        return ordereddict(zip(names, self.values))
-
     def namedrow(self):
-        return SimpleNamespace(**self.dict())
+        d = ordereddict(zip(self.header_names(), self.values))
+        return namespace(**d)
 
     # noinspection PyArgumentList
     def namedtuple(self):
@@ -233,7 +232,7 @@ class flux_row_cls:
             values = (repr(self.values).replace('"', '')
                                        .replace("'", ''))
 
-        return '{}{}{} '.format(row_label, is_jagged, values)
+        return ' {}{}{}'.format(row_label, is_jagged, values)
 
     @staticmethod
     def __raise_attribute_error(invalid, headers):

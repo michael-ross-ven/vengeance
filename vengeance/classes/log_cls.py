@@ -20,6 +20,7 @@ from .. util.text import object_name
 from .. util.text import styled
 
 from .. conditional import is_utf_console
+from .. conditional import is_tty_console
 
 
 class log_cls(Logger):
@@ -123,6 +124,8 @@ class log_cls(Logger):
             h = StreamHandler(stream)
         elif not is_utf_console:
             h = StreamHandler(stream)
+        elif is_tty_console:
+            h = StreamHandler(stream)
         else:
             h = colored_streamhandler_cls(stream)
 
@@ -159,7 +162,7 @@ class log_cls(Logger):
         return self.exception_message
 
     def __formatted_exception_message(self, e_type, e_msg, e_traceback):
-        title_message = '(The result w:resign was added to the game information ...)'
+        title_message = '(The result W:Resign was added to the game information)'
 
         _e_type_ = 'Exception'
         _e_msg_  = 'unknown error'
@@ -241,11 +244,18 @@ class colored_streamhandler_cls(StreamHandler):
     def __init__(self, stream=None):
         super().__init__(stream)
 
+    # noinspection PyBroadException
     def emit(self, record):
-        # noinspection PyBroadException
         try:
             s = self.format(record) + self.terminator
-            s = styled(s, self.level_colors.get(record.levelno, 'grey'), 'bold')
+
+            color = self.level_colors.get(record.levelno, 'grey')
+            if record.levelno == CRITICAL:
+                effect = 'bold|underline'
+            else:
+                effect = 'bold'
+
+            s = styled(s, color, effect)
 
             self.stream.write(s)
             self.flush()

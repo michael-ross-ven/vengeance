@@ -10,7 +10,7 @@ from ..conditional import dateutil_installed
 if dateutil_installed:
     from dateutil.parser import parse as dateutil_parse
 
-# 2**15: ~32,800 days, ~90 years of dates
+# 2**15: cache ~32,800 days, or ~90 years
 dates_cachesize = 2**15
 excel_epoch     = datetime(1900, 1, 1)
 
@@ -44,18 +44,42 @@ def to_datetime(v, d_format=None):
 
 def parse_timedelta(td):
     if not isinstance(td, timedelta):
-        raise TypeError('value is not timedelta instance')
+        raise TypeError('value must be instance of timedelta')
 
-    ParsedTimeDelta = namedtuple('ParsedTimeDelta', ('days',
-                                                     'hours',
-                                                     'minutes',
-                                                     'seconds'))
-    s = td.total_seconds()
+    return parse_seconds(td.total_seconds())
+
+
+def parse_seconds(s):
+    if not isinstance(s, (float, int)):
+        raise TypeError('value must be instance of (float, int)')
+
+    ParsedTime = namedtuple('ParsedTime', ('days',
+                                           'hours',
+                                           'minutes',
+                                           'seconds',
+                                           'microseconds'))
+    is_negative = (s < 0)
+    s = abs(s)
+
+    us = (s % 1) * 1e6
+    s = int(s)
     m, s = divmod(s, 60)
     h, m = divmod(m, 60)
     d, h = divmod(h, 24)
 
-    return ParsedTimeDelta(d, h, m, s)
+    s = int(s)
+    m = int(m)
+    h = int(h)
+    d = int(d)
+
+    if is_negative:
+        us = -us if (us > 0.0) else 0.0
+        s = -s if (s > 0.0) else 0
+        h = -h if (h > 0.0) else 0
+        m = -m if (m > 0.0) else 0
+        d = -d if (d > 0.0) else 0
+
+    return ParsedTime(d, h, m, s, us)
 
 
 @lru_cache(maxsize=dates_cachesize)

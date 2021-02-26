@@ -7,6 +7,7 @@ from datetime import date
 from timeit import default_timer
 
 from ..conditional import is_utf_console
+from ..conditional import is_tty_console
 from ..conditional import ultrajson_installed
 
 if ultrajson_installed:
@@ -199,44 +200,58 @@ def vengeance_warning(message,
 def styled(message,
            color='grey',
            effect='bold'):
+    """
+    ansi escape: \x1b, \033, <0x1b>, 
+
+    how to effectively check if console supports ansi escapes?
+        ansi escape shows up as '←' in python.exe console
+    """
 
     # region {escape codes}
+    effect_end   = '\x1b[0m'
     effect_codes = {'bold':      '\x1b[1m',
                     'italic':    '\x1b[3m',
                     'underline': '\x1b[4m',
-                    'end':       '\x1b[0m',
                     '':          '',
                     None:        ''}
     color_codes = {'grey':           '\x1b[29m',
                    'white':          '\x1b[30m',
                    'red':            '\x1b[31m',
-                   'orange':         '\x1b[32m',
+                   'green':          '\x1b[32m',
                    'yellow':         '\x1b[33m',
                    'blue':           '\x1b[34m',
                    'magenta':        '\x1b[35m',
-                   'green':          '\x1b[36m',
+                   'cyan':           '\x1b[36m',
                    'bronze':         '\x1b[37m',
                    'bright red':     '\x1b[91m',
+                   'bright green':   '\x1b[92m',
                    'bright yellow':  '\x1b[93m',
+                   'bright blue':    '\x1b[94m',
                    'bright magenta': '\x1b[95m',
                    'bright cyan':    '\x1b[96m',
+                   'black':          '\x1b[97m',
                    'dark magenta':   '\x1b[38;2;170;50;130m',
                    '':               '',
                    None:             ''}
     # endregion
-
+    color = (color or '').lower()
     if color not in color_codes:
         raise KeyError('invalid color: {}'.format(color))
-    if effect not in effect_codes:
-        raise KeyError('invalid style: {}'.format(effect))
+
+    effect  = (effect or '').replace(' ', '').lower()
+    effects = effect.split('|')
+    for effect in effects:
+        if effect not in effect_codes:
+            raise KeyError('invalid style: {}'.format(effect))
 
     if not is_utf_console:
+        return message
+    if is_tty_console:
         return message
     if not color and not effect:
         return message
 
-    effect_style = color_codes[color] + effect_codes[effect]
-    effect_end   = effect_codes['end']
+    effect_style = color_codes[color] + ''.join(effect_codes[e] for e in effects)
     message      = str(message).replace(effect_end, effect_style)
 
     return ('{effect_style}{message}{effect_end}'
@@ -262,14 +277,12 @@ def format_integer(i):
     return '{:,}'.format(int(i)).replace(',', '_')
 
 
-def format_seconds(secs):
-    return format_milliseconds(secs * 1000)
+def format_seconds(s):
+    s = abs(s)
 
-
-def format_milliseconds(ms):
-    ns = ms * 1000000
-    us = ms * 1000
-    s  = ms / 1000
+    ns = s * 1e9
+    us = s * 1e6
+    ms = s * 1000
 
     m, s = divmod(s, 60)
     h, m = divmod(m, 60)
@@ -286,10 +299,8 @@ def format_milliseconds(ms):
     elif ms >= 1:
         f_ms = '{:.1f} ms'.format(ms)
     elif us >= 1:
-        if is_utf_console:
-            f_ms = '{:.0f} μs'.format(us)
-        else:
-            f_ms = '{:.0f} mcs'.format(us)
+        if is_utf_console: f_ms = '{:.0f} μs'.format(us)
+        else:              f_ms = '{:.0f} us'.format(us)
     else:
         f_ms = '{:.0f} ns'.format(ns)
 

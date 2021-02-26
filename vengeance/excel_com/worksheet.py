@@ -22,7 +22,7 @@ def get_worksheet(wb, ws,
                   clear_filter=False,
                   activate=False):
 
-    if is_worksheet_instance(ws):
+    if is_win32_worksheet_instance(ws):
         return ws
 
     if wb is None:
@@ -44,8 +44,12 @@ def get_worksheet(wb, ws,
     return ws
 
 
-def is_worksheet_instance(o):
-    return o.__class__.__name__ in ('CDispatch', '_Worksheet')
+def is_win32_worksheet_instance(ws):
+    """ ie,
+        a chart that has been moved to its own worksheet will not be
+        a true worksheet object
+    """
+    return ws.__class__.__name__ in ('CDispatch', '_Worksheet')
 
 
 def first_row(excel_range, default=1):
@@ -168,7 +172,7 @@ def is_filtered(ws):
 
 # noinspection PyProtectedMember
 def clear_worksheet_filter(ws):
-    if is_filtered(ws) and is_worksheet_instance(ws):
+    if is_filtered(ws) and is_win32_worksheet_instance(ws):
         ws._AutoFilter.ShowAllData()
 
 
@@ -216,6 +220,8 @@ def escape_excel_range_errors(excel_range):
 
     except pythoncom_error:
         pass
+
+    # m = tuple([tuple(row) for row in m])
 
     return m
 

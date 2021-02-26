@@ -5,6 +5,8 @@ import sys
 is_pypy_interpreter = ('__pypy__' in sys.builtin_module_names)
 is_windows_os       = (os.name == 'nt')
 is_utf_console      = ('utf' in sys.stdout.encoding.lower())
+# is_tty_console      = (hasattr(sys.stdout, 'isatty') and sys.stdout.isatty())
+is_tty_console      = False
 
 ''' ordereddict:
     starting at python 3.6, the built-in dict is both insertion-ordered and compact, 

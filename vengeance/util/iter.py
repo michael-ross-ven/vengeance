@@ -1,7 +1,11 @@
 
 from collections import Iterable
-from collections import defaultdict
+from collections import ItemsView
+from collections import KeysView
+from collections import ValuesView
 
+from collections import defaultdict
+from collections import namedtuple
 from ..conditional import ordereddict
 
 
@@ -11,6 +15,24 @@ class IterationDepthError(TypeError):
 
 class ColumnNameError(ValueError):
     pass
+
+
+# class namespace(types.SimpleNamespace)
+class namespace:
+    def __init__(self, **kwargs):
+        self.__dict__.update(**kwargs)
+
+    def __iter__(self):
+        return ((k, v) for k, v in self.__dict__.items())
+
+    def __eq__(self, other):
+        if isinstance(self, namespace) and isinstance(other, namespace):
+            return self.__dict__ == other.__dict__
+        return NotImplemented
+
+    def __repr__(self):
+        items = ('{}={!r}'.format(k, v) for k, v in self.__dict__.items())
+        return '{}({})'.format(type(self).__name__, ', '.join(items))
 
 
 def iteration_depth(values, first_element_only=True):
@@ -29,19 +51,22 @@ def iteration_depth(values, first_element_only=True):
         5 = iteration_depth(items, first_element_only=False)
     """
     if is_exhaustable(values):
-        raise TypeError('cannot evaluate iteration depth of an exhaustable value')
-    elif not is_collection(values):
+        raise TypeError('cannot evaluate an exhaustable iterator')
+
+    if not is_collection(values):
         return 0
-    elif len(values) == 0:
-        return 1
-
-    if isinstance(values, dict):
+    elif isinstance(values, dict):
         values = tuple(values.values())
+    elif isinstance(values, set):
+        values = tuple(values)
 
-    if first_element_only:
+    if len(values) == 0:
+        return 1
+    elif first_element_only:
         return 1 + iteration_depth(values[0], first_element_only)
     else:
-        return 1 + max(iteration_depth(_v_, first_element_only) for _v_ in values)
+        depths = [iteration_depth(_v_, first_element_only) for _v_ in values]
+        return 1 + max(depths)
 
 
 def modify_iteration_depth(values,
@@ -156,6 +181,12 @@ def is_exhaustable(o):
             isinstance(o, range))
 
 
+def is_dictview(o):
+    return (isinstance(o, KeysView) or
+            isinstance(o, ValuesView) or
+            isinstance(o, ItemsView))
+
+
 def is_vengeance_class(o):
     bases = set(base_class_names(o))
     return bool(bases & {'flux_cls',
@@ -185,6 +216,10 @@ def iterator_to_collection(o):
         return list(o.rows())
     elif is_exhaustable(o):
         return list(o)
+    elif is_dictview(o):
+        return list(o)
+    elif isinstance(o, set):
+        return list(o)
 
     return o
 
@@ -193,87 +228,144 @@ def base_class_names(o):
     return [b.__name__ for b in o.__class__.mro()]
 
 
-def transpose(m, astype=None):
+def transpose(m, rowtype=None):
+    if rowtype not in (None, tuple, list):
+        raise TypeError('astype must be in (None, tuple, list)')
+
     m = iterator_to_collection(m)
-    if astype is None:
-        astype = type(m[0])
+    n = iteration_depth(m, first_element_only=True)
+    if n == 0:
+        raise IterationDepthError('matrix must have at least 1 dimension')
 
-    if astype is tuple:
-        return transpose_as_tuples(m)
+    if rowtype is None:
+        if n == 1:
+            rowtype = type(m)
+        else:
+            rowtype = type(m[0])
+
+    if rowtype is list:
+        if n == 1:
+            t = ([row] for row in m)
+        else:
+            t = (list(row) for row in zip(*m))
     else:
-        return transpose_as_lists(m)
+        if n == 1:
+            t = ((row,) for row in m)
+        else:
+            t = zip(*m)
+
+    return t
 
 
-def transpose_as_tuples(m):
-    m = iterator_to_collection(m)
+def to_namespaces(o):
+    """ recursively convert values to SimpleNamespace """
+    # region {closure functions}
+    def traverse(k, v):
+        if isinstance(v, dict):
+            return to_namespaces(v)
+        elif hasattr(v, '_asdict'):
+            # noinspection PyProtectedMember
+            return to_namespaces(v._asdict())
+        elif is_collection(v):
+            return [traverse(k, _) for _ in v]
+        else:
+            return v
+    # endregion
 
-    if iteration_depth(m, first_element_only=True) == 1:
-        return ((v,) for v in m)
+    if hasattr(o, '_asdict'):
+        # noinspection PyProtectedMember
+        o = o._asdict()
+
+    if isinstance(o, dict):
+        d = {k: traverse(k, v) for k, v in o.items()}
+        return namespace(**d)
     else:
-        return zip(*m)
+        return [traverse(None, v) for v in o]
 
 
-def transpose_as_lists(m):
-    m = iterator_to_collection(m)
+# noinspection PyArgumentList
+def to_namedtuples(o):
+    """ recursively convert values to namedtuple """
+    # region {closure functions}
+    def traverse(v):
+        if isinstance(v, dict):
+            return to_namedtuples(v)
+        elif hasattr(v, '_asdict'):
+            # noinspection PyProtectedMember
+            return to_namedtuples(v._asdict())
+        elif is_collection(v):
+            return [traverse(_) for _ in v]
+        else:
+            return v
+    # endregion
 
-    if iteration_depth(m, first_element_only=True) == 1:
-        return ([v] for v in m)
+    if hasattr(o, '_asdict'):
+        # noinspection PyProtectedMember
+        o = o._asdict()
+
+    if isinstance(o, dict):
+        nt = namedtuple('nt', o.keys())
+        return nt(*[traverse(v) for v in o.values()])
     else:
-        return (list(v) for v in zip(*m))
+        return [traverse(v) for v in o]
 
 
-def map_to_numeric_indices(sequence, start=0):
-    """ :return {value: index} for all items in sequence
+def map_values_to_enum(sequence, start=0):
+    """ :return {value (str): index (int)} for all items in sequence
 
     values are modified before they are added as keys:
         * values coerced to string (if not bytes)
-        * non-unique keys are appended with '_{num}' suffix
+        * non-unique keys are appended with '_dup_{num}' suffix
 
     eg
-        {'a':   0,
-         'b':   1,
-         'c':   2,
-         'b_2': 3,
-         'b_3': 4} = map_numeric_indices(['a', 'b', 'c', 'b', 'b'])
+        {'a':       0,
+         'b':       1,
+         'c':       2,
+         'b_dup_2': 3,
+         'b_dup_3': 4} = map_values_to_enum(['a', 'b', 'c', 'b', 'b'])
     """
-    indices   = ordereddict()
-    nonunique = defaultdict(lambda: 1)
+    # region {closure}
+    def to_string(_v_):
+        if is_bytes_instance:
+            return _v_.decode('utf-8')
+        else:
+            return str(_v_)
+    # endregion
+
+    values_to_indices = ordereddict()
+    values_duplicates = defaultdict(int)        # count of nonunique keys
 
     for i, v in enumerate(sequence, start):
-        is_bytes = isinstance(v, bytes)
+        is_bytes_instance = isinstance(v, bytes)
+        v_s = to_string(v)
 
-        if is_bytes:
-            v_s = v.decode('utf-8')
+        if v_s in values_duplicates:
+            values_duplicates[v_s] += 1
+            n_d = values_duplicates[v_s]
+            v_s = '{}_dup_{}'.format(v_s, n_d)
         else:
-            v_s = str(v)
+            values_duplicates[v_s] += 1
 
-        if v_s in indices:
-            nonunique[v_s] += 1
-            v_s = '{}_{}'.format(v_s, nonunique[v_s])
-
-        if is_bytes:
+        if is_bytes_instance:
             v_s = v_s.encode('utf-8')
 
-        indices[v_s] = i
+        values_to_indices[v_s] = i
 
-    return indices
+    return values_to_indices
 
 
 def is_header_row(values, headers):
     """ determine if underlying values match headers.keys
 
-    headers.keys() == values will not always work, since map_to_numeric_indices()
-    was used to modify names into more suitable dictionary keys, such as
-        * values coerced to string (if not bytes)
-        * non-unique keys are appended with '_{num}' suffix
+    checking headers.keys() == values will not always work, since map_values_to_enum()
+    was used to modify names into more suitable header keys
     """
     if not headers:
         return False
 
-    value_names  = map_to_numeric_indices(values).keys()
+    value_names  = map_values_to_enum(values).keys()
     header_names = set(headers)
 
     return value_names == header_names
-
 
 

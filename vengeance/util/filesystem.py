@@ -6,9 +6,13 @@ import os
 import pprint
 import shutil
 
+from io import StringIO
+from urllib.request import urlopen
+from urllib.parse import urlparse
 from collections import namedtuple
 from datetime import datetime
 from glob import glob
+from pathlib import Path
 
 from . text import json_unhandled_conversion
 from .. conditional import cpickle
@@ -22,53 +26,36 @@ else:
 pickle_extensions = {'.flux', '.pkl', '.pickle'}
 
 
-# noinspection DuplicatedCode
 def read_file(path,
               encoding=None,
               mode='r',
               filetype=None,
-              **fkwargs):
+              **kwargs):
 
-    if mode[0] != 'r' or mode[-1] == '+':
-        raise ValueError('invalid read mode: {}'.format(mode))
-
-    filetype = __validate_filetype(filetype, path)
-    as_bytes = __validate_mode_with_encoding(mode, encoding, filetype)
-    mode     = __validate_mode_with_filetype(as_bytes, mode, filetype)
-    fkwargs  = fkwargs or {}
-
-    if 'fkwargs' in fkwargs:
-        fkwargs = fkwargs['fkwargs']
+    path, filetype, mode, as_bytes_mode, kwargs = __validate_read_write_params(
+                                                  path, encoding, mode, filetype, kwargs, 'read')
 
     was_gc_enabled = gc.isenabled()
     gc.disable()
 
     if filetype == '.csv':
-        fkwargs['strict'] = fkwargs.get('strict', True)
-        fkwargs['nrows']  = fkwargs.get('nrows')
-        nrows = fkwargs.pop('nrows')
-
-        with open(path, mode, encoding=encoding) as f:
-            data = csv.reader(f, **fkwargs)
-
-            if nrows is None:
-                data = list(data)
-            else:
-                data = list(__read_limited_csv_rows(data, nrows))
+        data = __read_csv(path, mode, encoding, kwargs)
 
     elif filetype == '.json':
-        with open(path, mode, encoding=encoding) as f:
-            data = json.load(f, **fkwargs)
+        data = __read_json(path, mode, encoding, kwargs)
 
     elif filetype in pickle_extensions:
         with open(path, mode) as f:
-            data = cpickle.load(f, **fkwargs)
+            data = cpickle.load(f, **kwargs)
 
-    elif as_bytes:
+    elif as_bytes_mode:
         with open(path, mode) as f:
             data = f.read()
 
     else:
+        if __is_path_a_url(path):
+            raise NotImplementedError
+
         with open(path, mode, encoding=encoding) as f:
             data = f.read()
 
@@ -84,59 +71,89 @@ def write_file(path,
                encoding=None,
                mode='w',
                filetype=None,
-               **fkwargs):
+               **kwargs):
 
-    if not mode[0] in ('w', 'a'):
-        raise ValueError('invalid write mode: {}'.format(mode))
-
-    filetype = __validate_filetype(filetype, path)
-    as_bytes = __validate_mode_with_encoding(mode, encoding, filetype)
-    mode     = __validate_mode_with_filetype(as_bytes, mode, filetype)
-    fkwargs  = fkwargs or {}
-
-    if 'fkwargs' in fkwargs:
-        fkwargs = fkwargs['fkwargs']
-
+    path, filetype, mode, as_bytes_mode, kwargs = __validate_read_write_params(
+                                                  path, encoding, mode, filetype, kwargs, 'write')
     was_gc_enabled = gc.isenabled()
     gc.disable()
 
     if filetype == '.csv':
-        fkwargs['strict']         = fkwargs.get('strict', True)
-        fkwargs['lineterminator'] = fkwargs.get('lineterminator', '\n')
+        try:             newline = kwargs.pop('newline')
+        except KeyError: newline = ''
 
-        with open(path, mode, encoding=encoding) as f:
-            csv.writer(f, **fkwargs).writerows(data)
+        with open(path, mode, encoding=encoding, newline=newline) as f:
+            csv.writer(f, **kwargs).writerows(data)
 
     elif filetype == '.json':
-        fkwargs['ensure_ascii'] = fkwargs.get('ensure_ascii', encoding in (None, 'ascii'))
-        fkwargs['indent']       = fkwargs.get('indent', 4)
-        fkwargs['default']      = fkwargs.get('default', json_unhandled_conversion)
-
+        kwargs['ensure_ascii'] = kwargs.get('ensure_ascii', encoding in (None, 'ascii'))
+        kwargs['indent']       = kwargs.get('indent', 4)
+        kwargs['default']      = kwargs.get('default', json_unhandled_conversion)
         if ultrajson_installed:
-            del fkwargs['default']
+            del kwargs['default']
 
         with open(path, mode, encoding=encoding) as f:
-            json.dump(data, f, **fkwargs)
+            json.dump(data, f, **kwargs)
 
     elif filetype in pickle_extensions:
         with open(path, mode) as f:
-            cpickle.dump(data, f, **fkwargs)
+            cpickle.dump(data, f, **kwargs)
 
-    elif as_bytes:
+    elif as_bytes_mode:
         with open(path, mode) as f:
             f.write(data)
 
     else:
-        if not isinstance(data, (str, bytes)):
-            # f.write() is much faster than f.writelines()
-            data = pprint.pformat(data, **fkwargs)
-            data = data.replace("'", '"')
+        if not isinstance(data, str):
+            data = pprint.pformat(data, **kwargs)
 
         with open(path, mode, encoding=encoding) as f:
             f.write(data)
 
     if was_gc_enabled:
         gc.enable()
+
+
+def __validate_read_write_params(path,
+                                 encoding,
+                                 mode,
+                                 filetype,
+                                 kwargs,
+                                 read_or_write):
+
+    as_bytes_mode = ('b' in mode)
+
+    path          = __validate_path(path)
+    filetype      = __validate_filetype(filetype, path)
+    as_bytes_mode = __validate_mode_with_encoding(as_bytes_mode, encoding, filetype)
+    mode          = __validate_mode_with_filetype(as_bytes_mode, mode, filetype)
+    mode          = __validate_mode(mode, read_or_write)
+    kwargs        = __validate_file_keyword_args(kwargs)
+
+    as_bytes_mode = ('b' in mode)
+
+    is_url = __is_path_a_url(path)
+
+    if read_or_write == 'read' and is_url:
+        if filetype not in ('.csv', '.json') or as_bytes_mode:
+            raise NotImplementedError('read from url not handled for filetype: {}'.format(filetype))
+    elif read_or_write == 'write' and is_url:
+        raise NotImplementedError('can not write to url: {}'.format(path))
+
+    return (path,
+            filetype,
+            mode,
+            as_bytes_mode,
+            kwargs)
+
+
+def __validate_path(path):
+    if isinstance(path, str):
+        return path
+    if isinstance(path, Path):
+        return str(path)
+
+    raise TypeError('invalid type for path: {}'.format(path))
 
 
 def __validate_filetype(filetype, path):
@@ -161,23 +178,19 @@ def __validate_filetype(filetype, path):
     return filetype
 
 
-def __validate_mode_with_encoding(mode, encoding, filetype):
-    as_bytes = mode.replace('+', '').endswith('b')
-
-    if as_bytes and encoding:
+def __validate_mode_with_encoding(as_bytes_mode, encoding, filetype):
+    if as_bytes_mode and encoding:
         raise ValueError('as bytes mode does not accept an encoding argument')
-
     if encoding and filetype in pickle_extensions:
         raise ValueError('pickle module does not accept an encoding argument')
-
-    if as_bytes and filetype == '.csv':
+    if as_bytes_mode and filetype == '.csv':
         raise ValueError('as bytes mode is incompatable with csv module')
 
-    return as_bytes
+    return as_bytes_mode
 
 
-def __validate_mode_with_filetype(as_bytes, mode, filetype):
-    if not as_bytes and (filetype in pickle_extensions):
+def __validate_mode_with_filetype(as_bytes_mode, mode, filetype):
+    if not as_bytes_mode and (filetype in pickle_extensions):
         if mode.endswith('+'):
             mode = mode[0] + 'b+'
         else:
@@ -186,12 +199,115 @@ def __validate_mode_with_filetype(as_bytes, mode, filetype):
     return mode
 
 
-def __read_limited_csv_rows(csv_reader, nrows):
-    try:
-        for _ in range(nrows):
-            yield next(csv_reader)
-    except StopIteration:
-        pass
+def __validate_mode(mode, read_or_write):
+    if read_or_write == 'read':
+        if mode[0] not in ('r',) or mode.endswith('+'):
+            raise ValueError('invalid read mode: {}'.format(mode))
+
+    elif read_or_write == 'write':
+        if mode[0] not in ('w', 'a'):
+            raise ValueError('invalid write mode: {}'.format(mode))
+
+    else:
+        raise ValueError("invalid read_write_type: {}, read_write_type must be in ('read', 'write')"
+                         .format(read_or_write))
+
+    return mode
+
+
+def __validate_file_keyword_args(kwargs):
+    kwargs = kwargs or {}
+
+    if 'kwargs' in kwargs:
+        kwargs.update(kwargs.pop('kwargs'))
+
+    return kwargs
+
+
+def __read_csv(path, mode, encoding, kwargs):
+    """
+    _csv.Error: new-line character seen in unquoted field - do you need to open the file in universal-newline mode?
+        fixed by passing lineterminator='\r'
+        or newline='\r', newline=''
+    """
+    # region {closure}
+    def read_csv_rows():
+        if nrows is None:
+            return list(csv_reader)
+
+        m = []
+        try:
+            for _ in range(nrows):
+                m.append(next(csv_reader))
+        except StopIteration:
+            pass
+
+        return m
+
+    def remove_url_from_rows(m):
+        try:
+            while __is_path_a_url(m[0][0]):
+                del m[0]
+
+                if nrows is not None:
+                    try:
+                        m.append(next(csv_reader))
+                    except StopIteration:
+                        break
+        except IndexError:
+            pass
+
+        return m
+    # endregion
+
+    if encoding is None:
+        encoding = 'ascii'
+
+    try:             nrows = kwargs.pop('nrows')
+    except KeyError: nrows = None
+
+    try:             newline = kwargs.pop('newline')
+    except KeyError: newline = ''
+
+    if __is_path_a_url(path):
+        with StringIO(__url_request(path, encoding=encoding), newline=newline) as f:
+            csv_reader = csv.reader(f, **kwargs)
+            return remove_url_from_rows(read_csv_rows())
+
+    with open(path, mode, encoding=encoding, newline=newline) as f:
+        csv_reader = csv.reader(f, **kwargs)
+        return read_csv_rows()
+
+
+def __read_json(path, mode, encoding, kwargs):
+    if (encoding is None) and ('b' not in mode):
+        encoding = 'ascii'
+
+    if __is_path_a_url(path):
+        return json.loads(__url_request(path, encoding=encoding), **kwargs)
+
+    with open(path, mode, encoding=encoding) as f:
+        return json.load(f, **kwargs)
+
+
+def __is_path_a_url(path):
+    if not isinstance(path, str):
+        return False
+
+    return bool(urlparse(path).netloc)
+
+
+def __url_request(url, encoding=None):
+
+    with urlopen(url) as request:
+        if request.code != 200:
+            raise IOError('bad request: ({}) {}'.format(request.code, url))
+
+        byte_string = request.read()
+        if encoding:
+            return byte_string.decode(encoding)
+        else:
+            return byte_string
 
 
 def clear_dir(filedir):
@@ -254,8 +370,8 @@ def parse_path(path,
     ParsedPath = namedtuple('ParsedPath', ('directory',
                                            'filename',
                                            'extension'))
-    path = (path.replace('"', '')
-                .replace("'", ''))
+    path = (str(path).replace('"', '')
+                     .replace("'", ''))
     if os.path.isdir(path):
         filedir   = path
         filename  = ''
@@ -270,7 +386,7 @@ def parse_path(path,
 
 
 def parse_file_extension(filename, include_dot=True):
-    _, extension = os.path.splitext(filename)
+    _, extension = os.path.splitext(str(filename))
     if (include_dot is False) and extension.startswith('.'):
         extension = extension[1:]
 

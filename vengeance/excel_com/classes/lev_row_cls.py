@@ -6,8 +6,7 @@ from ... classes.flux_row_cls import flux_row_cls
 class lev_row_cls(flux_row_cls):
     @classmethod
     def reserved_names(cls):
-        reserved = super().reserved_names() + ['address']
-        return sorted(reserved)
+        return ['address'] + super().reserved_names()
 
     def __init__(self, headers, values, address=''):
         self.__dict__['_headers'] = headers

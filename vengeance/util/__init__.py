@@ -1,9 +1,12 @@
 
 from .dates import is_date
 from .dates import to_datetime
+from .dates import parse_timedelta
+from .dates import parse_seconds
 
 from .filesystem import read_file
 from .filesystem import write_file
+from .filesystem import parse_path
 
 from .iter import transpose
 
@@ -17,6 +20,9 @@ __all__ = ['print_runtime',
            'styled',
            'to_datetime',
            'is_date',
+           'parse_timedelta',
+           'parse_seconds',
            'read_file',
            'write_file',
+           'parse_path',
            'transpose']

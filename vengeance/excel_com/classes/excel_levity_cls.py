@@ -1,20 +1,21 @@
 
 import re
 # noinspection PyUnresolvedReferences
-from pythoncom import com_error as pythoncom_error
 
-from ...conditional import ordereddict
+from pythoncom import com_error as pythoncom_error
 
 from .lev_row_cls import lev_row_cls
 
 from .. import excel_address
 from .. import worksheet
-from ..excel_constants import *
+from .. excel_constants import *
 
-from ...util.iter import iterator_to_collection
-from ...util.iter import map_to_numeric_indices
-from ...util.iter import modify_iteration_depth
-from ...util.text import object_name
+from ... util.iter import iterator_to_collection
+from ... util.iter import map_values_to_enum
+from ... util.iter import modify_iteration_depth
+from ... util.text import object_name
+
+from ... conditional import ordereddict
 
 
 class excel_levity_cls:
@@ -27,35 +28,30 @@ class excel_levity_cls:
                        header_r=0,
                        first_r=0,
                        last_r=0):
-        """
-        self.is_worksheet_type, ie
-            a chart that has been moved to its own worksheet
-        """
 
         if (not isinstance(meta_r, int) or
              not isinstance(header_r, int) or
              not isinstance(first_r, int) or
              not isinstance(last_r, int)):
 
-            raise TypeError('rows must be an integer')
+            raise TypeError('row references must be integers')
 
         self.ws = ws
         if hasattr(ws, 'Name'):
             self.ws_name = ws.Name
         else:
-            self.ws_name = ''
-
-        self.is_worksheet_type = worksheet.is_worksheet_instance(ws)
+            self.ws_name = "(no 'Name' attribute)"
 
         self.headers   = ordereddict()
         self.m_headers = ordereddict()
 
         self._named_ranges  = {}
-        self._fixed_columns = first_c, last_c
-        self._fixed_rows    = first_r, last_r
+        self._fixed_columns = (first_c, last_c)
+        self._fixed_rows    = (first_r, last_r)
 
-        self.first_c  = first_c
-        self.last_c   = last_c
+        self.first_c = first_c
+        self.last_c  = last_c
+
         self.meta_r   = meta_r
         self.header_r = header_r
         self.first_r  = first_r
@@ -63,6 +59,14 @@ class excel_levity_cls:
 
         self.set_range_boundaries(index_meta=True,
                                   index_header=True)
+
+    @property
+    def is_worksheet_type(self):
+        """ ie,
+            a chart that has been moved to its own worksheet will not be
+            a true worksheet object
+        """
+        return worksheet.is_win32_worksheet_instance(self.ws)
 
     @staticmethod
     def col_letter_offset(col_str, offset):
@@ -181,11 +185,11 @@ class excel_levity_cls:
             return [[]]
 
         if self.headers:
-            headers = map_to_numeric_indices(self.headers.keys())
+            headers = map_values_to_enum(self.headers.keys())
         elif self.m_headers:
-            headers = map_to_numeric_indices(self.m_headers.keys())
+            headers = map_values_to_enum(self.m_headers.keys())
         else:
-            headers = {}
+            headers = ordereddict()
 
         reserved = headers.keys() & set(lev_row_cls.reserved_names())
         if reserved:
@@ -324,7 +328,7 @@ class excel_levity_cls:
             return ordereddict()
 
         c_1 = excel_range.Column
-        headers = map_to_numeric_indices(row, c_1)
+        headers = map_values_to_enum(row, c_1)
         headers = ordereddict((h, excel_address.col_letter(v)) for h, v in headers.items())
 
         return headers

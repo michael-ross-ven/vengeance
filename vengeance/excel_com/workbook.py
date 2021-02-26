@@ -143,7 +143,7 @@ def __open_workbook_dispatch(path, excel_app,
         other options: password, etc
     """
 
-    path = validate_path_exists(path)
+    path      = validate_path_exists(path)
     excel_app = __validate_excel_application(excel_app, windowstate)
 
     if read_only:
@@ -182,6 +182,7 @@ def new_excel_application(windowstate=xlMaximized):
     excel_app = EnsureDispatch(excel_app)
 
     reload_all_add_ins(excel_app)
+    excel_app.Visible = True
     excel_application_to_foreground(excel_app, windowstate)
 
     return excel_app
@@ -198,10 +199,10 @@ def any_excel_application(windowstate=None):
 
 
 def empty_excel_application(windowstate=xlMaximized):
-    for excel_app in all_excel_instances():
 
+    for excel_app in all_excel_instances():
         if __is_excel_application_empty(excel_app):
-            print(vengeance_message('utilizing empty Excel instance: {}'.format(excel_app.Hwsd)))
+            print(vengeance_message('utilizing empty Excel instance'))
             excel_application_to_foreground(excel_app, windowstate)
 
             return excel_app
@@ -250,23 +251,25 @@ def reload_all_add_ins(excel_app):
 
 # noinspection PyUnusedLocal,PyBroadException
 def excel_application_to_foreground(excel_app, windowstate=None):
-    if windowstate is not None:
-        try:
-            excel_app.WindowState = windowstate
-        except Exception:
-            pass
+
+    try:              excel_app.WindowState = windowstate
+    except Exception: pass
 
     excel_app.Visible = True
 
     if excel_app.Visible is False and excel_app.Workbooks.Count == 0:
-        wb = excel_app.Workbooks.Add()
+        excel_app.Workbooks.Add()
         excel_app.Visible = True
-        wb.Close(False)
 
-        wb = None
-        del wb
-
-        gc.collect()
+        # wb = excel_app.Workbooks.Add()
+        #
+        # excel_app.Visible = True
+        # wb.Close(False)
+        #
+        # wb = None
+        # del wb
+        #
+        # gc.collect()
 
     SetForegroundWindow(excel_app.Hwnd)
 
