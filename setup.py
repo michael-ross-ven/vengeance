@@ -25,16 +25,15 @@ long_description = ('https://github.com/michael-ross-ven/vengeance/blob/master/R
 is_windows_os = (os.name == 'nt')
 
 if is_windows_os:
-    install_requires = ('comtypes',
-                        'pypiwin32')
-    extras_require   = ('python-dateutil',
-                        'ujson',
-                        'numpy')
+    install_requires = ['comtypes',
+                        'pypiwin32']
 else:
-    install_requires = ()
-    extras_require   = ('python-dateutil',
-                        'ujson',
-                        'numpy')
+    install_requires = []
+
+extras_require = {"Programming Language :: Python :: 3": ['python-dateutil',
+                                                          'ujson',
+                                                          'numpy']}
+
 
 
 def __move_win32com_gencache_folder():
