@@ -30,9 +30,9 @@ if is_windows_os:
 else:
     install_requires = []
 
-extras_require = {"Programming Language :: Python :: 3": ['python-dateutil',
-                                                          'ujson',
-                                                          'numpy']}
+extras_require = {":python_version>='3.0'": ['python-dateutil',
+                                             'ujson',
+                                             'numpy']}
 
 
 
