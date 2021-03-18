@@ -44,46 +44,52 @@ def print_performance(f=None, repeat=5):
     def performance_wrapper(_f_):
         @functools.wraps(_f_)
         def functools_wrapper(*args, **kwargs):
+
+            if repeat <= 0:
+                raise ValueError
+
             retv  = None
             best  = None
             worst = None
             total = 0.0
 
-            functools_repeat = functools.partial(itertools.repeat, None)
-            was_gc_enabled   = gc.isenabled()
+            # functools_repeat = functools.partial(itertools.repeat, None)
+            # for _ in functools_repeat(repeat):
+            functools_repeat = functools.partial(itertools.repeat, repeat)
+            # for _ in functools_repeat:
+            gc_enabled = gc.isenabled()
             gc.disable()
 
-            for _ in functools_repeat(repeat):
+            for _ in functools_repeat:
                 tic  = default_timer()
                 retv = _f_(*args, **kwargs)
                 toc  = default_timer()
                 elapsed = -(tic - toc)
 
+                if best is None: best = elapsed
+                else:            best = min(best, elapsed)
+
+                if worst is None: worst = elapsed
+                else:             worst = max(worst, elapsed)
+
                 total += elapsed
 
-                if best is None:
-                    best = elapsed
-                else:
-                    best = min(best, elapsed)
+            average = total / repeat
 
-                if worst is None:
-                    worst = elapsed
-                else:
-                    worst = max(worst, elapsed)
-
-            s = ('@{}, {}'
+            r = format_header(format_integer(repeat))
+            s = ('@{} {}  trials'
                  '\n        {}best:    {}'
                  '\n        {}average: {}'
                  '\n        {}worst:   {}'
-                 .format(function_name(_f_),
-                         format_header_lite(str(repeat) + ' trials'),
-                         styled('★★★ ', 'blue'),    format_seconds(best),
-                         styled('★★   ', 'blue'), format_seconds(total / repeat),
-                         styled('★    ', 'blue'),    format_seconds(worst)))
+                 .format(function_name(_f_), r,
+                         styled('★★★ ',     'blue'), format_seconds(best),
+                         styled('★★   ', 'blue'), format_seconds(average),
+                         styled('★    ',     'blue'), format_seconds(worst)))
+
             s = vengeance_message(s)
             print(s)
 
-            if was_gc_enabled:
+            if gc_enabled:
                 gc.enable()
 
             return retv
@@ -130,6 +136,10 @@ def vengeance_warning(message,
                       stackframe=None,
                       color=None,
                       effect='bold'):
+    """
+    follow icecream's implementation?
+        call_frame = inspect.currentframe().f_back
+    """
 
     import inspect
     import traceback
@@ -215,7 +225,7 @@ def styled(message,
                     '':          '',
                     None:        ''}
     color_codes = {'grey':           '\x1b[29m',
-                   'white':          '\x1b[30m',
+                   'white':          '\x1b[38;2;255;255;255m',
                    'red':            '\x1b[31m',
                    'green':          '\x1b[32m',
                    'yellow':         '\x1b[33m',
@@ -230,7 +240,7 @@ def styled(message,
                    'bright magenta': '\x1b[95m',
                    'bright cyan':    '\x1b[96m',
                    'black':          '\x1b[97m',
-                   'dark magenta':   '\x1b[38;2;170;50;130m',
+                   'dark magenta':   '\x1b[38;2;180;80;145m',
                    '':               '',
                    None:             ''}
     # endregion

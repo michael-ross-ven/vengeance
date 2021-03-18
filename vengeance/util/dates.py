@@ -4,6 +4,7 @@ from datetime import date
 from datetime import datetime
 from datetime import timedelta
 from functools import lru_cache
+from math import trunc
 
 from ..conditional import dateutil_installed
 
@@ -49,20 +50,22 @@ def parse_timedelta(td):
     return parse_seconds(td.total_seconds())
 
 
-def parse_seconds(s):
-    if not isinstance(s, (float, int)):
+def parse_seconds(ts):
+    if not isinstance(ts, (float, int)):
         raise TypeError('value must be instance of (float, int)')
+
+    def truncate(n, precision=1):
+        e = 10**precision
+        return trunc(n * e) / e
 
     ParsedTime = namedtuple('ParsedTime', ('days',
                                            'hours',
                                            'minutes',
                                            'seconds',
                                            'microseconds'))
-    is_negative = (s < 0)
-    s = abs(s)
+    s = abs(ts)
 
     us = (s % 1) * 1e6
-    s = int(s)
     m, s = divmod(s, 60)
     h, m = divmod(m, 60)
     d, h = divmod(h, 24)
@@ -71,6 +74,15 @@ def parse_seconds(s):
     m = int(m)
     h = int(h)
     d = int(d)
+
+    if truncate(us % 1, 3) == 0.999:
+        us = round(us, 3)
+    elif truncate(us % 1, 4) == 0.000:
+        us = round(us, 4)
+    elif str(int(us)).endswith('9999'):
+        us = round(us)
+
+    is_negative = (ts < 0)
 
     if is_negative:
         us = -us if (us > 0.0) else 0.0

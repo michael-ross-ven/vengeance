@@ -1,4 +1,9 @@
 
+try:
+    import _pickle as cpickle
+except ImportError:
+    import pickle as cpickle
+
 import csv
 import gc
 import re
@@ -15,7 +20,6 @@ from glob import glob
 from pathlib import Path
 
 from . text import json_unhandled_conversion
-from .. conditional import cpickle
 from .. conditional import ultrajson_installed
 
 if ultrajson_installed:
@@ -89,8 +93,7 @@ def write_file(path,
         kwargs['ensure_ascii'] = kwargs.get('ensure_ascii', encoding in (None, 'ascii'))
         kwargs['indent']       = kwargs.get('indent', 4)
         kwargs['default']      = kwargs.get('default', json_unhandled_conversion)
-        if ultrajson_installed:
-            del kwargs['default']
+        if ultrajson_installed:  del kwargs['default']
 
         with open(path, mode, encoding=encoding) as f:
             json.dump(data, f, **kwargs)
@@ -106,7 +109,6 @@ def write_file(path,
     else:
         if not isinstance(data, str):
             data = pprint.pformat(data, **kwargs)
-
         with open(path, mode, encoding=encoding) as f:
             f.write(data)
 
@@ -237,7 +239,7 @@ def __read_csv(path, mode, encoding, kwargs):
 
         m = []
         try:
-            for _ in range(nrows):
+            for i in range(nrows):
                 m.append(next(csv_reader))
         except StopIteration:
             pass
@@ -248,12 +250,9 @@ def __read_csv(path, mode, encoding, kwargs):
         try:
             while __is_path_a_url(m[0][0]):
                 del m[0]
-
                 if nrows is not None:
-                    try:
-                        m.append(next(csv_reader))
-                    except StopIteration:
-                        break
+                    try:                  m.append(next(csv_reader))
+                    except StopIteration: break
         except IndexError:
             pass
 

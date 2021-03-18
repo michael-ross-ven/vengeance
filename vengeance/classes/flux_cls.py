@@ -7,6 +7,13 @@ from collections import namedtuple
 from collections import ItemsView
 from copy import deepcopy
 
+from typing import Generator
+from typing import List
+from typing import Tuple
+from typing import Dict
+from typing import Union
+from typing import Any
+
 from .flux_row_cls import flux_row_cls
 
 from ..util.filesystem import parse_file_extension
@@ -25,7 +32,7 @@ from ..util.iter import is_vengeance_class
 from ..util.iter import standardize_variable_arity_arguments
 from ..util.iter import iteration_depth
 from ..util.iter import iterator_to_collection
-from ..util.iter import map_values_to_enum
+from ..util.iter import inverted_enumerate
 from ..util.iter import are_indices_contiguous
 from ..util.iter import modify_iteration_depth
 from ..util.iter import transpose
@@ -71,21 +78,23 @@ class flux_cls:
         flux = flux_cls.from_csv('file.csv')
     """
     # as_array_preview_indices
-    aap_indices = [1, 5+1]
+    aap_indices = [1, 5 + 1]
 
     def __init__(self, matrix=None):
-        was_gc_enabled = gc.isenabled()
+        self.headers: Dict[str, int]
+        self.matrix:  List[flux_row_cls]
+
+        gc_enabled = gc.isenabled()
         gc.disable()
 
         matrix  = self.__validate_matrix(matrix)
-        headers = self.__validate_matrix_headers(matrix[0])
+        headers = self.__validate_names_as_headers(matrix[0])
         matrix  = [flux_row_cls(headers, row) for row in matrix]
+
+        if gc_enabled: gc.enable()
 
         self.headers = headers
         self.matrix  = matrix
-
-        if was_gc_enabled:
-            gc.enable()
 
     @property
     def num_cols(self):
@@ -103,7 +112,7 @@ class flux_cls:
         PyCharm will recognize the numpy array and enable the "...view as array"
         option in the debugger which displays values in a special window as a table
 
-        self.i_preview_1, self.i_preview_2 are class attributes
+        self.aap_indices are class attributes
         """
         return self.as_array(self.aap_indices[0], self.aap_indices[1])
 
@@ -150,11 +159,11 @@ class flux_cls:
 
         is_jagged = (c_m != n_c)
 
-        h_i = '⟨r_i⟩'
+        h_i = '⟨address⟩'
         h_v = [format_header(n) for n in self.header_names()]
         h_j = ['🗲'] * (c_m - len(h_v))
         if has_label:
-            h_v.insert(0, '⟨r_label⟩')
+            h_v.insert(0, '⟨r_i⟩')
             c_m += 1
 
         m = [[h_i, *h_v, *h_j]]
@@ -163,7 +172,7 @@ class flux_cls:
 
             if has_label:
                 r_l = ('⟨{:,}⟩'.format(row.__dict__.get('r_i'), -1)
-                               .replace(',', '_'))
+                              .replace(',', '_'))
                 r_v = [r_l, *row.values]
             else:
                 r_v = row.values
@@ -179,7 +188,7 @@ class flux_cls:
     def header_names(self):
         """
         self.matrix[0].values and self.headers.keys may not always be identical
-            map_values_to_enum() makes certain modifications to self.headers.keys,
+            inverted_enumerate() makes certain modifications to self.headers.keys,
             such as coercing values to strings, modifying duplicate values, etc
         """
         return list(self.headers.keys())
@@ -208,37 +217,38 @@ class flux_cls:
         return False
 
     def duplicate_row_pointers(self):
-        DuplicatePointerRow = namedtuple('DuplicatePointerRow', ('i', 'row'))
+        enumrow_nt = namedtuple('enumrow', ('i', 'row'))
 
         d = ordereddict()
         for i, row in enumerate(self.matrix):
             row_id = id(row.values)
-            row    = DuplicatePointerRow(i, row)
+            row    = enumrow_nt(i, row)
 
             if row_id in d:
                 d[row_id].append(row)
             else:
                 d[row_id] = [row]
 
-        d = ordereddict(('\\x{:x}'.format(row_id), rows) for row_id, rows in d.items()
-                                                         if len(rows) > 1)
+        d = ordereddict([('\\x{:x}'.format(row_id), rows) for row_id, rows in d.items()
+                                                          if len(rows) > 1])
         return d
 
     def is_jagged(self):
-        num_cols = len(self.matrix[0].values)
-        for row in self.matrix[1:]:
+        num_cols = len(self.headers)
+
+        for row in self.matrix:
             if len(row.values) != num_cols:
                 return True
 
         return False
 
     def jagged_rows(self):
-        JaggedRow = namedtuple('JaggedRow', ('i', 'row'))
+        enumrow_nt = namedtuple('enumrow', ('i', 'row'))
 
         num_cols = self.num_cols
         for i, row in enumerate(self.matrix):
             if len(row.values) != num_cols:
-                yield JaggedRow(i, row)
+                yield enumrow_nt(i, row)
 
     # region {filesystem methods}
     def to_file(self, path,
@@ -332,7 +342,7 @@ class flux_cls:
         return read_file(path, filetype='.flux', **kwargs)
     # endregion
 
-    def columns(self, *names):
+    def columns(self, *names) -> Generator[Any, None, None]:
         """
         return a one-dimensional list if single column name:
             ['a', 'a', 'a' ...] = list(flux.columns('col_a'))
@@ -359,11 +369,11 @@ class flux_cls:
         col = (rva(row) for row in self.matrix[1:])
 
         if has_multiple_columns:
-            col = transpose(col, rowtype=tuple)
+            col = transpose(col, astype=tuple)
 
         return col
 
-    def values(self, *names):
+    def values(self, *names) -> Generator[Any, None, None]:
         """
         return a one-dimensional list if single column name:
             ['a', 'a', 'a', ...] = list(flux.values('col_a'))
@@ -383,19 +393,19 @@ class flux_cls:
         rva = self.row_values_accessor(names)
         return (rva(row) for row in self.matrix[1:])
 
-    def rows(self, r_1=0, r_2=None):
+    def rows(self, r_1=0, r_2=None) -> Generator[Union[List, Tuple], None, None]:
         return (row.values for row in self.matrix[r_1:r_2])
 
-    def namedrows(self, r_1=1, r_2=None):
+    def namedrows(self, r_1=1, r_2=None) -> Generator[namespace, None, None]:
         names = tuple(self.header_names())
         for row in self.matrix[r_1:r_2]:
             yield namespace(**ordereddict(zip(names, row.values)))
 
     # noinspection PyArgumentList
-    def namedtuples(self, r_1=1, r_2=None):
-        FluxRow = namedtuple('FluxRow', self.header_names())
+    def namedtuples(self, r_1=1, r_2=None) -> Generator[namedtuple, None, None]:
+        row_nt = namedtuple('row', self.header_names())
         for row in self.matrix[r_1:r_2]:
-            yield FluxRow(*row.values)
+            yield row_nt(*row.values)
 
     def reset_headers(self, names=None):
         """
@@ -408,7 +418,7 @@ class flux_cls:
         if use_existing_headers:
             names = self.matrix[0].values
 
-        headers = map_values_to_enum(names)
+        headers = inverted_enumerate(names)
         self.headers.clear()
         self.headers.update(headers)
 
@@ -459,7 +469,7 @@ class flux_cls:
         headers = ordereddict(sorted(headers.items(), key=lambda _: _[-1]))
 
         all_columns  = [row.values for row in self.matrix[1:]]
-        all_columns  = list(transpose(all_columns, rowtype=list))
+        all_columns  = list(transpose(all_columns, astype=list))
         empty_column = [None] * self.num_rows
 
         m = []
@@ -597,6 +607,15 @@ class flux_cls:
 
         self.matrix.extend(m)
 
+        return self
+
+    def shorten_to(self, nrows):
+        if nrows == 0:
+            nrows = 1
+        elif nrows < 0:
+            raise ValueError('nrows must be positive')
+
+        del self.matrix[nrows + 1:]
         return self
 
     def join(self, other, *on_columns):
@@ -741,13 +760,19 @@ class flux_cls:
         else:
             return self.filtered(evaluate_unique)
 
-    def map_rows(self, *names, rowtype='flux_row_cls'):
-        """ :return: dictionary of {row_value: row} """
+    def map_rows(self, *names, rowtype='flux_row_cls') -> Dict[Any, Union[flux_row_cls,
+                                                                          namespace,
+                                                                          Tuple,
+                                                                          List]]:
+        """ dictionary of {row_value: row} """
         items = self.__map_row_items(names, rowtype=rowtype)
         return ordereddict(list(items))
 
-    def map_rows_append(self, *names, rowtype='flux_row_cls'):
-        """ :return: dictionary of {row_value: [row, ...]} """
+    def map_rows_append(self, *names, rowtype='flux_row_cls') -> Dict[Any, List[Union[flux_row_cls,
+                                                                                      namespace,
+                                                                                      Tuple,
+                                                                                      List]]]:
+        """ dictionary of {row_value: [row(s)]} """
         items = self.__map_row_items(names, rowtype=rowtype)
 
         d = ordereddict()
@@ -795,7 +820,7 @@ class flux_cls:
 
         (contiguous values may only span a single row ie, i_1 == i_2)
         """
-        ContiguousRows = namedtuple('ContiguousRows', ('i_1', 'i_2', 'rows'))
+        contiguousrows_nt = namedtuple('contiguousrows', ('i_1', 'i_2', 'rows'))
 
         rva = self.row_values_accessor(names)
 
@@ -806,12 +831,12 @@ class flux_cls:
             v_2 = rva(row)
 
             if v_2 != v_1:
-                yield ContiguousRows(i_1, i_2 - 1, self.matrix[i_1:i_2])
+                yield contiguousrows_nt(i_1, i_2 - 1, self.matrix[i_1:i_2])
                 v_1 = v_2
                 i_1 = i_2
 
         i_2 = len(self.matrix) - 1
-        yield ContiguousRows(i_1, i_2, self.matrix[i_1:])
+        yield contiguousrows_nt(i_1, i_2, self.matrix[i_1:])
 
     def label_row_indices(self, start=0):
         """ meant to assist with debugging;
@@ -842,11 +867,13 @@ class flux_cls:
         if deep:
             return deepcopy(self)
 
-        flux = self.__class__(self)
-        attributes = self.__dict__.keys() - {'headers', 'matrix', 'aap_indices'}
+        if self.__class__ is not flux_cls:
+            return deepcopy(self)
 
-        for a in attributes:
-            flux.__dict__[a] = self.__dict__[a]
+        __dict__ = {k: v for k, v in self.__dict__.items()
+                         if k not in {'headers', 'matrix'}}
+        flux = self.__class__(self)
+        flux.__dict__.update(__dict__)
 
         return flux
 
@@ -912,7 +939,7 @@ class flux_cls:
         for row, v in zip(self.matrix[1:], values):
             row.values[i] = v
 
-    def __iter__(self):
+    def __iter__(self) -> Generator[flux_row_cls, None, None]:
         return (row for row in self.matrix[1:])
 
     def __add__(self, rows):
@@ -927,16 +954,29 @@ class flux_cls:
         return self
 
     def __getstate__(self):
-        """ serialize raw matrix values, not self.__dict__
-        this has advantages in speed and stability
-        """
-        return list(self.rows())
+        if self.__class__ is flux_cls:
+            return [[*row.values] for row in self.matrix]
 
-    def __setstate__(self, o):
-        if isinstance(o, dict):
-            self.__dict__.update(o)             # copy objects
+        headers = self.headers.copy()
+        matrix  = [flux_row_cls(headers, [*row.values]) for row in self.matrix]
+
+        __dict__ = {k: v for k, v in self.__dict__.items()
+                         if k not in {'headers', 'matrix'}}
+        __dict__['headers'] = headers
+        __dict__['matrix']  = matrix
+
+        return __dict__
+
+    def __setstate__(self, __dict__):
+        is_flux_dict = (isinstance(__dict__, dict) and
+                        'headers' in __dict__ and
+                        'matrix'  in __dict__)
+
+        if not is_flux_dict:
+            flux = self.__class__(__dict__)
+            self.__dict__.update(flux.__dict__)
         else:
-            self.__init__(o)                    # call flux_cls constructor
+            self.__dict__.update(__dict__)
 
     def __len__(self):
         """ header row is included, see self.num_rows """
@@ -967,8 +1007,8 @@ class flux_cls:
 
     # region {validation functions}
     @staticmethod
-    def __validate_matrix_headers(names):
-        headers = map_values_to_enum(names)
+    def __validate_names_as_headers(names):
+        headers = inverted_enumerate(names)
 
         conflicting = headers.keys() & set(flux_row_cls.reserved_names())
         if conflicting:
@@ -981,7 +1021,7 @@ class flux_cls:
     def __validate_matrix(m):
         if (m is None) or (m == []):
             return [[]]
-        elif is_vengeance_class(m):
+        if is_vengeance_class(m):
             return [[*row] for row in m.rows()]
 
         if is_exhaustable(m):
@@ -989,9 +1029,9 @@ class flux_cls:
         elif isinstance(m, array):
             m = list(m)
         elif isinstance(m, ItemsView):
-            m = list(transpose(list(m), rowtype=list))
+            m = list(transpose(list(m), astype=list))
         elif isinstance(m, dict):
-            m = list(transpose(list(m.items()), rowtype=list))
+            m = list(transpose(list(m.items()), astype=list))
         else:
             base_names = set(base_class_names(m))
             if 'DataFrame' in base_names:
@@ -1019,21 +1059,21 @@ class flux_cls:
             m = [[*row_first._fields]] + \
                 [[*row] for row in m]
 
+        # list of dictionaries (json-like)
+        elif isinstance(row_first, dict):
+            m = [[*row_first.keys()]] + \
+                [[*row.values()] for row in m]
+
         # list of objects
         elif hasattr(row_first, '__dict__'):
-            m = [list(row_first.__dict__.keys())] + \
-                [list(row.__dict__.values()) for row in m]
+            m = [[*row_first.__dict__.keys()]] + \
+                [[*row.__dict__.values()] for row in m]
 
         # list of objects (with __slots__ attributes)
         elif hasattr(row_first, '__slots__'):
-            s = tuple(row_first.__slots__)
-            m = [list(row_first.__slots__)] + \
-                [[row.__getattribute__(_) for _ in s] for row in m]
-
-        # list of dictionaries (json-like)
-        elif isinstance(row_first, dict):
-            m = [list(row_first.keys())] + \
-                [list(row.values()) for row in m]
+            h = tuple(row_first.__slots__)
+            m = [[*h]] + \
+                [[row.__getattribute__(a) for a in h] for row in m]
 
         elif iteration_depth(m, first_element_only=True) < 2:
             raise IterationDepthError('matrix must have at least two dimensions (ie, a list of lists)')
@@ -1044,7 +1084,7 @@ class flux_cls:
     def __validate_headers_and_matrix(matrix, headers):
         matrix = flux_cls.__validate_matrix(matrix)
         if headers is None:
-            headers = flux_cls.__validate_matrix_headers(matrix[0])
+            headers = flux_cls.__validate_names_as_headers(matrix[0])
 
         return headers, [flux_row_cls(headers, row) for row in matrix]
 
@@ -1242,9 +1282,9 @@ class flux_cls:
 
         elif name not in headers:
             raise ColumnNameError("column: '{name}' does not exist. "
-                              "\nTo ensure new columns are being created intentionally (not a new column "
-                              "because to a typo) inserted headers must be surrounded by parenthesis, eg: "
-                              "\n '({name})', not '{name}'".format(name=name))
+                                  "\nTo ensure new columns are being created intentionally (not a new column "
+                                  "because to a typo) inserted headers must be surrounded by parenthesis, eg: "
+                                  "\n '({name})', not '{name}'".format(name=name))
 
         return name
 

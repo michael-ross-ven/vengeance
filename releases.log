@@ -1,4 +1,13 @@
 
+2021-03-18
+$release 50
+    version 1.1.13
+
+    flux_cls:
+        improvement to .__setstate__() and .__getstate__()
+
+
+
 2021-02-26
 $release 49
     version 1.1.12

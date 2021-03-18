@@ -40,12 +40,11 @@ AccessibleObjectFromWindow = ctypes.oledll.oleacc.AccessibleObjectFromWindow
 xl_main_ascii = 'XLMAIN'.encode('ascii')
 xl_desk_ascii = 'XLDESK'.encode('ascii')
 excel7_ascii  = 'EXCEL7'.encode('ascii')
-
 corrupt_hwnds = set()
-native_om     = -16
 
 
-def open_workbook(path, excel_app='new',
+def open_workbook(path,
+                  excel_app='new',
                   *,
                   read_only=False,
                   update_links=True,
@@ -129,7 +128,8 @@ def close_workbook(wb, save):
     gc.collect()
 
 
-def __open_workbook_dispatch(path, excel_app,
+def __open_workbook_dispatch(path,
+                             excel_app,
                              *,
                              update_links,
                              read_only,
@@ -158,20 +158,18 @@ def __open_workbook_dispatch(path, excel_app,
 
 def __validate_excel_application(excel_app, windowstate=None):
     if excel_app in (None, 'new'):
-        return new_excel_application(windowstate)
+        excel_app = new_excel_application(windowstate)
 
     if excel_app == 'any':
-        return any_excel_application(windowstate)
+        excel_app = any_excel_application(windowstate)
 
     if excel_app == 'empty':
         excel_app = empty_excel_application(windowstate)
-        if excel_app is None:
-            raise AssertionError('empty Excel application not found')
-
-        return excel_app
 
     if not hasattr(excel_app, 'Workbooks'):
         raise ValueError("excel_app parameter should be in (None, 'new', 'any', 'empty') or an application pointer")
+
+    excel_application_to_foreground(excel_app, windowstate)
 
     return excel_app
 
@@ -182,17 +180,14 @@ def new_excel_application(windowstate=xlMaximized):
     excel_app = EnsureDispatch(excel_app)
 
     reload_all_add_ins(excel_app)
-    excel_app.Visible = True
-    excel_application_to_foreground(excel_app, windowstate)
 
     return excel_app
 
 
 def any_excel_application(windowstate=None):
     excel_app = EnsureDispatch('Excel.Application')
-    if excel_app:
-        excel_application_to_foreground(excel_app, windowstate)
-    else:
+
+    if not excel_app:
         excel_app = new_excel_application(windowstate)
 
     return excel_app
@@ -203,11 +198,24 @@ def empty_excel_application(windowstate=xlMaximized):
     for excel_app in all_excel_instances():
         if __is_excel_application_empty(excel_app):
             print(vengeance_message('utilizing empty Excel instance'))
-            excel_application_to_foreground(excel_app, windowstate)
-
             return excel_app
 
-    return None
+    raise AssertionError('empty Excel application not found')
+
+
+def __is_excel_application_empty(excel_app):
+    """ an Excel application with no workbooks or a an Excel application
+    with the default workbook opened
+    """
+    for wb in excel_app.Workbooks:
+        if wb.Saved:
+            return False
+
+        for ws in wb.Sheets:
+            if ws.UsedRange.Address != '$A$1':
+                return False
+
+    return True
 
 
 def all_excel_instances():
@@ -249,27 +257,16 @@ def reload_all_add_ins(excel_app):
     print()
 
 
-# noinspection PyUnusedLocal,PyBroadException
+# noinspection PyBroadException
 def excel_application_to_foreground(excel_app, windowstate=None):
 
     try:              excel_app.WindowState = windowstate
     except Exception: pass
 
     excel_app.Visible = True
-
     if excel_app.Visible is False and excel_app.Workbooks.Count == 0:
         excel_app.Workbooks.Add()
         excel_app.Visible = True
-
-        # wb = excel_app.Workbooks.Add()
-        #
-        # excel_app.Visible = True
-        # wb.Close(False)
-        #
-        # wb = None
-        # del wb
-        #
-        # gc.collect()
 
     SetForegroundWindow(excel_app.Hwnd)
 
@@ -295,14 +292,15 @@ def __excel_application_from_window_handle(window_h):
     if window_h in corrupt_hwnds:
         return None
 
-    xl_desk_hwnd = FindWindowExA(window_h,    None,  xl_desk_ascii, None)
+    xl_desk_hwnd = FindWindowExA(window_h,     None, xl_desk_ascii, None)
     excel7_hwnd  = FindWindowExA(xl_desk_hwnd, None, excel7_ascii,  None)
 
     if excel7_hwnd == 0:
         corrupt_hwnds.add(window_h)
         return None
 
-    obj_ptr = POINTER(comtypes_idispatch)()
+    obj_ptr   = POINTER(comtypes_idispatch)()
+    native_om = -16
     AccessibleObjectFromWindow(excel7_hwnd,
                                native_om,
                                byref(obj_ptr._iid_),
@@ -331,33 +329,16 @@ def __excel_application_from_window_handle(window_h):
                                 '\n\t(contents of the win32com gen_py folder may be corrupt)') from None
 
 
-# noinspection PyTypeChecker
+# noinspection PyTypeChecker, PyProtectedMember
 def __iunknown_pointer_to_python_object(com_ptr, interface):
     function_pointer = PyDLL(pythoncom.__file__).PyCom_PyObjectFromIUnknown
 
     function_pointer.restype  = py_object
-    function_pointer.argtypes = (POINTER(IUnknown),
-                                 c_void_p,
-                                 BOOL)
+    function_pointer.argtypes = (POINTER(IUnknown), c_void_p, BOOL)
 
-    # noinspection PyProtectedMember
-    return function_pointer(com_ptr._comobj, byref(interface._iid_), True)
+    f = function_pointer(com_ptr._comobj, byref(interface._iid_), True)
 
-
-# noinspection PyUnusedLocal
-def __is_excel_application_empty(excel_app):
-    """ an Excel application with no workbooks or a an Excel application
-    with the default workbook opened
-    """
-    for wb in excel_app.Workbooks:
-        if wb.Saved:
-            return False
-
-        for ws in wb.Sheets:
-            if ws.UsedRange.Address != '$A$1':
-                return False
-
-    return True
+    return f
 
 
 # noinspection PyBroadException

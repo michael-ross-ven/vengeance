@@ -169,6 +169,10 @@ def is_collection(o):
 
 # noinspection PyStatementEffect,PyBroadException
 def is_subscriptable(o):
+    """
+    from typing import Sequence
+    isinstance(o, Sequence)
+    """
     try:
         o[0]
         return True
@@ -228,8 +232,8 @@ def base_class_names(o):
     return [b.__name__ for b in o.__class__.mro()]
 
 
-def transpose(m, rowtype=None):
-    if rowtype not in (None, tuple, list):
+def transpose(m, astype=None):
+    if astype not in (None, tuple, list):
         raise TypeError('astype must be in (None, tuple, list)')
 
     m = iterator_to_collection(m)
@@ -237,13 +241,13 @@ def transpose(m, rowtype=None):
     if n == 0:
         raise IterationDepthError('matrix must have at least 1 dimension')
 
-    if rowtype is None:
+    if astype is None:
         if n == 1:
-            rowtype = type(m)
+            astype = type(m)
         else:
-            rowtype = type(m[0])
+            astype = type(m[0])
 
-    if rowtype is list:
+    if astype is list:
         if n == 1:
             t = ([row] for row in m)
         else:
@@ -310,8 +314,8 @@ def to_namedtuples(o):
         return [traverse(v) for v in o]
 
 
-def map_values_to_enum(sequence, start=0):
-    """ :return {value (str): index (int)} for all items in sequence
+def inverted_enumerate(sequence, start=0):
+    """ :return {unique_key: i: int} for all items in sequence
 
     values are modified before they are added as keys:
         * values coerced to string (if not bytes)
@@ -322,34 +326,31 @@ def map_values_to_enum(sequence, start=0):
          'b':       1,
          'c':       2,
          'b_dup_2': 3,
-         'b_dup_3': 4} = map_values_to_enum(['a', 'b', 'c', 'b', 'b'])
+         'b_dup_3': 4} = inverted_enumerate(['a', 'b', 'c', 'b', 'b'])
     """
-    # region {closure}
-    def to_string(_v_):
-        if is_bytes_instance:
-            return _v_.decode('utf-8')
-        else:
-            return str(_v_)
-    # endregion
-
     values_to_indices = ordereddict()
-    values_duplicates = defaultdict(int)        # count of nonunique keys
+    duplicates = defaultdict(lambda: 0)
 
     for i, v in enumerate(sequence, start):
-        is_bytes_instance = isinstance(v, bytes)
-        v_s = to_string(v)
-
-        if v_s in values_duplicates:
-            values_duplicates[v_s] += 1
-            n_d = values_duplicates[v_s]
-            v_s = '{}_dup_{}'.format(v_s, n_d)
+        if isinstance(v, (bytes, str)):
+            _v_ = v
         else:
-            values_duplicates[v_s] += 1
+            _v_ = str(v)
 
-        if is_bytes_instance:
-            v_s = v_s.encode('utf-8')
+        is_duplicate = (_v_ in duplicates)
 
-        values_to_indices[v_s] = i
+        duplicates[_v_] += 1
+
+        if is_duplicate:
+            n_d = duplicates[_v_]
+
+            if isinstance(_v_, bytes):
+                _v_ = '{}_dup_{num}'.format(_v_.decode(), num=n_d)
+                _v_ = _v_.encode()
+            else:
+                _v_ = '{}_dup_{num}'.format(_v_, num=n_d)
+
+        values_to_indices[_v_] = i
 
     return values_to_indices
 
@@ -357,13 +358,13 @@ def map_values_to_enum(sequence, start=0):
 def is_header_row(values, headers):
     """ determine if underlying values match headers.keys
 
-    checking headers.keys() == values will not always work, since map_values_to_enum()
+    checking headers.keys() == values will not always work, since inverted_enumerate()
     was used to modify names into more suitable header keys
     """
     if not headers:
         return False
 
-    value_names  = map_values_to_enum(values).keys()
+    value_names  = inverted_enumerate(values).keys()
     header_names = set(headers)
 
     return value_names == header_names

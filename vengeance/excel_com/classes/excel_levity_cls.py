@@ -1,8 +1,12 @@
 
 import re
-# noinspection PyUnresolvedReferences
 
+# noinspection PyUnresolvedReferences
 from pythoncom import com_error as pythoncom_error
+
+from typing import Generator
+from typing import List
+from typing import Any
 
 from .lev_row_cls import lev_row_cls
 
@@ -11,7 +15,7 @@ from .. import worksheet
 from .. excel_constants import *
 
 from ... util.iter import iterator_to_collection
-from ... util.iter import map_values_to_enum
+from ... util.iter import inverted_enumerate
 from ... util.iter import modify_iteration_depth
 from ... util.text import object_name
 
@@ -171,25 +175,25 @@ class excel_levity_cls:
 
         return worksheet.is_range_empty(self.ws.Range(a))
 
-    def rows(self, r_1='*h', r_2='*l'):
+    def rows(self, r_1='*h', r_2='*l') -> Generator[List, Any, Any]:
         if self.is_empty():
-            return [[]]
+            return ([] for _ in range(1))
 
         a = '*f {}:*l {}'.format(r_1, r_2)
         excel_range = self.excel_range(a)
 
-        return worksheet.escape_excel_range_errors(excel_range)
+        return (row for row in worksheet.escape_excel_range_errors(excel_range))
 
-    def lev_rows(self, r_1='*h', r_2='*l'):
-        if self.is_empty():
-            return [[]]
-
+    def lev_rows(self, r_1='*h', r_2='*l') -> Generator[lev_row_cls, Any, Any]:
         if self.headers:
-            headers = map_values_to_enum(self.headers.keys())
+            headers = inverted_enumerate(self.headers.keys())
         elif self.m_headers:
-            headers = map_values_to_enum(self.m_headers.keys())
+            headers = inverted_enumerate(self.m_headers.keys())
         else:
             headers = ordereddict()
+
+        if self.is_empty():
+            return (lev_row_cls(headers, [], '') for _ in range(1))
 
         reserved = headers.keys() & set(lev_row_cls.reserved_names())
         if reserved:
@@ -328,7 +332,7 @@ class excel_levity_cls:
             return ordereddict()
 
         c_1 = excel_range.Column
-        headers = map_values_to_enum(row, c_1)
+        headers = inverted_enumerate(row, c_1)
         headers = ordereddict((h, excel_address.col_letter(v)) for h, v in headers.items())
 
         return headers
@@ -399,17 +403,20 @@ class excel_levity_cls:
         if was_filtered:
             self.reapply_filter()
 
-    def __iter__(self):
-        for row in self.lev_rows('*f'):
-            yield row
+    def __iter__(self) -> Generator[lev_row_cls, Any, Any]:
+        return self.lev_rows('*f')
 
     def __repr__(self):
         if not self.is_worksheet_type:
             return "{{}}: '{}'".format(self.ws.__class__.__name__, self.ws_name)
 
         if self.first_c and self.last_c:
+            r = max(self.header_r, self.header_r)
+            if r == 0:
+                r = self.first_r
+
             a = "{}{}:{}{}".format(self.first_c,
-                                   self.header_r,
+                                   r,
                                    self.last_c,
                                    self.last_r)
         else:

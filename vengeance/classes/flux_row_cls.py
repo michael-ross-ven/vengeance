@@ -1,5 +1,4 @@
 
-from copy import copy
 from collections import namedtuple
 
 from ..util.iter import namespace
@@ -46,7 +45,7 @@ class flux_row_cls:
             raise ImportError('numpy site-package not installed')
 
         names  = [format_header(n) for n in self.header_names()]
-        values = list(self.values)
+        values = list(self.__dict__['values'])
 
         c_m = max(len(names), len(values))
         names.extend(['🗲']          * (c_m - len(names)))
@@ -55,9 +54,8 @@ class flux_row_cls:
         if 'address' in self.__dict__:
             names.insert(0,  '⟨address⟩')
             values.insert(0, '⟨{}⟩'.format(self.__dict__['address']))
-
-        if 'r_i' in self.__dict__:
-            names.insert(0,  '⟨r_i⟩')
+        elif 'r_i' in self.__dict__:
+            names.insert(0,  '⟨address⟩')
             values.insert(0, '⟨{:,}⟩'.format(self.__dict__['r_i']).replace(',', '_'))
 
         # noinspection PyUnresolvedReferences
@@ -66,34 +64,35 @@ class flux_row_cls:
 
     @property
     def headers(self):
-        return copy(self._headers)
+        return ordereddict(self.__dict__['_headers'].items())
 
     def header_names(self):
-        return list(self._headers.keys())
+        return list(self.__dict__['_headers'].keys())
 
     def is_jagged(self):
-        return len(self._headers) != len(self.values)
+        return len(self.__dict__['_headers']) != len(self.__dict__['values'])
 
     def is_empty(self):
-        return (len(self._headers) == 0) and (len(self.values) == 0)
+        return (len(self.__dict__['_headers']) == 0) and (len(self.__dict__['values']) == 0)
 
     def is_header_row(self):
         """ determine if underlying values match self._headers.keys
 
-        self.names == self.values will not always work, since map_values_to_enum()
+        self.names == self.values will not always work, since inverted_enumerate()
         was used to modify self._headers values into more suitable dictionary keys,
         like modifying duplicate values to ensure they are unique, etc
         """
-        return is_header_row(self.values, self._headers)
+        return is_header_row(self.__dict__['values'],
+                             self.__dict__['_headers'])
 
     def namedrow(self):
-        d = ordereddict(zip(self.header_names(), self.values))
+        d = ordereddict(zip(self.header_names(), self.__dict__['values']))
         return namespace(**d)
 
     # noinspection PyArgumentList
     def namedtuple(self):
-        FluxRow = namedtuple('FluxRow', self.header_names())
-        return FluxRow(*self.values)
+        row_nt = namedtuple('row', self.header_names())
+        return row_nt(*self.__dict__['values'])
 
     # noinspection PyProtectedMember,PyUnusedLocal
     def join_values(self, row_b, on_columns=None):
@@ -114,10 +113,10 @@ class flux_row_cls:
         if not isinstance(row_b, flux_row_cls):
             raise TypeError('row expected to be flux_row_cls')
 
-        headers_a = self._headers
+        headers_a = self.__dict__['_headers']
         headers_b = row_b._headers
 
-        values_a  = self.values
+        values_a  = self.__dict__['values']
         values_b  = row_b.values
 
         names = intersecting_names(on_columns)
@@ -133,8 +132,8 @@ class flux_row_cls:
              o = row.column
         """
         try:
-            i = self._headers.get(name, name)
-            return self.values[i]
+            i = self.__dict__['_headers'].get(name, name)
+            return self.__dict__['values'][i]
         except (TypeError, IndexError):
             self.__raise_attribute_error(name, self.headers)
 
@@ -143,13 +142,13 @@ class flux_row_cls:
             row.column = o
         """
         try:
-            i = self._headers.get(name, name)
-            self.values[i] = value
+            i = self.__dict__['_headers'].get(name, name)
+            self.__dict__['values'][i] = value
         except (TypeError, IndexError) as e:
 
             if name in self.__dict__:
                 self.__dict__[name] = value
-            elif isinstance(self.values, tuple):
+            elif isinstance(self.__dict__['values'], tuple):
                 raise e
             else:
                 self.__raise_attribute_error(name, self.headers)
@@ -159,11 +158,11 @@ class flux_row_cls:
             o = row['column']
         """
         try:
-            i = self._headers.get(name, name)
-            return self.values[i]
+            i = self.__dict__['_headers'].get(name, name)
+            return self.__dict__['values'][i]
         except (TypeError, IndexError):
             if isinstance(name, slice):
-                return self.values[name]
+                return self.__dict__['values'][name]
 
             self.__raise_attribute_error(name, self.headers)
 
@@ -172,27 +171,27 @@ class flux_row_cls:
             row['column'] = o
         """
         try:
-            i = self._headers.get(name, name)
-            self.values[i] = value
+            i = self.__dict__['_headers'].get(name, name)
+            self.__dict__['values'][i] = value
         except (TypeError, IndexError) as e:
 
-            if isinstance(self.values, tuple):
+            if isinstance(self.__dict__['values'], tuple):
                 raise e
             elif isinstance(name, slice):
-                self.values[name] = value
+                self.__dict__['values'][name] = value
             elif name in self.__dict__:
                 self.__dict__[name] = value
             else:
                 self.__raise_attribute_error(name, self.headers)
 
     def __len__(self):
-        return len(self.values)
+        return len(self.__dict__['values'])
 
     def __bool__(self):
-        return bool(self.values)
+        return bool(self.__dict__['values'])
 
     def __iter__(self):
-        return iter(self.values)
+        return iter(self.__dict__['values'])
 
     def __eq__(self, other):
         return hash(self) == hash(other)
@@ -201,21 +200,21 @@ class flux_row_cls:
         return not self.__eq__(other)
 
     def __hash__(self):
-        return id(self._headers) + hash(tuple(self.values))
+        return id(self.__dict__['_headers']) + hash(tuple(self.__dict__['values']))
 
     def __getstate__(self):
         return self.__dict__
 
-    def __setstate__(self, d):
-        self.__dict__ = d
+    def __setstate__(self, __dict__):
+        self.__dict__.update(__dict__)
 
     def __repr__(self):
-        if 'r_i' in self.__dict__:
+        if 'address' in self.__dict__:
+            row_label = format_header_lite(self.__dict__['address'])
+            row_label = '{}   '.format(row_label)
+        elif 'r_i' in self.__dict__:
             row_label = format_integer(self.__dict__['r_i'])
             row_label = format_header_lite(row_label)
-            row_label = '{}   '.format(row_label)
-        elif 'address' in self.__dict__:
-            row_label = format_header_lite(self.__dict__['address'])
             row_label = '{}   '.format(row_label)
         else:
             row_label = ''
@@ -229,8 +228,8 @@ class flux_row_cls:
             values = ', '.join(str(n) for n in self.header_names())
             values = format_header(values)
         else:
-            values = (repr(self.values).replace('"', '')
-                                       .replace("'", ''))
+            values = (repr(self.__dict__['values']).replace('"', '')
+                                                   .replace("'", ''))
 
         return ' {}{}{}'.format(row_label, is_jagged, values)
 

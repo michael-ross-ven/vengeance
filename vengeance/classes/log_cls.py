@@ -183,31 +183,35 @@ class log_cls(Logger):
             banner_width = self.banner_width
         else:
             banner_width = max(len(title_message),
-                              *[len(line) for line in str(_e_msg_).split('\n')],
-                              *[len(line) for line in str(filename).split('\n')]) + 10
-            banner_width = max(banner_width, 90)
+                               *[len(line) for line in str(_e_msg_).split('\n')],
+                               *[len(line) for line in str(filename).split('\n')],
+                               80) + 10
 
         if isinstance(self.banner_character, str):
-            banner = self.banner_character * banner_width
+            _bf_ = '{:%s^%i}' % (self.banner_character, banner_width)
+            banner_upper = _bf_.format(' __{}__ '.format(self.name))
+            banner_lower = self.banner_character * banner_width
         else:
-            banner = ''
+            banner_upper = ''
+            banner_lower = ''
 
         exception_message = '''
-        {banner}
+        {banner_upper}
             {title_message}
-            {repr_self}
-            
+
             <{e_type}> {e_msg}
             File: {filename}
             Line: {lineno}
-        {banner}
-        '''.format(banner=banner,
+            {repr_self}
+        {banner_lower}
+        '''.format(banner_upper=banner_upper,
                    title_message=title_message,
-                   repr_self=repr(self),
                    e_type=_e_type_,
                    e_msg=_e_msg_,
                    filename=filename,
-                   lineno=lineno)
+                   lineno=lineno,
+                   repr_self=repr(self),
+                   banner_lower=banner_lower)
 
         exception_message = dedent(exception_message)
 
@@ -237,8 +241,8 @@ class colored_streamhandler_cls(StreamHandler):
     level_colors  = {NOTSET:   'grey',
                      DEBUG:    'grey',
                      INFO:     'white',
-                     WARNING:  'bright yellow',
-                     ERROR:    'red',
+                     WARNING:  'yellow',
+                     ERROR:    'bright red',
                      CRITICAL: 'bright magenta'}
 
     def __init__(self, stream=None):
