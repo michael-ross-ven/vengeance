@@ -1,0 +1,7 @@
+comtypes
+pypiwin32
+
+[:python_version>='3.0']
+python-dateutil
+ujson
+numpy

@@ -1,0 +1,15 @@
+Metadata-Version: 1
+Name: vengeance
+Version: 1.0.28
+Summary: 
+Home-page: 
+Author: Michael Ross
+Maintainer: Michael Ross
+Maintainer-email: michael.ross.uncc@gmail.com
+License: BSD
+Download-URL: https://pypi.org/project/vengeance/
+Platform: Windows
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: Microsoft :: Windows
+Requires-Python: >=3.4

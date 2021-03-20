@@ -1,0 +1,4 @@
+comtypes
+pypiwin32
+python-dateutil
+pyodbc
