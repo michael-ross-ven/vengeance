@@ -1,8 +1,12 @@
 
 from collections import namedtuple
 
+from typing import Dict
+from typing import List
+
 from ..util.iter import namespace
 from ..util.iter import is_header_row
+
 from ..util.text import format_header
 from ..util.text import format_header_lite
 from ..util.text import format_integer
@@ -31,6 +35,9 @@ class flux_row_cls:
         properties must be set on self.__dict__ instead of directly on self to prevent
         premature __setattr__ lookups
         """
+        self._headers: Dict[str, int]
+        self.values:   List
+
         self.__dict__['_headers'] = headers
         self.__dict__['values']   = values
 
@@ -41,9 +48,6 @@ class flux_row_cls:
         PyCharm will recognize the ndarray and enable the "...view as array"
         option in the debugger which displays values in a special window as a table
         """
-        if not numpy_installed:
-            raise ImportError('numpy site-package not installed')
-
         names  = [format_header(n) for n in self.header_names()]
         values = list(self.__dict__['values'])
 
@@ -58,9 +62,18 @@ class flux_row_cls:
             names.insert(0,  '⟨address⟩')
             values.insert(0, '⟨{:,}⟩'.format(self.__dict__['r_i']).replace(',', '_'))
 
-        # noinspection PyUnresolvedReferences
-        return numpy.transpose([numpy.array(names,  dtype=object),
-                                numpy.array(values, dtype=object)])
+        m = list(zip(names, values))
+
+        if not numpy_installed:
+            _nf_ = max([len(n) for n in names])  + 1
+            _nf_ = '{: <%s}' % str(_nf_)
+
+            m = [' '.join([_nf_.format(n), v]) for n, v in m]
+            m = '\n'.join(m)
+
+            return m
+
+        return numpy.array(m, dtype=object)
 
     @property
     def headers(self):
@@ -202,12 +215,6 @@ class flux_row_cls:
     def __hash__(self):
         return id(self.__dict__['_headers']) + hash(tuple(self.__dict__['values']))
 
-    def __getstate__(self):
-        return self.__dict__
-
-    def __setstate__(self, __dict__):
-        self.__dict__.update(__dict__)
-
     def __repr__(self):
         if 'address' in self.__dict__:
             row_label = format_header_lite(self.__dict__['address'])
@@ -242,7 +249,4 @@ class flux_row_cls:
              "\n\t{}".format(invalid, s))
 
         raise AttributeError(s) from None
-
-
-
 

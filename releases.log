@@ -1,4 +1,15 @@
 
+2021-03-20
+$release 51
+    version 1.1.14
+
+    flux_cls:
+        further improvement to .__setstate__() and .__getstate__()
+        universally resolves __init__() params for subclasses, which makes pickling much more stable,
+        almost like a copyreg function
+
+
+
 2021-03-18
 $release 50
     version 1.1.13

@@ -44,6 +44,8 @@ from ..util.text import object_name
 from ..util.text import format_header
 from ..util.text import format_header_lite
 from ..util.text import format_integer
+from ..util.text import function_parameters
+from ..util.text import function_name
 
 from ..conditional import ordereddict
 from ..conditional import line_profiler_installed
@@ -77,6 +79,7 @@ class flux_cls:
         flux.to_csv('file.csv')
         flux = flux_cls.from_csv('file.csv')
     """
+
     # as_array_preview_indices
     aap_indices = [1, 5 + 1]
 
@@ -122,9 +125,6 @@ class flux_cls:
         PyCharm will recognize the numpy array and enable the "...view as array"
         option in the debugger which displays values in a special window as a table
         """
-        if not numpy_installed:
-            raise ImportError('numpy site-package not installed')
-
         # region {closure functions}
         def start_row_index(r):
             if r is None:
@@ -182,6 +182,10 @@ class flux_cls:
                 m.append([r_i, *r_v, *r_j])
             else:
                 m.append([r_i, *r_v])
+
+        if not numpy_installed:
+            m = '\n'.join([str(row) for row in m])
+            return m
 
         return numpy.array(m, dtype=object)
 
@@ -949,34 +953,49 @@ class flux_cls:
         return flux
 
     def __iadd__(self, rows):
-        self.append_rows(rows)
-
-        return self
+        return self.append_rows(rows)
 
     def __getstate__(self):
-        if self.__class__ is flux_cls:
-            return [[*row.values] for row in self.matrix]
+        f = self.__class__.__init__
 
-        headers = self.headers.copy()
-        matrix  = [flux_row_cls(headers, [*row.values]) for row in self.matrix]
+        constructor_params = function_parameters(f)
+        constructor_repr   = '{}({})'.format(function_name(f), ', '.join(p.name for p in constructor_params))
 
-        __dict__ = {k: v for k, v in self.__dict__.items()
-                         if k not in {'headers', 'matrix'}}
-        __dict__['headers'] = headers
-        __dict__['matrix']  = matrix
+        args   = []
+        kwargs = ordereddict()
+        for p in constructor_params:
+            name = p.name
+            kind = p.kind.lower()
 
-        return __dict__
+            if name == 'self':        continue
+            elif name == 'matrix':    p.value = [[*row.values] for row in self.matrix]
+            elif name == 'headers':   p.value = ordereddict(self.headers.items())
+            elif hasattr(self, name): p.value = getattr(self, name)
 
-    def __setstate__(self, __dict__):
-        is_flux_dict = (isinstance(__dict__, dict) and
-                        'headers' in __dict__ and
-                        'matrix'  in __dict__)
+            elif repr(p.value) == "<class 'inspect._empty'>":
+                raise ValueError("unable to resolve constructor parameter: '{}' \n"
+                                 "for: {}".format(name, constructor_repr))
 
-        if not is_flux_dict:
-            flux = self.__class__(__dict__)
-            self.__dict__.update(flux.__dict__)
+            if 'positional' in kind:
+                args.append(p.value)
+            else:
+                kwargs[name] = p.value
+
+        args = tuple(args)
+
+        return {'args':   args,
+                'kwargs': kwargs}
+
+    def __setstate__(self, state):
+        if not isinstance(state, dict):
+            return self.__init__(state)
+
+        use_constructor = ('args'   in state and
+                           'kwargs' in state)
+        if use_constructor:
+            self.__init__(*state['args'], **state['kwargs'])
         else:
-            self.__dict__.update(__dict__)
+            self.__dict__.update(state)
 
     def __len__(self):
         """ header row is included, see self.num_rows """

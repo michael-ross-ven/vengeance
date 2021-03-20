@@ -158,13 +158,13 @@ def __open_workbook_dispatch(path,
 
 def __validate_excel_application(excel_app, windowstate=None):
     if excel_app in (None, 'new'):
-        excel_app = new_excel_application(windowstate)
+        excel_app = new_excel_application()
 
     if excel_app == 'any':
-        excel_app = any_excel_application(windowstate)
+        excel_app = any_excel_application()
 
     if excel_app == 'empty':
-        excel_app = empty_excel_application(windowstate)
+        excel_app = empty_excel_application()
 
     if not hasattr(excel_app, 'Workbooks'):
         raise ValueError("excel_app parameter should be in (None, 'new', 'any', 'empty') or an application pointer")
@@ -174,7 +174,7 @@ def __validate_excel_application(excel_app, windowstate=None):
     return excel_app
 
 
-def new_excel_application(windowstate=xlMaximized):
+def new_excel_application():
     excel_app = comtypes_createobject('Excel.Application', dynamic=True)
     excel_app = __iunknown_pointer_to_python_object(excel_app, comtypes_idispatch)
     excel_app = EnsureDispatch(excel_app)
@@ -184,16 +184,15 @@ def new_excel_application(windowstate=xlMaximized):
     return excel_app
 
 
-def any_excel_application(windowstate=None):
+def any_excel_application():
     excel_app = EnsureDispatch('Excel.Application')
-
     if not excel_app:
-        excel_app = new_excel_application(windowstate)
+        excel_app = new_excel_application()
 
     return excel_app
 
 
-def empty_excel_application(windowstate=xlMaximized):
+def empty_excel_application():
 
     for excel_app in all_excel_instances():
         if __is_excel_application_empty(excel_app):
@@ -264,6 +263,7 @@ def excel_application_to_foreground(excel_app, windowstate=None):
     except Exception: pass
 
     excel_app.Visible = True
+
     if excel_app.Visible is False and excel_app.Workbooks.Count == 0:
         excel_app.Workbooks.Add()
         excel_app.Visible = True

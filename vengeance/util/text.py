@@ -1,5 +1,6 @@
 
 import gc
+import inspect
 import itertools
 import functools
 
@@ -16,9 +17,9 @@ else:
     import json
 
 if is_utf_console:
-    __vengeance_prefix__ = '\tν: '    # nu: chr(957)
+    __vengeance_prefix__ = '\tν: '    # ν: chr(957), nu
 else:
-    __vengeance_prefix__ = '\tv: '    # ascii
+    __vengeance_prefix__ = '\tv: '    # v: chr(118)
 
 
 def print_runtime(f):
@@ -45,22 +46,16 @@ def print_performance(f=None, repeat=5):
         @functools.wraps(_f_)
         def functools_wrapper(*args, **kwargs):
 
-            if repeat <= 0:
-                raise ValueError
-
             retv  = None
             best  = None
             worst = None
             total = 0.0
+            functools_repeat = functools.partial(itertools.repeat, None)
 
-            # functools_repeat = functools.partial(itertools.repeat, None)
-            # for _ in functools_repeat(repeat):
-            functools_repeat = functools.partial(itertools.repeat, repeat)
-            # for _ in functools_repeat:
             gc_enabled = gc.isenabled()
             gc.disable()
 
-            for _ in functools_repeat:
+            for _ in functools_repeat(repeat):
                 tic  = default_timer()
                 retv = _f_(*args, **kwargs)
                 toc  = default_timer()
@@ -75,8 +70,8 @@ def print_performance(f=None, repeat=5):
                 total += elapsed
 
             average = total / repeat
-
             r = format_header(format_integer(repeat))
+
             s = ('@{} {}  trials'
                  '\n        {}best:    {}'
                  '\n        {}average: {}'
@@ -141,7 +136,6 @@ def vengeance_warning(message,
         call_frame = inspect.currentframe().f_back
     """
 
-    import inspect
     import traceback
     import warnings
 
@@ -331,6 +325,31 @@ def object_name(o):
         return o.__name__
     except AttributeError:
         return o.__class__.__name__
+
+
+def function_parameters(f):
+
+    # region {closure}
+    class param_cls:
+        __slots__ = ('name',
+                     'kind',
+                     'default',
+                     'value')
+
+        def __init__(self, p):
+            self.name    = p.name
+            self.kind    = str(p.kind)
+            self.default = p.default
+            self.value   = p.default
+
+        def __repr__(self):
+            return '{} {}'.format(self.name, self.kind)
+    # endregion
+
+    i_params = inspect.signature(f).parameters
+    n_params = [param_cls(p) for p in i_params.values()]
+
+    return n_params
 
 
 def json_dumps_extended(o, **kwargs):
