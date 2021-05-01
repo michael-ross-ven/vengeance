@@ -3,6 +3,7 @@ import gc
 import inspect
 import itertools
 import functools
+import pprint
 
 from datetime import date
 from timeit import default_timer
@@ -70,7 +71,7 @@ def print_performance(f=None, repeat=5):
                 total += elapsed
 
             average = total / repeat
-            r = format_header(format_integer(repeat))
+            r = format_header_lite(format_integer(repeat))
 
             s = ('@{} {}  trials'
                  '\n        {}best:    {}'
@@ -320,13 +321,6 @@ def function_name(f):
     return '{}.{}'.format(modulename, name)
 
 
-def object_name(o):
-    try:
-        return o.__name__
-    except AttributeError:
-        return o.__class__.__name__
-
-
 def function_parameters(f):
 
     # region {closure}
@@ -352,6 +346,27 @@ def function_parameters(f):
     return n_params
 
 
+def object_name(o):
+    try:                   return o.__name__
+    except AttributeError: pass
+
+    try:                   return o.__class__.__name__
+    except AttributeError: pass
+
+    return type(o).__name__
+
+
+def pprint_object(o, **kwargs):
+    kwargs['compact'] = kwargs.get('compact', True)
+
+    if 'width' not in kwargs:
+        width = max([len(repr(v)) for v in o])
+        width = width + min(3, width - 1)
+        kwargs['width'] = width
+
+    pprint.pprint(o, **kwargs)
+
+
 def json_dumps_extended(o, **kwargs):
     kwargs['ensure_ascii'] = kwargs.get('ensure_ascii', False)
     kwargs['indent']       = kwargs.get('indent', 4)
@@ -375,4 +390,7 @@ def json_unhandled_conversion(v):
     # if isinstance(v, Decimal) ?
 
     raise TypeError("Object of type '{}' is not JSON serializable".format(object_name(v)))
+
+
+
 

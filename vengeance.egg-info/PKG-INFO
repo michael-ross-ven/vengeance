@@ -1,6 +1,6 @@
 Metadata-Version: 1.1
 Name: vengeance
-Version: 1.1.14
+Version: 1.1.15
 Summary: Library focusing on row-major organization of tabular data and control over the Excel application
 Home-page: https://github.com/michael-ross-ven/vengeance
 Author: Michael Ross

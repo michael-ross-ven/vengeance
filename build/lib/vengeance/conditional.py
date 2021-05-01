@@ -3,7 +3,7 @@ import os
 import sys
 
 
-is_pypy_interpreter = ('__pypy__' in sys.builtin_module_names)
+is_pypy_interpreter = ('__pypy__' in iter(sys.builtin_module_names))
 is_windows_os       = (os.name == 'nt')
 is_utf_console      = ('utf' in sys.stdout.encoding.lower())
 is_tty_console      = False

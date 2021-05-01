@@ -5,9 +5,8 @@ import vengeance as vgc
 """
 
 from .version import *
-from .classes import *
 from .util    import *
-
+from .classes import *
 from .conditional import loads_excel_module
 
 ''' loads_excel_module
@@ -22,5 +21,6 @@ from .conditional import loads_excel_module
 '''
 if loads_excel_module:
     from .excel_com import *
+
 
 

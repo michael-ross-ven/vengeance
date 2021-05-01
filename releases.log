@@ -1,4 +1,14 @@
 
+2021-05-01
+$release 52
+    version 1.1.15
+
+    flux_cls:
+        .group_rows() and .group_rows_append() methods added
+        after argument added to .insert_columns() method
+
+
+
 2021-03-20
 $release 51
     version 1.1.14

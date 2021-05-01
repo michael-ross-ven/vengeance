@@ -4,7 +4,7 @@ from collections import namedtuple
 from typing import Dict
 from typing import List
 
-from ..util.iter import namespace
+from ..util.iter import namespace_cls
 from ..util.iter import is_header_row
 
 from ..util.text import format_header
@@ -98,9 +98,12 @@ class flux_row_cls:
         return is_header_row(self.__dict__['values'],
                              self.__dict__['_headers'])
 
+    def dict(self):
+        return ordereddict(zip(self.header_names(), self.__dict__['values']))
+
     def namedrow(self):
         d = ordereddict(zip(self.header_names(), self.__dict__['values']))
-        return namespace(**d)
+        return namespace_cls(**d)
 
     # noinspection PyArgumentList
     def namedtuple(self):
@@ -218,18 +221,20 @@ class flux_row_cls:
     def __repr__(self):
         if 'address' in self.__dict__:
             row_label = format_header_lite(self.__dict__['address'])
-            row_label = '{}   '.format(row_label)
+            row_label = ' {}   '.format(row_label)
         elif 'r_i' in self.__dict__:
             row_label = format_integer(self.__dict__['r_i'])
             row_label = format_header_lite(row_label)
-            row_label = '{}   '.format(row_label)
+            row_label = ' {}   '.format(row_label)
         else:
             row_label = ''
 
         if self.is_jagged():
-            is_jagged = '🗲jagged🗲  '
+            jagged_label = len(self.__dict__['values']) - len(self.__dict__['_headers'])
+            jagged_label = format_header_lite('{:+}'.format(jagged_label))
+            jagged_label = ' 🗲jagged {}🗲  '.format(jagged_label)
         else:
-            is_jagged = ''
+            jagged_label = ''
 
         if self.is_header_row():
             values = ', '.join(str(n) for n in self.header_names())
@@ -238,7 +243,7 @@ class flux_row_cls:
             values = (repr(self.__dict__['values']).replace('"', '')
                                                    .replace("'", ''))
 
-        return ' {}{}{}'.format(row_label, is_jagged, values)
+        return '{}{}{}'.format(row_label, jagged_label, values)
 
     @staticmethod
     def __raise_attribute_error(invalid, headers):

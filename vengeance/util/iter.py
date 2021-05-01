@@ -3,9 +3,17 @@ from collections import Iterable
 from collections import ItemsView
 from collections import KeysView
 from collections import ValuesView
-
 from collections import defaultdict
 from collections import namedtuple
+
+from itertools import chain
+from typing import Generator
+from typing import Union
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Tuple
+
 from ..conditional import ordereddict
 
 
@@ -17,22 +25,27 @@ class ColumnNameError(ValueError):
     pass
 
 
-# class namespace(types.SimpleNamespace)
-class namespace:
+class namespace_cls:
+    """
+    similar to types.SimpleNamespace
+    """
     def __init__(self, **kwargs):
-        self.__dict__.update(**kwargs)
+        self.__dict__ = ordereddict(kwargs)
 
     def __iter__(self):
         return ((k, v) for k, v in self.__dict__.items())
 
     def __eq__(self, other):
-        if isinstance(self, namespace) and isinstance(other, namespace):
-            return self.__dict__ == other.__dict__
-        return NotImplemented
+        if (not hasattr(self, '__dict__')) or (not hasattr(other, '__dict__')):
+            return NotImplemented
+
+        return self.__dict__ == other.__dict__
 
     def __repr__(self):
         items = ('{}={!r}'.format(k, v) for k, v in self.__dict__.items())
-        return '{}({})'.format(type(self).__name__, ', '.join(items))
+        items = ', '.join(items)
+
+        return '{{{}}}'.format(items)
 
 
 def iteration_depth(values, first_element_only=True):
@@ -53,20 +66,17 @@ def iteration_depth(values, first_element_only=True):
     if is_exhaustable(values):
         raise TypeError('cannot evaluate an exhaustable iterator')
 
+    if isinstance(values, dict):
+        values = tuple(values.values())
+
     if not is_collection(values):
         return 0
-    elif isinstance(values, dict):
-        values = tuple(values.values())
-    elif isinstance(values, set):
-        values = tuple(values)
-
     if len(values) == 0:
         return 1
-    elif first_element_only:
+    if first_element_only:
         return 1 + iteration_depth(values[0], first_element_only)
     else:
-        depths = [iteration_depth(_v_, first_element_only) for _v_ in values]
-        return 1 + max(depths)
+        return 1 + max([iteration_depth(v, first_element_only) for v in values])
 
 
 def modify_iteration_depth(values,
@@ -75,8 +85,7 @@ def modify_iteration_depth(values,
                            first_element_only=True):
     """
     (this function is heavily utilized to correctly un-nest
-     arguments in invariable arity flux_cls methods, so make sure
-     you dont fuck anything up if you change anything here !!)
+     arguments in variable-arity flux_cls methods)
 
     eg:
         'a'              = modify_iteration_depth([[['a']]], depth=0)
@@ -94,24 +103,28 @@ def modify_iteration_depth(values,
                 should this return ['ab', ['cd']] or ['ab', 'cd']?
 
             # has_multiple_depths = set(iteration_depth(_v_, first_element_only=False) for _v_ in v)
+
     """
-    if not first_element_only:
-        raise NotImplementedError
+
     if depth is None and depth_offset is None:
         raise ValueError('conflicting values for depth and depth_offset')
-    elif isinstance(depth, int) and isinstance(depth_offset, int):
+
+    if isinstance(depth, int) and isinstance(depth_offset, int):
         raise ValueError('conflicting values for depth and depth_offset')
 
     if depth_offset is None:
-        value_depth  = iteration_depth(values, first_element_only=True)
+        value_depth  = iteration_depth(values, first_element_only=first_element_only)
         depth_offset = depth - value_depth
 
     if depth_offset < 0:
         for _ in range(abs(depth_offset)):
-            if is_descendable(values):
-                values = values[0]
+
+            if first_element_only:
+                if is_descendable(values): values = values[0]
+                else:                      break
             else:
-                break
+                values = list(chain(*values))
+                # values = list(chain.from_iterable(values))
 
     elif depth_offset > 0:
         for _ in range(depth_offset):
@@ -123,9 +136,10 @@ def modify_iteration_depth(values,
 def standardize_variable_arity_arguments(values,
                                          depth=None,
                                          depth_offset=None):
-
-    if depth is None and depth_offset is None:
-        return values
+    """
+    (this function is heavily utilized to correctly un-nest
+     arguments in variable-arity flux_cls methods)
+    """
 
     # region {closure functions}
     def descend_iterator(v):
@@ -158,10 +172,16 @@ def is_collection(o):
     function used mainly to distinguish data structures from other iterables
 
     eg:
-        False = is_collection('mike')
-        True  = is_collection(['m', 'i' 'k' 'e'])
+        False = is_collection('bleh')
+        True  = is_collection(['bleh'])
+
+        False = is_collection(range(3))
+        True  = is_collection(list(range(3)))
     """
-    if isinstance(o, (str, bytes, range)):
+    if isinstance(o, (str, bytes)):
+        return False
+
+    if isinstance(o, range):
         return False
 
     return isinstance(o, Iterable)
@@ -181,8 +201,11 @@ def is_subscriptable(o):
 
 
 def is_exhaustable(o):
+    """
     return (hasattr(o, '__next__') or
             isinstance(o, range))
+    """
+    return hasattr(o, '__next__')
 
 
 def is_dictview(o):
@@ -192,14 +215,16 @@ def is_dictview(o):
 
 
 def is_vengeance_class(o):
-    bases = set(base_class_names(o))
-    return bool(bases & {'flux_cls',
-                         'excel_levity_cls'})
+    base_cls_names      = set(base_class_names(o))
+    vengeance_cls_names = {'flux_cls',
+                           'excel_levity_cls'}
+
+    return bool(base_cls_names & vengeance_cls_names)
 
 
-def is_namedtuple_class(o):
-    return (isinstance(o, tuple) and
-            type(o) is not tuple)
+# def is_namedtuple_class(o):
+#     return (isinstance(o, tuple) and
+#             type(o) is not tuple)
 
 
 def is_descendable(o):
@@ -208,21 +233,14 @@ def is_descendable(o):
             len(o) == 1)
 
 
-def descend_iteration_depth(o):
-    if is_descendable(o):
-        return o[0]
-    else:
-        return o
-
-
 def iterator_to_collection(o):
     if is_vengeance_class(o):
         return list(o.rows())
-    elif is_exhaustable(o):
-        return list(o)
-    elif is_dictview(o):
-        return list(o)
-    elif isinstance(o, set):
+
+    if isinstance(o, (range, set)) or \
+       is_exhaustable(o) or \
+       is_dictview(o):
+
         return list(o)
 
     return o
@@ -232,43 +250,37 @@ def base_class_names(o):
     return [b.__name__ for b in o.__class__.mro()]
 
 
-def transpose(m, astype=None):
-    if astype not in (None, tuple, list):
-        raise TypeError('astype must be in (None, tuple, list)')
-
+def transpose(m, astype=None) -> Generator[Union[List, Tuple], None, None]:
     m = iterator_to_collection(m)
     n = iteration_depth(m, first_element_only=True)
+
     if n == 0:
-        raise IterationDepthError('matrix must have at least 1 dimension')
+        raise IterationDepthError('matrix must have at least 1 iterable dimension')
 
     if astype is None:
-        if n == 1:
-            astype = type(m)
-        else:
-            astype = type(m[0])
+        if n == 1: astype = type(m)
+        else:      astype = type(m[0])
 
     if astype is list:
-        if n == 1:
-            t = ([row] for row in m)
-        else:
-            t = (list(row) for row in zip(*m))
+        if n == 1: t = ([row] for row in m)
+        else:      t = (list(row) for row in zip(*m))
     else:
-        if n == 1:
-            t = ((row,) for row in m)
-        else:
-            t = zip(*m)
+        if n == 1: t = ((row,) for row in m)
+        else:      t = zip(*m)
 
     return t
 
 
+# noinspection PyProtectedMember
 def to_namespaces(o):
-    """ recursively convert values to SimpleNamespace """
+    """ recursively convert values to namespace """
+
     # region {closure functions}
+    # noinspection PyProtectedMember
     def traverse(k, v):
         if isinstance(v, dict):
             return to_namespaces(v)
         elif hasattr(v, '_asdict'):
-            # noinspection PyProtectedMember
             return to_namespaces(v._asdict())
         elif is_collection(v):
             return [traverse(k, _) for _ in v]
@@ -277,25 +289,27 @@ def to_namespaces(o):
     # endregion
 
     if hasattr(o, '_asdict'):
-        # noinspection PyProtectedMember
         o = o._asdict()
 
     if isinstance(o, dict):
         d = {k: traverse(k, v) for k, v in o.items()}
-        return namespace(**d)
-    else:
+        return namespace_cls(**d)
+    elif is_collection(o):
         return [traverse(None, v) for v in o]
+    else:
+        return o
 
 
-# noinspection PyArgumentList
+# noinspection PyArgumentList,PyProtectedMember
 def to_namedtuples(o):
-    """ recursively convert values to namedtuple """
+    """ recursively convert values to namedtuples """
+
     # region {closure functions}
+    # noinspection PyProtectedMember
     def traverse(v):
         if isinstance(v, dict):
             return to_namedtuples(v)
         elif hasattr(v, '_asdict'):
-            # noinspection PyProtectedMember
             return to_namedtuples(v._asdict())
         elif is_collection(v):
             return [traverse(_) for _ in v]
@@ -304,14 +318,85 @@ def to_namedtuples(o):
     # endregion
 
     if hasattr(o, '_asdict'):
-        # noinspection PyProtectedMember
         o = o._asdict()
 
     if isinstance(o, dict):
         nt = namedtuple('nt', o.keys())
         return nt(*[traverse(v) for v in o.values()])
-    else:
+    elif is_collection(o):
         return [traverse(v) for v in o]
+    else:
+        return o
+
+
+def to_grouped_dict(flat: Dict) -> Dict[Any, Dict]:
+    """ re-map flat keys to a nested dictionary structure
+
+    eg:
+        # keys should be tuples
+        d = {('a₁', 'b₁', 'c₁', 'd₁'): 'v_1',
+             ('a₁', 'b₂', 'c₁', 'd₂'): 'v_2',
+             ('a₂', 'b₁', 'c₁', 'd₁'): 'v_4',
+             ('a₂', 'b₁', 'c₁', 'd₂'): 'v_3'}
+
+        {'a₁': {'b₁': {'c₁': {'d₁': 'v_1'}},
+                'b₂': {'c₁': {'d₂': 'v_2'}}},
+         'a₂': {'b₁': {'c₁': {'d₁': 'v_4',
+                              'd₂': 'v_3'}}}} = to_grouped_dict(d)
+    """
+
+    # region {closures}
+    class node_cls:
+        def __init__(self, value=None):
+            self.children = ordereddict()
+            self.value    = value
+
+
+    class grouped_cls:
+        def __init__(self, d):
+            self.children = ordereddict()
+
+            unique_len_edges = None
+            for edges, value in d.items():
+                len_edges = len(edges)
+
+                if unique_len_edges is None:
+                    unique_len_edges = len_edges
+                elif len_edges != unique_len_edges:
+                    raise ValueError('keys have mismatched lengths: {}'.format(edges))
+
+                self.add(edges, value, len_edges)
+
+        def add(self, edges, value, len_edges):
+            node = self
+
+            for i, e_key in enumerate(edges, 1):
+                if e_key not in node.children:
+                    if i == len_edges: child = node_cls(value)
+                    else:              child = node_cls(None)
+
+                    node.children[e_key] = child
+                    node = child
+                else:
+                    node = node.children[e_key]
+
+        def traverse(self, node=None):
+            node = node or self
+
+            d = ordereddict()
+            for k, node in node.children.items():
+                if node.children == {}:
+                    d[k] = node.value
+                else:
+                    d[k] = self.traverse(node)
+
+            return d
+    # endregion
+
+    network = grouped_cls(flat)
+    groups  = network.traverse()
+
+    return groups
 
 
 def inverted_enumerate(sequence, start=0):
@@ -368,5 +453,6 @@ def is_header_row(values, headers):
     header_names = set(headers)
 
     return value_names == header_names
+
 
 

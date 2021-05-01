@@ -15,6 +15,7 @@ from .excel_address import max_rows as excel_max_rows
 
 from ..util.iter import iterator_to_collection
 from ..util.iter import modify_iteration_depth
+from ..util.text import object_name
 
 
 def get_worksheet(wb, ws,
@@ -37,9 +38,7 @@ def get_worksheet(wb, ws,
         clear_worksheet_filter(ws)
 
     if activate:
-        excel_application_to_foreground(ws.Application)
-        ws.Visible = True
-        ws.Activate()
+        activate_worksheet(ws)
 
     return ws
 
@@ -49,7 +48,8 @@ def is_win32_worksheet_instance(ws):
         a chart that has been moved to its own worksheet will not be
         a true worksheet object
     """
-    return ws.__class__.__name__ in ('CDispatch', '_Worksheet')
+    name = object_name(ws)
+    return name in ('CDispatch', '_Worksheet')
 
 
 def first_row(excel_range, default=1):
@@ -184,11 +184,10 @@ def is_range_empty(excel_range):
 
 
 def activate_worksheet(ws):
-    excel_application_to_foreground(ws.Application)
-
-    ws.Parent.Activate()
+    excel_application_to_foreground(ws.Application, add_workbook_if_empty=True)
 
     ws.Visible = True
+    ws.Parent.Activate()
     ws.Activate()
 
 

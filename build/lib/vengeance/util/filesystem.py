@@ -1,9 +1,4 @@
 
-try:
-    import _pickle as cpickle
-except ImportError:
-    import pickle as cpickle
-
 import csv
 import gc
 import re
@@ -22,12 +17,20 @@ from pathlib import Path
 from . text import json_unhandled_conversion
 from .. conditional import ultrajson_installed
 
+try:
+    import _pickle as cpickle
+except ImportError:
+    import pickle as cpickle
+
 if ultrajson_installed:
     import ujson as json
 else:
     import json
 
-pickle_extensions = {'.flux', '.pkl', '.pickle'}
+
+pickle_extensions = {'.flux',
+                     '.pkl',
+                     '.pickle'}
 
 
 def read_file(path,
@@ -36,8 +39,8 @@ def read_file(path,
               filetype=None,
               **kwargs):
 
-    path, filetype, mode, as_bytes_mode, kwargs = __validate_read_write_params(
-                                                  path, encoding, mode, filetype, kwargs, 'read')
+    path, filetype, mode, as_bytes_mode, kwargs = \
+        __validate_read_write_params('read', path, encoding, mode, filetype, kwargs)
 
     was_gc_enabled = gc.isenabled()
     gc.disable()
@@ -77,8 +80,9 @@ def write_file(path,
                filetype=None,
                **kwargs):
 
-    path, filetype, mode, as_bytes_mode, kwargs = __validate_read_write_params(
-                                                  path, encoding, mode, filetype, kwargs, 'write')
+    path, filetype, mode, as_bytes_mode, kwargs = \
+        __validate_read_write_params('write', path, encoding, mode, filetype, kwargs)
+
     was_gc_enabled = gc.isenabled()
     gc.disable()
 
@@ -116,21 +120,17 @@ def write_file(path,
         gc.enable()
 
 
-def __validate_read_write_params(path,
+def __validate_read_write_params(read_or_write,
+                                 path,
                                  encoding,
                                  mode,
                                  filetype,
-                                 kwargs,
-                                 read_or_write):
+                                 kwargs):
 
-    as_bytes_mode = ('b' in mode)
-
-    path          = __validate_path(path)
-    filetype      = __validate_filetype(filetype, path)
-    as_bytes_mode = __validate_mode_with_encoding(as_bytes_mode, encoding, filetype)
-    mode          = __validate_mode_with_filetype(as_bytes_mode, mode, filetype)
-    mode          = __validate_mode(mode, read_or_write)
-    kwargs        = __validate_file_keyword_args(kwargs)
+    path     = __validate_path(path)
+    filetype = __validate_filetype(filetype, path)
+    mode     = __validate_mode(mode, encoding, filetype, read_or_write)
+    kwargs   = __validate_file_keyword_args(kwargs)
 
     as_bytes_mode = ('b' in mode)
 
@@ -180,7 +180,29 @@ def __validate_filetype(filetype, path):
     return filetype
 
 
-def __validate_mode_with_encoding(as_bytes_mode, encoding, filetype):
+def __validate_mode(mode, encoding, filetype, read_or_write):
+
+    mode = __validate_mode_with_encoding(mode, encoding, filetype)
+    mode = __validate_mode_with_filetype(mode, filetype)
+
+    if read_or_write == 'read':
+        if not mode.startswith('r') or mode.endswith('+'):
+            raise ValueError('invalid read mode: {}'.format(mode))
+
+    elif read_or_write == 'write':
+        if not (mode.startswith('w') or mode.startswith('a')):
+            raise ValueError('invalid write mode: {}'.format(mode))
+
+    else:
+        raise ValueError("invalid read_write_type: {}, read_write_type must be in ('read', 'write')"
+                         .format(read_or_write))
+
+    return mode
+
+
+def __validate_mode_with_encoding(mode, encoding, filetype):
+    as_bytes_mode = ('b' in mode)
+
     if as_bytes_mode and encoding:
         raise ValueError('as bytes mode does not accept an encoding argument')
     if encoding and filetype in pickle_extensions:
@@ -188,31 +210,17 @@ def __validate_mode_with_encoding(as_bytes_mode, encoding, filetype):
     if as_bytes_mode and filetype == '.csv':
         raise ValueError('as bytes mode is incompatable with csv module')
 
-    return as_bytes_mode
+    return mode
 
 
-def __validate_mode_with_filetype(as_bytes_mode, mode, filetype):
+def __validate_mode_with_filetype(mode, filetype):
+    as_bytes_mode = ('b' in mode)
+
     if not as_bytes_mode and (filetype in pickle_extensions):
         if mode.endswith('+'):
             mode = mode[0] + 'b+'
         else:
             mode += 'b'
-
-    return mode
-
-
-def __validate_mode(mode, read_or_write):
-    if read_or_write == 'read':
-        if mode[0] not in ('r',) or mode.endswith('+'):
-            raise ValueError('invalid read mode: {}'.format(mode))
-
-    elif read_or_write == 'write':
-        if mode[0] not in ('w', 'a'):
-            raise ValueError('invalid write mode: {}'.format(mode))
-
-    else:
-        raise ValueError("invalid read_write_type: {}, read_write_type must be in ('read', 'write')"
-                         .format(read_or_write))
 
     return mode
 
@@ -382,6 +390,12 @@ def parse_path(path,
     filedir = standardize_dir(filedir, pathsep, explicit_cwd)
 
     return ParsedPath(filedir, filename, extension)
+
+
+def parse_file_name(path):
+    filename, _ = os.path.splitext(str(path))
+
+    return filename
 
 
 def parse_file_extension(filename, include_dot=True):

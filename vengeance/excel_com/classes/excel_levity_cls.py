@@ -180,7 +180,7 @@ class excel_levity_cls:
             return ([] for _ in range(1))
 
         a = '*f {}:*l {}'.format(r_1, r_2)
-        excel_range = self.excel_range(a)
+        excel_range = self.range(a)
 
         return (row for row in worksheet.escape_excel_range_errors(excel_range))
 
@@ -201,7 +201,7 @@ class excel_levity_cls:
                             .format(list(reserved), list(headers.keys())))
 
         a = '*f {}:*l {}'.format(r_1, r_2)
-        excel_range = self.excel_range(a)
+        excel_range = self.range(a)
 
         r_1 = excel_range.Row
         c_1, c_2 = self.first_c, self.last_c
@@ -234,23 +234,23 @@ class excel_levity_cls:
             r = '*f'
 
         a = '{} {}:{} {}'.format(c_1, r, c_2, r)
-        excel_range = self.excel_range(a)
+        excel_range = self.range(a)
 
         if excel_range.Cells.Count == 1:
             a = '{} {}:{} {}'.format(c_1, r, c_2, self.last_r + 1)
-            excel_range = self.excel_range(a)
+            excel_range = self.range(a)
 
         self.remove_filter()
         excel_range.AutoFilter(*(1,))
 
     def calculate(self):
-        self.excel_range('*f *h: *l *l').Calculate()
+        self.range('*f *h: *l *l').Calculate()
 
     def clear(self, reference,
                     clear_values=True,
                     clear_colors=False):
 
-        excel_range = self.excel_range(reference)
+        excel_range = self.range(reference)
         _, r_1, _, r_2 = worksheet.parse_range(excel_range)
 
         if clear_values:
@@ -339,7 +339,7 @@ class excel_levity_cls:
 
     def __index_headers(self, row_ref):
         a = '*f {} :*l {}'.format(row_ref, row_ref)
-        excel_range = self.excel_range(a)
+        excel_range = self.range(a)
 
         return self.__index_row_headers(excel_range)
 
@@ -355,7 +355,7 @@ class excel_levity_cls:
 
         self.headers = self.__index_headers('header_r')
 
-    def excel_range(self, reference):
+    def range(self, reference):
         if not self.is_worksheet_type:
             ws_type = object_name(self.ws)
             raise TypeError('{} is not an Excel worksheet '.format(ws_type))
@@ -385,11 +385,11 @@ class excel_levity_cls:
         return a
 
     def __getitem__(self, reference):
-        return self.excel_range(reference)
+        return self.range(reference)
 
     def __setitem__(self, reference, v):
         """ write value(s) to excel range """
-        excel_range  = self.excel_range(reference)
+        excel_range  = self.range(reference)
 
         m = self.__validate_matrix_within_range_boundaries(v, excel_range)
 

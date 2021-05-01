@@ -15,6 +15,7 @@ from logging import (NOTSET,
                      CRITICAL)
 
 from .. util.filesystem import parse_path
+from .. util.filesystem import parse_file_name
 from .. util.filesystem import standardize_dir
 from .. util.text import object_name
 from .. util.text import styled
@@ -31,7 +32,7 @@ class log_cls(Logger):
                        level='DEBUG',
                        log_format='%(message)s',
                        exception_callback=None,
-                       colored_statements=True):
+                       colored_statements=False):
         """
         :param path_or_name:
             parsed to determine name of logger
@@ -48,16 +49,13 @@ class log_cls(Logger):
         if (exception_callback is not None) and not callable(exception_callback):
             raise TypeError('exception_callback must be callable')
 
-        p_path = parse_path(path_or_name, explicit_cwd=False)
-        if isinstance(level, str):
-            level = level.upper().strip()
+        name  = parse_file_name(path_or_name)
+        level = level.upper()
 
-        super().__init__(p_path.filename, level)
+        super().__init__(name, level)
 
-        self.path       = self.__set_path(p_path.directory, p_path.filename, p_path.extension)
-        self.log_format = log_format
-        self.formatter  = Formatter(log_format)
-
+        self.path               = self._set_path(path_or_name)
+        self.formatter          = Formatter(log_format)
         self.exception_callback = exception_callback
         self.exception_message  = ''
 
@@ -85,13 +83,18 @@ class log_cls(Logger):
 
         return handlers
 
+    @property
+    def log_format(self):
+        # noinspection PyProtectedMember
+        return self.formatter._fmt
+
     def set_format(self, log_format):
         self.formatter = Formatter(log_format)
         for h in self.handlers:
             h.setFormatter(self.formatter)
 
-    # noinspection PyProtectedMember
     def unformat(self, message):
+        # noinspection PyProtectedMember
         lf = (self.formatter._fmt
                   .replace('%(asctime)s', '')
                   .replace('%(levelname)s', '')
@@ -153,7 +156,7 @@ class log_cls(Logger):
             log.exception_handler(*sys.exc_info())
         """
 
-        self.exception_message = self.__formatted_exception_message(e_type, e_msg, e_traceback)
+        self.exception_message = self._formatted_exception_message(e_type, e_msg, e_traceback)
         self.error(self.exception_message, exc_info=(e_type, e_msg, e_traceback))
 
         if self.exception_callback:
@@ -161,7 +164,7 @@ class log_cls(Logger):
 
         return self.exception_message
 
-    def __formatted_exception_message(self, e_type, e_msg, e_traceback):
+    def _formatted_exception_message(self, e_type, e_msg, e_traceback):
         title_message = '(The result W:Resign was added to the game information)'
 
         _e_type_ = 'Exception'
@@ -218,18 +221,26 @@ class log_cls(Logger):
         return exception_message
 
     @staticmethod
-    def __set_path(filedir, filename, extension):
-        if not (filedir or extension):
+    def _set_path(path):
+        p_path = parse_path(path, explicit_cwd=False)
+
+        directory = p_path.directory
+        filename  = p_path.filename
+        extension = p_path.extension
+
+        if not (directory or extension):
             return ''
 
-        filedir = standardize_dir(filedir, explicit_cwd=True)
-        if not os.path.exists(filedir):
-            os.makedirs(filedir)
+        directory = standardize_dir(directory, explicit_cwd=True)
+        if not os.path.exists(directory):
+            os.makedirs(directory)
 
         if extension == '.py':
             extension = '.log'
+        elif extension == '':
+            extension = '.log'
 
-        path = filedir + filename + (extension or '.log')
+        path = directory + filename + extension
 
         return path
 
