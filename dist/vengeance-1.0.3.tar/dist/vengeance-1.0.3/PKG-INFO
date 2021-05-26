@@ -1,0 +1,15 @@
+Metadata-Version: 1.1
+Name: vengeance
+Version: 1.0.3
+Summary: Data library focusing on pure python data structures and Excel interaction
+Home-page: https://github.excel_com/michael-ross-ven/vengeance
+Author: Michael Ross
+Author-email: michael.ross.uncc@gmail.com
+License: MIT
+Description: 
+            need to fill this out later
+        
+Platform: UNKNOWN
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: Microsoft :: Windows
