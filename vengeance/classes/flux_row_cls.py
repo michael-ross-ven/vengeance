@@ -3,8 +3,9 @@ from collections import namedtuple
 
 from typing import Dict
 from typing import List
+from typing import Union
 
-from ..util.iter import namespace_cls
+from ..util.classes.namespace_cls import namespace_cls
 from ..util.iter import is_header_row
 
 from ..util.text import format_header
@@ -35,7 +36,7 @@ class flux_row_cls:
         properties must be set on self.__dict__ instead of directly on self to prevent
         premature __setattr__ lookups
         """
-        self._headers: Dict[str, int]
+        self._headers: Dict[Union[str, bytes], int]
         self.values:   List
 
         self.__dict__['_headers'] = headers
@@ -91,7 +92,7 @@ class flux_row_cls:
     def is_header_row(self):
         """ determine if underlying values match self._headers.keys
 
-        self.names == self.values will not always work, since inverted_enumerate()
+        self.names == self.values will not always work, since map_values_to_enum()
         was used to modify self._headers values into more suitable dictionary keys,
         like modifying duplicate values to ensure they are unique, etc
         """
@@ -107,7 +108,7 @@ class flux_row_cls:
 
     # noinspection PyArgumentList
     def namedtuple(self):
-        row_nt = namedtuple('row', self.header_names())
+        row_nt = namedtuple('Row', self.header_names())
         return row_nt(*self.__dict__['values'])
 
     # noinspection PyProtectedMember,PyUnusedLocal
@@ -247,10 +248,15 @@ class flux_row_cls:
 
     @staticmethod
     def __raise_attribute_error(invalid, headers):
-        s = '\n\t'.join((repr(n)[1:-1].replace(',', ':')
-                                      .replace("'", '')
-                                      .replace('"', '')) for n in headers.items())
-        s = ("'{}' column name does not exist, available columns: "
+        indices = [str(i) for i in headers.values()]
+        _nf_ = max(len(n) for n in indices)
+        _nf_ = '{: <%s}' % str(_nf_)
+        indices = [_nf_.format(n) for n in indices]
+
+        s = ["{}: '{}'".format(i, n) for i, n in zip(indices, headers.keys())]
+        s = '\n\t'.join(s)
+
+        s = ("'{}' column name does not exist in columns: "
              "\n\t{}".format(invalid, s))
 
         raise AttributeError(s) from None

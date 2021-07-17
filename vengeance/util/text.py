@@ -3,42 +3,91 @@ import gc
 import inspect
 import itertools
 import functools
-import pprint
+import re
+import sys
 
-from datetime import date
 from timeit import default_timer
+from time import sleep
 
 from ..conditional import is_utf_console
 from ..conditional import is_tty_console
-from ..conditional import ultrajson_installed
+from ..conditional import config
 
-if ultrajson_installed:
-    import ujson as json
-else:
-    import json
+if is_utf_console: __vengeance_prefix__ = '    ν: '    # 'ν': chr(957), nu
+else:              __vengeance_prefix__ = '    v: '    # 'v': chr(118)
 
-if is_utf_console:
-    __vengeance_prefix__ = '\tν: '    # ν: chr(957), nu
-else:
-    __vengeance_prefix__ = '\tv: '    # v: chr(118)
+# region {ansi effect escape codes}
+__effect_end__   = '\x1b[0m'
+__effect_codes__ = {'bold':      '\x1b[1m',
+                    'italic':    '\x1b[3m',
+                    'underline': '\x1b[4m',
+                    '':          ''}
+__color_codes__ = {'grey':           '\x1b[29m',
+                   'gray':           '\x1b[29m',
+                   'white':          '\x1b[38;2;255;255;255m',
+                   'red':            '\x1b[31m',
+                   'green':          '\x1b[32m',
+                   'yellow':         '\x1b[33m',
+                   'blue':           '\x1b[34m',
+                   'magenta':        '\x1b[35m',
+                   'cyan':           '\x1b[36m',
+                   'bronze':         '\x1b[37m',
+                   'bright red':     '\x1b[91m',
+                   'bright green':   '\x1b[92m',
+                   'bright yellow':  '\x1b[93m',
+                   # 'bright yellow':  '\x1b[33;1m',
+                   'bright blue':    '\x1b[94m',
+                   'bright magenta': '\x1b[95m',
+                   'bright cyan':    '\x1b[96m',
+                   'black':          '\x1b[97m',
+                   '':               ''}
+# endregion
 
 
-def print_runtime(f):
+def print_runtime(f=None,
+                  color=None,
+                  effect=None,
+                  formatter=None):
 
-    @functools.wraps(f)
-    def runtime_wrapper(*args, **kwargs):
-        tic  = default_timer()
-        retv = f(*args, **kwargs)
-        toc  = default_timer()
-        elapsed = -(tic - toc)
+    def runtime_wrapper(_f_):
+        @functools.wraps(_f_)
+        def functools_wrapper(*args, **kwargs):
+            tic  = default_timer()
+            retv = _f_(*args, **kwargs)
+            toc  = default_timer()
+            elapsed = -(tic - toc)
 
-        s = '@{}: {}'.format(function_name(f), format_seconds(elapsed))
-        s = vengeance_message(s)
-        print(s)
+            # variables for .format(**locals())
+            vengeance_prefix   = __vengeance_prefix__
+            formatted_function = function_name(_f_)
+            formatted_elapsed  = format_seconds(elapsed)
+            formatted_runtime  = '@{}: {}'.format(formatted_function, formatted_elapsed)
 
-        return retv
+            if formatter is None:
+                s = '{}{}'.format(vengeance_prefix, formatted_runtime)
+            else:
+                s = formatter.format(**locals())
 
-    return runtime_wrapper
+            s = styled(s, color, effect)
+
+            flush_stdout()
+            print_unicode(s)
+
+            return retv
+
+        return functools_wrapper
+
+    if (f is not None) and not callable(f):
+        f, color, effect, formatter = None, f, color, effect
+
+    if color is None:     color     = config.get('color')
+    if effect is None:    effect    = config.get('effect')
+    if formatter is None: formatter = config.get('formatter')
+
+    if f:
+        return runtime_wrapper(f)
+    else:
+        return runtime_wrapper
 
 
 def print_performance(f=None, repeat=5):
@@ -46,7 +95,6 @@ def print_performance(f=None, repeat=5):
     def performance_wrapper(_f_):
         @functools.wraps(_f_)
         def functools_wrapper(*args, **kwargs):
-
             retv  = None
             best  = None
             worst = None
@@ -62,28 +110,34 @@ def print_performance(f=None, repeat=5):
                 toc  = default_timer()
                 elapsed = -(tic - toc)
 
-                if best is None: best = elapsed
-                else:            best = min(best, elapsed)
-
-                if worst is None: worst = elapsed
-                else:             worst = max(worst, elapsed)
+                if best is None:
+                    best  = elapsed
+                    worst = elapsed
+                else:
+                    best  = min(best,  elapsed)
+                    worst = max(worst, elapsed)
 
                 total += elapsed
 
             average = total / repeat
-            r = format_header_lite(format_integer(repeat))
 
-            s = ('@{} {}  trials'
+            trials = format_header_lite(format_integer(repeat))
+            star_best  = styled('★★★ ',     'blue')
+            star_avg   = styled('★★   ', 'blue')
+            star_worst = styled('★    ',     'blue')
+
+            s = ('@{} of {}  trials'
                  '\n        {}best:    {}'
                  '\n        {}average: {}'
                  '\n        {}worst:   {}'
-                 .format(function_name(_f_), r,
-                         styled('★★★ ',     'blue'), format_seconds(best),
-                         styled('★★   ', 'blue'), format_seconds(average),
-                         styled('★    ',     'blue'), format_seconds(worst)))
-
+                 .format(function_name(_f_), trials,
+                         star_best,  format_seconds(best),
+                         star_avg,   format_seconds(average),
+                         star_worst, format_seconds(worst)))
             s = vengeance_message(s)
-            print(s)
+
+            flush_stdout()
+            print_unicode(s)
 
             if gc_enabled:
                 gc.enable()
@@ -92,13 +146,105 @@ def print_performance(f=None, repeat=5):
 
         return functools_wrapper
 
-    if isinstance(f, int):
+    if (f is not None) and not callable(f):
         f, repeat = None, f
 
-    if callable(f):
+    if f:
         return performance_wrapper(f)
     else:
         return performance_wrapper
+
+
+def styled(message,
+           color=None,
+           effect=None):
+    """
+    # _message_ = (ansi_start +
+    #              _message_ +
+    #              ansi_end)
+
+    # only apply style to non-whitespace parts of message
+    _message_ = _style_non_whitespace_only(_message_,
+                                           ansi_start, ansi_end)
+    """
+    if color is None:  color  = config.get('color')
+    if effect is None: effect = config.get('effect')
+
+    color  = color  or ''
+    effect = effect or ''
+
+    color  = (color.lower()
+                   .replace('_', ' ')
+                   .replace('gray', 'grey'))
+    effect = (effect.lower()
+                    .replace(' ', '')
+                    .split('|'))
+
+    if color not in __color_codes__:
+        if not (color.startswith('\x1b') and color.endswith('m')):
+            raise KeyError('styled: invalid color: {}'.format(color))
+
+    for e in effect:
+        if e not in __effect_codes__:
+            if not (e.startswith('\x1b') and e.endswith('m')):
+                raise KeyError('styled: invalid effect: {}'.format(e))
+
+    if not is_utf_console:       return message
+    if is_tty_console:           return message
+    if not color and not effect: return message
+
+    ansi_color  = __color_codes__.get(color, color)
+    ansi_effect = ''.join(__effect_codes__.get(e, e) for e in effect)
+
+    ansi_start = ansi_color + ansi_effect
+    ansi_end   = __effect_end__
+
+    # only apply new style to any unstyled parts of message
+    _message_ = message.replace(ansi_end, ansi_end + ansi_start)
+
+    _message_ = (ansi_start +
+                 _message_ +
+                 ansi_end)
+
+    # only apply style to non-whitespace parts of message
+    # _message_ = _style_non_whitespace_only(_message_,
+    #                                        ansi_start, ansi_end)
+
+    return _message_
+
+
+def _style_non_whitespace_only(message,
+                               ansi_start, ansi_end):
+    r"""
+    whitespace_re = re.compile(
+        r'''
+        (?P<whitespace>
+            [\\s]+
+        )
+        |
+        (?P<non_whitespace>
+            [^\\s]+
+        )
+        ''', re.X | re.I | re.DOTALL | re.UNICODE)
+    """
+    whitespace_re = re.compile(
+        r'''
+        (?P<whitespace>
+            ^[\s]+
+        )|
+        .+
+        ''', re.X | re.DOTALL)
+
+    matches = []
+    for match in whitespace_re.finditer(message):
+        s = match.group()
+        
+        if match.lastgroup == 'whitespace':
+            matches.append(s)
+        else:
+            matches.append(ansi_start + s + ansi_end)
+
+    return ''.join(matches)
 
 
 def deprecated(f=None, message='deprecated'):
@@ -107,17 +253,18 @@ def deprecated(f=None, message='deprecated'):
         @functools.wraps(_f_)
         def functools_wrapper(*args, **kwargs):
 
-            vengeance_warning('@{}: "{}"'.format(function_name(_f_), message),
+            _message_ = "'{}'".format(message)
+            _message_ = '@{}: {}'.format(function_name(_f_), _message_)
+
+            vengeance_warning(_message_,
                               DeprecationWarning,
-                              stacklevel=4,
-                              color='grey',
-                              effect='bold')
+                              stacklevel=4)
 
             return _f_(*args, **kwargs)
 
         return functools_wrapper
 
-    if isinstance(f, str):
+    if (f is not None) and not callable(f):
         f, message = None, f
 
     if callable(f):
@@ -130,21 +277,18 @@ def vengeance_warning(message,
                       category=Warning,
                       stacklevel=3,
                       stackframe=None,
-                      color=None,
-                      effect='bold'):
+                      color=config.get('color'),
+                      effect=config.get('effect')):
     """
     follow icecream's implementation?
         call_frame = inspect.currentframe().f_back
     """
-
     import traceback
     import warnings
 
     # region {closure functions}
     stacklevel_min = 3
-
-    aligned_indent = ' ' * len(__vengeance_prefix__.replace('\t', ''))
-    aligned_indent = '\t' + aligned_indent
+    aligned_indent = ' ' * len(__vengeance_prefix__)
 
     def first_non_vengeance_frame():
         nonlocal stackframe
@@ -167,19 +311,19 @@ def vengeance_warning(message,
         stackframe = traceback.extract_stack(inspect.currentframe(), limit=sl)[0]
 
     def vengeance_formatwarning(*_, **__):
-        line_1 = message.replace('\n', '\n' + aligned_indent)
+        line_1 = ' '.join(message.split()).lstrip()
+
         line_1 = '<{}> {}'.format(object_name(category), line_1)
         line_1 = vengeance_message(line_1)
+        line_1 = styled(line_1, color, effect)
 
         line_2 = 'File "{}", line {}'.format(filename, lineno)
+        line_2 = styled(line_2, color, effect)
         line_2 = aligned_indent + line_2
 
-        w_message = ('{}\n{}\n'.format(line_1, line_2)
-                               .replace('\t', '    '))
-        if color or effect:
-            w_message = styled(w_message, color, effect)
+        _message_ = '{}\n{}\n'.format(line_1, line_2)
 
-        return w_message
+        return _message_
     # endregion
 
     if stacklevel is None and stackframe is None:
@@ -194,86 +338,41 @@ def vengeance_warning(message,
         filename = '{unknown}'
         lineno   = '{unknown}'
 
+    flush_stdout()
+
     original_formatwarning = warnings.formatwarning
     warnings.formatwarning = vengeance_formatwarning
     warnings.warn(message)
     warnings.formatwarning = original_formatwarning
 
+    flush_stdout()
+
+
+def flush_stdout(sleep_ms=None):
     print(end='')
+    sys.stdout.flush()
+
+    if sleep_ms:
+        sleep(sleep_ms / 1000)
 
 
-def styled(message,
-           color='grey',
-           effect='bold'):
-    """
-    ansi escape: \x1b, \033, <0x1b>, 
-
-    how to effectively check if console supports ansi escapes?
-        ansi escape shows up as '←' in python.exe console
-    """
-
-    # region {escape codes}
-    effect_end   = '\x1b[0m'
-    effect_codes = {'bold':      '\x1b[1m',
-                    'italic':    '\x1b[3m',
-                    'underline': '\x1b[4m',
-                    '':          '',
-                    None:        ''}
-    color_codes = {'grey':           '\x1b[29m',
-                   'white':          '\x1b[38;2;255;255;255m',
-                   'red':            '\x1b[31m',
-                   'green':          '\x1b[32m',
-                   'yellow':         '\x1b[33m',
-                   'blue':           '\x1b[34m',
-                   'magenta':        '\x1b[35m',
-                   'cyan':           '\x1b[36m',
-                   'bronze':         '\x1b[37m',
-                   'bright red':     '\x1b[91m',
-                   'bright green':   '\x1b[92m',
-                   'bright yellow':  '\x1b[93m',
-                   'bright blue':    '\x1b[94m',
-                   'bright magenta': '\x1b[95m',
-                   'bright cyan':    '\x1b[96m',
-                   'black':          '\x1b[97m',
-                   'dark magenta':   '\x1b[38;2;180;80;145m',
-                   '':               '',
-                   None:             ''}
-    # endregion
-    color = (color or '').lower()
-    if color not in color_codes:
-        raise KeyError('invalid color: {}'.format(color))
-
-    effect  = (effect or '').replace(' ', '').lower()
-    effects = effect.split('|')
-    for effect in effects:
-        if effect not in effect_codes:
-            raise KeyError('invalid style: {}'.format(effect))
-
-    if not is_utf_console:
-        return message
-    if is_tty_console:
-        return message
-    if not color and not effect:
-        return message
-
-    effect_style = color_codes[color] + ''.join(effect_codes[e] for e in effects)
-    message      = str(message).replace(effect_end, effect_style)
-
-    return ('{effect_style}{message}{effect_end}'
-            .format(effect_style=effect_style,
-                    message=message,
-                    effect_end=effect_end))
+def print_unicode(s):
+    """ replace all \x1b[34m with regex? """
+    try:
+        print(s)
+    except UnicodeError:
+        print(ascii(s))
 
 
 def vengeance_message(message):
-    return __vengeance_prefix__ + message
+    return __vengeance_prefix__ + str(message)
 
 
-def format_header(h=''):
+def format_header(h):
     return '⟪{}⟫'.format(h)
 
 
-def format_header_lite(h=''):
+def format_header_lite(h):
     return '⟨{}⟩'.format(h)
 
 
@@ -287,7 +386,7 @@ def format_seconds(s):
 
     ns = s * 1e9
     us = s * 1e6
-    ms = s * 1000
+    ms = s * 1e3
 
     m, s = divmod(s, 60)
     h, m = divmod(m, 60)
@@ -312,17 +411,7 @@ def format_seconds(s):
     return f_ms
 
 
-def function_name(f):
-    name = f.__qualname__
-    if '.' in name:
-        return name
-
-    modulename = f.__module__.split('.')[-1]
-    return '{}.{}'.format(modulename, name)
-
-
 def function_parameters(f):
-
     # region {closure}
     class param_cls:
         __slots__ = ('name',
@@ -346,6 +435,15 @@ def function_parameters(f):
     return n_params
 
 
+def function_name(f):
+    name = f.__qualname__
+    if '.' in name:
+        return name
+
+    modulename = f.__module__.split('.')[-1]
+    return '{}.{}'.format(modulename, name)
+
+
 def object_name(o):
     try:                   return o.__name__
     except AttributeError: pass
@@ -354,42 +452,6 @@ def object_name(o):
     except AttributeError: pass
 
     return type(o).__name__
-
-
-def pprint_object(o, **kwargs):
-    kwargs['compact'] = kwargs.get('compact', True)
-
-    if 'width' not in kwargs:
-        width = max([len(repr(v)) for v in o])
-        width = width + min(3, width - 1)
-        kwargs['width'] = width
-
-    pprint.pprint(o, **kwargs)
-
-
-def json_dumps_extended(o, **kwargs):
-    kwargs['ensure_ascii'] = kwargs.get('ensure_ascii', False)
-    kwargs['indent']       = kwargs.get('indent', 4)
-    kwargs['default']      = kwargs.get('default', json_unhandled_conversion)
-
-    if ultrajson_installed:
-        del kwargs['default']
-
-    return json.dumps(o, **kwargs)
-
-
-def json_unhandled_conversion(v):
-    """
-    convert certain python objects to json string representations, eg:
-        date, datetime, set
-    """
-    if isinstance(v, date):
-        return v.isoformat()
-    if isinstance(v, set):
-        return list(v)
-    # if isinstance(v, Decimal) ?
-
-    raise TypeError("Object of type '{}' is not JSON serializable".format(object_name(v)))
 
 
 

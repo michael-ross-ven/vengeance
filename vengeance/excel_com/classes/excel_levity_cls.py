@@ -15,7 +15,7 @@ from .. import worksheet
 from .. excel_constants import *
 
 from ... util.iter import iterator_to_collection
-from ... util.iter import inverted_enumerate
+from ... util.iter import map_values_to_enum
 from ... util.iter import modify_iteration_depth
 from ... util.text import object_name
 
@@ -186,9 +186,9 @@ class excel_levity_cls:
 
     def lev_rows(self, r_1='*h', r_2='*l') -> Generator[lev_row_cls, Any, Any]:
         if self.headers:
-            headers = inverted_enumerate(self.headers.keys())
+            headers = map_values_to_enum(self.headers.keys())
         elif self.m_headers:
-            headers = inverted_enumerate(self.m_headers.keys())
+            headers = map_values_to_enum(self.m_headers.keys())
         else:
             headers = ordereddict()
 
@@ -332,7 +332,7 @@ class excel_levity_cls:
             return ordereddict()
 
         c_1 = excel_range.Column
-        headers = inverted_enumerate(row, c_1)
+        headers = map_values_to_enum(row, c_1)
         headers = ordereddict((h, excel_address.col_letter(v)) for h, v in headers.items())
 
         return headers

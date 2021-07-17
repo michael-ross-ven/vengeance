@@ -17,8 +17,8 @@ pip install vengeance[comtypes,pypiwin32,python-dateutil,ujson,numpy]
 """
 
 
-__version__ = '1.1.15'
-__release__ = '$release 52'
+__version__ = '1.1.16'
+__release__ = '$release 53'
 long_description = ('https://github.com/michael-ross-ven/vengeance/blob/master/README.md'
                     '\n\n(specialize this for pypi.org later)')
 
@@ -31,7 +31,6 @@ else:
     install_requires = []
 
 extras_require = {":python_version>='3.0'": ['python-dateutil',
-                                             'ujson',
                                              'numpy']}
 
 
@@ -41,6 +40,9 @@ def __move_win32com_gencache_folder():
     move win32com gen_py cache files from temp to site-packages folder
     helps prevent win32com EnsureDispatch() call rejection due to corrupted COM files
     """
+    if not is_windows_os:
+        return
+        
     try:
         import shutil
         import site

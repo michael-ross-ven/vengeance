@@ -27,3 +27,6 @@ vengeance/util/dates.py
 vengeance/util/filesystem.py
 vengeance/util/iter.py
 vengeance/util/text.py
+vengeance/util/classes/__init__.py
+vengeance/util/classes/namespace_cls.py
+vengeance/util/classes/tree_cls.py

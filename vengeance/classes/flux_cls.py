@@ -20,25 +20,24 @@ from ..util.filesystem import parse_file_extension
 from ..util.filesystem import read_file
 from ..util.filesystem import write_file
 from ..util.filesystem import pickle_extensions
+from ..util.filesystem import json_dumps_extended
 
 from ..util.iter import IterationDepthError
 from ..util.iter import ColumnNameError
-from ..util.iter import namespace_cls
 from ..util.iter import base_class_names
 from ..util.iter import is_exhaustable
 from ..util.iter import is_collection
 from ..util.iter import is_subscriptable
-from ..util.iter import standardize_variable_arity_arguments
+from ..util.iter import standardize_variable_arity_values
 from ..util.iter import iteration_depth
 from ..util.iter import iterator_to_collection
-from ..util.iter import inverted_enumerate
+from ..util.iter import map_values_to_enum
 from ..util.iter import are_indices_contiguous
 from ..util.iter import modify_iteration_depth
 from ..util.iter import transpose
 from ..util.iter import to_grouped_dict
 
 from ..util.text import print_runtime
-from ..util.text import json_dumps_extended
 from ..util.text import deprecated
 from ..util.text import object_name
 from ..util.text import format_header
@@ -46,6 +45,9 @@ from ..util.text import format_header_lite
 from ..util.text import format_integer
 from ..util.text import function_parameters
 from ..util.text import function_name
+from ..util.text import vengeance_message
+
+from ..util.classes.namespace_cls import namespace_cls
 
 from ..conditional import ordereddict
 from ..conditional import line_profiler_installed
@@ -84,7 +86,7 @@ class flux_cls:
     aap_indices = [1, 5 + 1]
 
     def __init__(self, matrix=None):
-        self.headers: Dict[str, int]
+        self.headers: Dict[Union[str, bytes], int]
         self.matrix:  List[flux_row_cls]
 
         gc_enabled = gc.isenabled()
@@ -198,7 +200,7 @@ class flux_cls:
     def header_names(self):
         """
         self.matrix[0].values and self.headers.keys may not always be identical
-            inverted_enumerate() makes certain modifications to self.headers.keys,
+            map_values_to_enum() makes certain modifications to self.headers.keys,
             such as coercing values to strings, modifying duplicate values, etc
         """
         return list(self.headers.keys())
@@ -227,7 +229,7 @@ class flux_cls:
         return False
 
     def duplicate_row_pointers(self) -> Dict:
-        enumrow_nt = namedtuple('enumrow', ('i', 'row'))
+        enumrow_nt = namedtuple('EnumRow', ('i', 'row'))
 
         d = ordereddict()
         for i, row in enumerate(self.matrix):
@@ -253,7 +255,7 @@ class flux_cls:
         return False
 
     def jagged_rows(self) -> Generator[namedtuple, None, None]:
-        enumrow_nt = namedtuple('enumrow', ('i', 'row'))
+        enumrow_nt = namedtuple('EnumRow', ('i', 'row'))
 
         num_cols = self.num_cols
         for i, row in enumerate(self.matrix):
@@ -418,7 +420,7 @@ class flux_cls:
 
     # noinspection PyArgumentList
     def namedtuples(self, r_1=1, r_2=None) -> Generator[namedtuple, None, None]:
-        row_nt = namedtuple('row', self.header_names())
+        row_nt = namedtuple('Row', self.header_names())
         for row in self.matrix[r_1:r_2]:
             yield row_nt(*row.values)
 
@@ -433,7 +435,7 @@ class flux_cls:
         if use_existing_headers:
             names = self.matrix[0].values
 
-        headers = inverted_enumerate(names)
+        headers = map_values_to_enum(names)
         self.headers.clear()
         self.headers.update(headers)
 
@@ -448,21 +450,35 @@ class flux_cls:
 
         return self
 
-    def execute_commands(self, commands, profiler=False):
-        command_nt = namedtuple('command', ('name', 'method', 'args', 'kwargs'))
+    def execute_commands(self, commands, profiler=False, print_commands=False):
+        command_nt = namedtuple('Command', ('name', 'method', 'args', 'kwargs'))
 
-        commands = self.__validate_command_methods(commands, command_nt)
         profiler = self.__validate_profiler_function(profiler)
+        commands = self.__validate_command_methods(commands, command_nt)
+
+        if print_commands:
+            s = '{}.execute_commands:'.format(self.__class__.__name__)
+            s = vengeance_message(s)
+            print(s)
 
         completed_commands = []
-        for command in commands:
-            flux_method = command.method
+        for i, command in enumerate(commands, 1):
+            name   = command.name
+            method = command.method
+            args   = command.args
+            kwargs = command.kwargs
+
+            if print_commands:
+                s = '        {}: @{}()'.format(i, function_name(method))
+                print(s)
 
             if profiler:
-                flux_method = profiler(flux_method)
+                method = profiler(method)
 
-            flux_method(*command.args, **command.kwargs)
-            completed_commands.append((command.name, command.args, command.kwargs))
+            method(*command.args, **command.kwargs)
+            completed_commands.append([name,
+                                       args,
+                                       kwargs])
 
         if hasattr(profiler, 'print_stats'):
             profiler.print_stats()
@@ -473,7 +489,7 @@ class flux_cls:
         if self.is_empty():
             raise ValueError('matrix is empty')
 
-        names = standardize_variable_arity_arguments(names, depth=1)
+        names = standardize_variable_arity_values(names, depth=1)
         if not names:
             return self
         if isinstance(names, dict):
@@ -481,7 +497,6 @@ class flux_cls:
 
         headers = self.headers.copy()
         names   = [self.__validate_renamed_or_inserted_column(name, headers) for name in names]
-        headers = ordereddict(sorted(headers.items(), key=lambda _: _[-1]))
 
         all_columns  = [row.values for row in self.matrix[1:]]
         all_columns  = list(transpose(all_columns, astype=list))
@@ -539,13 +554,13 @@ class flux_cls:
                 for i in indices:
                     ...
         """
-        names = standardize_variable_arity_arguments(names, depth=1)
+        names = standardize_variable_arity_values(names, depth=1)
         if not names:
             return self
 
         names = self.__validate_inserted_items(names, self.headers)
 
-        after = [bool(_) for _ in standardize_variable_arity_arguments(after, depth=1)]
+        after = [bool(_) for _ in standardize_variable_arity_values(after, depth=1)]
         after.extend([False] * (len(names) - len(after)))
 
         names = list(reversed(names))
@@ -553,13 +568,12 @@ class flux_cls:
 
         header_names = self.header_names()
 
-        for item, af in zip(names, after):
+        for item, _after_ in zip(names, after):
             before, header = item
 
             if isinstance(before, int): i = before
             else:                       i = header_names.index(before)
-
-            if af:
+            if _after_:
                 i += 1
 
             header_names.insert(i, header)
@@ -574,19 +588,62 @@ class flux_cls:
 
         return self
 
-    def append_columns(self, *names):
-        names = standardize_variable_arity_arguments(names, depth=1)
+    def append_columns(self, *names, values=None):
+        """
+        # if max([iteration_depth(n) for n in names]) > 2:
+        #     raise IterationDepthError('values not submitted as keyword?')
+
+        # if 'values' in values:
+        #     values = values.pop('values')
+
+        # nd = iteration_depth(values)
+
+        # is_single_row    = (v_num_rows == 1)        and (v_num_cols == num_rows)
+
+        # if is_single_value:
+            # _row_    = [_values_[0][0] for _ in range(num_cols)]
+            # _values_ = [_row_          for _ in range(num_rows)]
+            # v = _values_[0][0]
+            # _values_ = [[v for _ in range(num_cols)]
+            #                for _ in range(num_rows)]
+        """
+        names = standardize_variable_arity_values(names, depth=1)
         if not names:
             return self
 
         self.__validate_no_duplicate_names(names)
         self.__validate_no_names_intersect_with_headers(names, self.headers)
 
-        v = [None for _ in names]
-        for row in self.matrix[1:]:
+        _values_ = standardize_variable_arity_values(values, depth=2)
+
+        num_rows   = len(self.matrix) - 1
+        num_cols   = len(names)
+        v_num_rows = len(_values_)
+        v_num_cols = len(_values_[0])
+
+        mismatched_dimensions = (v_num_rows != num_rows)  or (v_num_cols != num_cols)
+        is_single_value       = (v_num_rows == 1)        and (v_num_cols == 1)
+        is_single_column      = (v_num_rows == num_rows) and (num_cols == 1)
+        is_transposed         = (v_num_rows == num_cols) and (v_num_cols == num_rows)
+
+        if mismatched_dimensions:
+            if is_single_value:
+                _row_    = [_values_[0][0] for _ in range(num_cols)]
+                _values_ = [_row_          for _ in range(num_rows)]
+            elif is_single_column:
+                _values_ = transpose([_values_], list)
+            elif is_transposed:
+                _values_ = transpose(_values_, list)
+            else:
+                raise IndexError('invalid dimensions for column values\n'
+                                 'expected: {:,} cols x {:,} rows\n'
+                                 'values:   {:,} cols x {:,} rows'.format(num_cols, num_rows, v_num_cols, v_num_rows))
+
+        header_names = self.header_names() + list(names)
+        for row, v in zip(self.matrix[1:], _values_):
             row.values.extend(v)
 
-        self.reset_headers(self.header_names() + list(names))
+        self.reset_headers(header_names)
 
         return self
 
@@ -609,7 +666,7 @@ class flux_cls:
                 for i in indices:
                     ...
         """
-        names = standardize_variable_arity_arguments(names, depth=1)
+        names = standardize_variable_arity_values(names, depth=1)
         if not names:
             return self
 
@@ -722,7 +779,7 @@ class flux_cls:
             flux.sort('col_a', 'col_b', 'col_c',
                       reverse=[True, False, True])
         """
-        names = standardize_variable_arity_arguments(names, depth=1)
+        names = standardize_variable_arity_values(names, depth=1)
         if not names:
             return self
 
@@ -739,7 +796,7 @@ class flux_cls:
             flux = flux.sorted('col_a', 'col_b', 'col_c',
                                reverse=[False, True, True])
         """
-        names = standardize_variable_arity_arguments(names, depth=1)
+        names = standardize_variable_arity_values(names, depth=1)
         if not names:
             return self.copy()
 
@@ -750,7 +807,7 @@ class flux_cls:
         return flux
 
     def __sort_rows(self, rows, names, reverse):
-        reverse = [bool(_) for _ in standardize_variable_arity_arguments(reverse, depth=1)]
+        reverse = [bool(_) for _ in standardize_variable_arity_values(reverse, depth=1)]
         reverse.extend([False] * (len(names) - len(reverse)))
 
         all_true  = all(_ is True  for _ in reverse)
@@ -811,13 +868,14 @@ class flux_cls:
         else:
             return self.filtered(evaluate_unique)
 
-    def map_rows(self, *names, rowtype='flux_row_cls') -> Dict[Any, Union[flux_row_cls, namespace_cls, Dict, Tuple,
-                                                                          List]]:
+    def map_rows(self, *names, rowtype=flux_row_cls) -> Dict[Any, flux_row_cls]:
         """ dictionary of {row_value: row} """
         items = self.__zip_row_items(names, rowtype=rowtype)
-        return ordereddict(items)
+        d = ordereddict(items)
 
-    def map_rows_append(self, *names, rowtype='flux_row_cls') -> Dict[Any, List]:
+        return d
+
+    def map_rows_append(self, *names, rowtype=flux_row_cls) -> Dict[Any, List]:
         """ dictionary of {row_value: [rows]} """
         items = self.__zip_row_items(names, rowtype=rowtype)
 
@@ -828,34 +886,34 @@ class flux_cls:
 
         return d
 
-    def group_rows(self, *names, rowtype='flux_row_cls') -> Dict[Any, Dict]:
-        """
-        names = standardize_variable_arity_arguments(names, depth=1)
-        if len(names) == 1, then just return d_1?
-        """
-        d_1 = self.map_rows(names, rowtype=rowtype)
-        d_2 = to_grouped_dict(d_1)
+    def group_rows(self, *names, rowtype=flux_row_cls) -> Dict[Any, Dict]:
+        """ dictionary of dictionaries {row_value_a: {row_value_b: row}} """
+        d = self.map_rows(names, rowtype=rowtype)
+        d = to_grouped_dict(d)
 
-        return d_2
+        return d
 
-    def group_rows_append(self, *names, rowtype='flux_row_cls') -> Dict[Any, Dict]:
-        """
-        names = standardize_variable_arity_arguments(names, depth=1)
-        if len(names) == 1, then just return d_1?
-        """
-        d_1 = self.map_rows_append(names, rowtype=rowtype)
-        d_2 = to_grouped_dict(d_1)
+    def group_rows_append(self, *names, rowtype=flux_row_cls) -> Dict[Any, Dict]:
+        """ dictionary of dictionaries {row_value_a: {row_value_b: [rows]}} """
+        d = self.map_rows_append(names, rowtype=rowtype)
+        d = to_grouped_dict(d)
 
-        return d_2
+        return d
 
     @deprecated('Use flux_cls.map_rows() method instead')
-    def index_row(self, *names, rowtype='flux_row_cls'):
-        """ deprecated """
+    def index_row(self, *names, rowtype=flux_row_cls):
+        """ deprecated: Use flux_cls.map_rows() method instead
+        'index' suggests method has something to do with numerical indices,
+        instead of an index, as in a table of contents
+        """
         return self.map_rows(names, rowtype=rowtype)
 
     @deprecated('Use flux_cls.map_rows_append() method instead')
-    def index_rows(self, *names, rowtype='flux_row_cls'):
-        """ deprecated """
+    def index_rows(self, *names, rowtype=flux_row_cls):
+        """ deprecated: Use flux_cls.map_rows_append() method instead
+        'index' suggests method has something to do with numerical indices,
+        instead of an index, as in a table of contents
+        """
         return self.map_rows_append(names, rowtype=rowtype)
 
     def __zip_row_items(self, names, rowtype):
@@ -881,16 +939,18 @@ class flux_cls:
 
         return ordereddict(items).keys()
 
+    # noinspection PyUnusedLocal
     def contiguous(self, *names):
         """ :return: yield (value, i_1, i_2) namedtuple where values are contiguous
 
         (contiguous values may only span a single row ie, i_1 == i_2)
         """
-        contiguousrows_nt = namedtuple('contiguous', ('value', 'i_1', 'i_2', 'rows'))
-
-        rva = self.row_values_accessor(names)
+        contiguous_nt = namedtuple('Contiguous', ('value', 'i_1', 'i_2', 'rows'))
 
         i_1 = 1
+        i_2 = i_1
+
+        rva = self.row_values_accessor(names)
         v_1 = rva(self.matrix[i_1])
         v_2 = v_1
 
@@ -898,12 +958,23 @@ class flux_cls:
             v_2 = rva(row)
 
             if v_2 != v_1:
-                yield contiguousrows_nt(v_2, i_1, i_2 - 1, self.matrix[i_1:i_2])
+                yield contiguous_nt(v_2, i_1, i_2 - 1, self.matrix[i_1:i_2])
                 v_1 = v_2
                 i_1 = i_2
 
         i_2 = len(self.matrix) - 1
-        yield contiguousrows_nt(v_2, i_1, i_2, self.matrix[i_1:])
+        yield contiguous_nt(v_2, i_1, i_2, self.matrix[i_1:])
+
+    def indices(self, start=1, step=1):
+        """
+        integers corresponding to each row's index position in matrix
+        eg:
+            [1, 2, 3, ..., len(flux.matrix)] = list(flux.indices(start=1))
+            [0, 1, 2, ..., len(flux.matrix)] = list(flux.indices(start=0))
+
+            flux['enum'] = flux.indices(start=1)
+        """
+        return range(start, len(self.matrix), step)
 
     def label_row_indices(self, start=0):
         """ meant to assist with debugging;
@@ -913,7 +984,7 @@ class flux_cls:
         filtering, sorting, etc
         """
         if 'r_i' in self.headers:
-            raise ColumnNameError("'r_i' already exists as header name")
+            raise ColumnNameError("'r_i' already exists in headers")
 
         for i, row in enumerate(self.matrix, start):
             row.__dict__['r_i'] = i
@@ -1000,7 +1071,8 @@ class flux_cls:
             raise ColumnNameError('__setitem__ cannot be used to set values to multiple columns')
 
         if name not in self.headers and not isinstance(name, int):
-            self.append_columns(name)
+            self.append_columns(name, values=values)
+            return
 
         i = self.__validate_names_as_indices(name, self.headers)[0]
         for row, v in zip(self.matrix[1:], values):
@@ -1018,6 +1090,7 @@ class flux_cls:
     def __iadd__(self, rows):
         return self.append_rows(rows)
 
+    # noinspection PyTypeChecker
     def __getstate__(self):
         f = self.__class__.__init__
 
@@ -1080,7 +1153,7 @@ class flux_cls:
             jagged_label = ''
 
         num_rows = format_integer(len(self.matrix) - 1)
-        num_rows = format_header_lite('h+' + num_rows)
+        num_rows = format_header_lite('1+' + num_rows)
 
         headers = ', '.join(str(n) for n in self.header_names())
         headers = format_header(headers)
@@ -1090,7 +1163,7 @@ class flux_cls:
     # region {validation functions}
     @staticmethod
     def __validate_names_as_headers(names):
-        headers = inverted_enumerate(names)
+        headers = map_values_to_enum(names)
 
         conflicting = headers.keys() & set(flux_row_cls.reserved_names())
         if conflicting:
@@ -1246,9 +1319,9 @@ class flux_cls:
                          depth=None,
                          depth_offset=None):
 
-        names = standardize_variable_arity_arguments(names,
-                                                     depth=depth,
-                                                     depth_offset=depth_offset)
+        names = standardize_variable_arity_values(names,
+                                                  depth=depth,
+                                                  depth_offset=depth_offset)
         if isinstance(names, slice) and isinstance(headers, dict):
             names = list(headers.keys())[names]
 
@@ -1280,7 +1353,7 @@ class flux_cls:
         if isinstance(inserted, dict):
             inserted = list(inserted.items())
 
-        inserted = standardize_variable_arity_arguments(inserted, depth=2)
+        inserted = standardize_variable_arity_values(inserted, depth=2)
 
         for item in inserted:
             if iteration_depth(item) != 1 or len(item) != 2:
@@ -1357,7 +1430,7 @@ class flux_cls:
 
         if is_remapped_column:
             name_old, name = list(name.items())[0]
-            headers[name] = headers[name_old]
+            headers[name]  = headers[name_old]
         elif is_inserted_column:
             name = name[1:-1]
             if name in headers:
@@ -1407,6 +1480,7 @@ class flux_cls:
 
         if use_profiler is True:
             if line_profiler_installed:
+                # noinspection PyUnresolvedReferences
                 from line_profiler import LineProfiler
                 return LineProfiler()
             else:
@@ -1421,6 +1495,7 @@ class flux_cls:
             if line_profiler_installed is False:
                 raise ImportError("'line_profiler' package not installed")
 
+            # noinspection PyUnresolvedReferences
             from line_profiler import LineProfiler
             return LineProfiler()
 

@@ -3,7 +3,6 @@ from collections import Iterable
 from collections import ItemsView
 from collections import KeysView
 from collections import ValuesView
-from collections import defaultdict
 from collections import namedtuple
 
 from itertools import chain
@@ -15,6 +14,8 @@ from typing import List
 from typing import Tuple
 
 from ..conditional import ordereddict
+from .classes.tree_cls import tree_cls
+from .classes.namespace_cls import namespace_cls
 
 
 class IterationDepthError(TypeError):
@@ -25,34 +26,10 @@ class ColumnNameError(ValueError):
     pass
 
 
-class namespace_cls:
-    """
-    similar to types.SimpleNamespace
-    """
-    def __init__(self, **kwargs):
-        self.__dict__ = ordereddict(kwargs)
-
-    def __iter__(self):
-        return ((k, v) for k, v in self.__dict__.items())
-
-    def __eq__(self, other):
-        if (not hasattr(self, '__dict__')) or (not hasattr(other, '__dict__')):
-            return NotImplemented
-
-        return self.__dict__ == other.__dict__
-
-    def __repr__(self):
-        items = ('{}={!r}'.format(k, v) for k, v in self.__dict__.items())
-        items = ', '.join(items)
-
-        return '{{{}}}'.format(items)
-
-
 def iteration_depth(values, first_element_only=True):
     """
-    (this function is heavily utilized to correctly un-nest
-     arguments in variable arity flux_cls methods, so make sure
-     you dont fuck anything up if you change anything here !!)
+    this function is heavily utilized to correctly un-nest function arguments
+    in flux_cls methods
 
     eg:
         0 = iteration_depth('abc')
@@ -84,8 +61,8 @@ def modify_iteration_depth(values,
                            depth_offset=None,
                            first_element_only=True):
     """
-    (this function is heavily utilized to correctly un-nest
-     arguments in variable-arity flux_cls methods)
+    this function is heavily utilized to correctly un-nest function arguments
+    in flux_cls methods
 
     eg:
         'a'              = modify_iteration_depth([[['a']]], depth=0)
@@ -133,23 +110,23 @@ def modify_iteration_depth(values,
     return values
 
 
-def standardize_variable_arity_arguments(values,
-                                         depth=None,
-                                         depth_offset=None):
+def standardize_variable_arity_values(values,
+                                      depth=None,
+                                      depth_offset=None):
     """
-    (this function is heavily utilized to correctly un-nest
-     arguments in variable-arity flux_cls methods)
+    this function is heavily utilized to correctly un-nest function arguments
+    in flux_cls methods
+
+    eg flux_cls:
+        def append_columns(self, *names):
+            names = standardize_variable_arity_values(names, depth=1)
     """
+    # convert iterators, even if they are nested
+    if is_descendable(values) and is_exhaustable(values[0]):
+        values = iterator_to_collection(values[0])
+    else:
+        values = iterator_to_collection(values)
 
-    # region {closure functions}
-    def descend_iterator(v):
-        if is_descendable(v) and is_exhaustable(v[0]):
-            return iterator_to_collection(v[0])
-        else:
-            return iterator_to_collection(v)
-    # endregion
-
-    values = descend_iterator(values)
     values = modify_iteration_depth(values, depth, depth_offset,
                                     first_element_only=True)
 
@@ -169,7 +146,8 @@ def are_indices_contiguous(indices):
 
 def is_collection(o):
     """ determine if value is an iterable object or data structure
-    function used mainly to distinguish data structures from other iterables
+    function used mainly to distinguish data structures from other 
+    iterables
 
     eg:
         False = is_collection('bleh')
@@ -329,11 +307,11 @@ def to_namedtuples(o):
         return o
 
 
-def to_grouped_dict(flat: Dict) -> Dict[Any, Dict]:
-    """ re-map flat keys to a nested dictionary structure
+def to_grouped_dict(flat_dict: Dict) -> Dict[Any, Dict]:
+    """ re-map keys as tuples to a nested structure
 
     eg:
-        # keys should be tuples
+        # "flat" keys
         d = {('a₁', 'b₁', 'c₁', 'd₁'): 'v_1',
              ('a₁', 'b₂', 'c₁', 'd₂'): 'v_2',
              ('a₂', 'b₁', 'c₁', 'd₁'): 'v_4',
@@ -344,62 +322,12 @@ def to_grouped_dict(flat: Dict) -> Dict[Any, Dict]:
          'a₂': {'b₁': {'c₁': {'d₁': 'v_4',
                               'd₂': 'v_3'}}}} = to_grouped_dict(d)
     """
-
-    # region {closures}
-    class node_cls:
-        def __init__(self, value=None):
-            self.children = ordereddict()
-            self.value    = value
-
-
-    class grouped_cls:
-        def __init__(self, d):
-            self.children = ordereddict()
-
-            unique_len_edges = None
-            for edges, value in d.items():
-                len_edges = len(edges)
-
-                if unique_len_edges is None:
-                    unique_len_edges = len_edges
-                elif len_edges != unique_len_edges:
-                    raise ValueError('keys have mismatched lengths: {}'.format(edges))
-
-                self.add(edges, value, len_edges)
-
-        def add(self, edges, value, len_edges):
-            node = self
-
-            for i, e_key in enumerate(edges, 1):
-                if e_key not in node.children:
-                    if i == len_edges: child = node_cls(value)
-                    else:              child = node_cls(None)
-
-                    node.children[e_key] = child
-                    node = child
-                else:
-                    node = node.children[e_key]
-
-        def traverse(self, node=None):
-            node = node or self
-
-            d = ordereddict()
-            for k, node in node.children.items():
-                if node.children == {}:
-                    d[k] = node.value
-                else:
-                    d[k] = self.traverse(node)
-
-            return d
-    # endregion
-
-    network = grouped_cls(flat)
-    groups  = network.traverse()
+    groups = tree_cls(flat_dict).traverse()
 
     return groups
 
 
-def inverted_enumerate(sequence, start=0):
+def map_values_to_enum(sequence, start=0) -> Dict[Union[str, bytes], int]:
     """ :return {unique_key: i: int} for all items in sequence
 
     values are modified before they are added as keys:
@@ -411,31 +339,33 @@ def inverted_enumerate(sequence, start=0):
          'b':       1,
          'c':       2,
          'b_dup_2': 3,
-         'b_dup_3': 4} = inverted_enumerate(['a', 'b', 'c', 'b', 'b'])
+         'b_dup_3': 4} = map_values_to_enum(['a', 'b', 'c', 'b', 'b'])
     """
+    duplicates = {}
     values_to_indices = ordereddict()
-    duplicates = defaultdict(lambda: 0)
 
     for i, v in enumerate(sequence, start):
-        if isinstance(v, (bytes, str)):
-            _v_ = v
+
+        is_bytes = isinstance(v, bytes)
+        if is_bytes:
+            v_str = v.decode()
         else:
-            _v_ = str(v)
+            v_str = str(v)
 
-        is_duplicate = (_v_ in duplicates)
+        is_duplicate = (v_str in duplicates)
 
-        duplicates[_v_] += 1
+        if not is_duplicate:
+            duplicates[v_str] = 1
+        else:
+            duplicates[v_str] += 1
 
         if is_duplicate:
-            n_d = duplicates[_v_]
+            v_str = '{}_dup_{}'.format(v_str, duplicates[v_str])
 
-            if isinstance(_v_, bytes):
-                _v_ = '{}_dup_{num}'.format(_v_.decode(), num=n_d)
-                _v_ = _v_.encode()
-            else:
-                _v_ = '{}_dup_{num}'.format(_v_, num=n_d)
+        if is_bytes:
+            v_str = v_str.encode()
 
-        values_to_indices[_v_] = i
+        values_to_indices[v_str] = i
 
     return values_to_indices
 
@@ -443,13 +373,13 @@ def inverted_enumerate(sequence, start=0):
 def is_header_row(values, headers):
     """ determine if underlying values match headers.keys
 
-    checking headers.keys() == values will not always work, since inverted_enumerate()
+    checking headers.keys() == values will not always work, since map_values_to_enum()
     was used to modify names into more suitable header keys
     """
     if not headers:
         return False
 
-    value_names  = inverted_enumerate(values).keys()
+    value_names  = map_values_to_enum(values).keys()
     header_names = set(headers)
 
     return value_names == header_names

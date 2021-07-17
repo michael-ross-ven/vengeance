@@ -233,7 +233,8 @@ class log_cls(Logger):
 
         directory = standardize_dir(directory, explicit_cwd=True)
         if not os.path.exists(directory):
-            os.makedirs(directory)
+            raise FileExistsError('log directory does not exist: \n{}'.format(directory))
+            # os.makedirs(directory)
 
         if extension == '.py':
             extension = '.log'
@@ -262,18 +263,17 @@ class colored_streamhandler_cls(StreamHandler):
     # noinspection PyBroadException
     def emit(self, record):
         try:
-            s = self.format(record) + self.terminator
-
             color = self.level_colors.get(record.levelno, 'grey')
             if record.levelno == CRITICAL:
                 effect = 'bold|underline'
             else:
                 effect = 'bold'
 
+            s = self.format(record) + self.terminator
             s = styled(s, color, effect)
 
-            self.stream.write(s)
             self.flush()
+            self.stream.write(s)
 
         except RecursionError:
             raise

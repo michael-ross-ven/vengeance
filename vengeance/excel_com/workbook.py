@@ -50,26 +50,27 @@ def open_workbook(path,
                   *,
                   reload_addins=False,
                   display_alerts=False,
+                  enable_events=True,
                   windowstate=xlMaximized,
                   **kwargs):
 
-    kwargs['ReadOnly'] = kwargs.get('ReadOnly', False)
-
     wb = get_opened_workbook(path)
-
     if wb is None:
         wb = __open_workbook_dispatch(path,
                                       excel_app,
                                       reload_addins=reload_addins,
                                       display_alerts=display_alerts,
+                                      enable_events=enable_events,
                                       windowstate=windowstate,
                                       **kwargs)
 
-    if (wb.ReadOnly is False) and kwargs['ReadOnly']:
-        raise AssertionError("'{}' is not open as read-only".format(wb.Name))
+    kw_read_only = kwargs.get('ReadOnly', False)
+    wb_read_only = wb.ReadOnly
 
-    if wb.ReadOnly and (kwargs['ReadOnly'] is False):
-        vengeance_warning("'{}' is open as read-only".format(wb.Name))
+    if (wb_read_only is False) and kw_read_only:
+        raise ValueError("'{}' NOT open as read-only".format(wb.Name))
+    elif wb_read_only:
+        print(vengeance_message("'{}' open as read-only".format(wb.Name)))
 
     return wb
 
@@ -142,48 +143,50 @@ def __open_workbook_dispatch(path,
                              *,
                              reload_addins,
                              display_alerts,
+                             enable_events,
                              windowstate,
                              **kwargs):
-
+    """
+    UpdateLinks
+        0: don’t update
+        1: update external links but not remote links
+        2: update remote links but not external links
+        3: update all links
+        default: prompt the user
+    """
     if windowstate not in (None, xlMaximized, xlNormal, xlMinimized):
         raise ValueError('windowstate must be in (None, xlMaximized ({}), xlNormal ({}), xlMinimized ({}))'
                          .format(xlMaximized, xlNormal, xlMinimized))
 
     path      = validate_path_exists(path)
-    excel_app = __validate_excel_application(excel_app)
+    excel_app = __validate_excel_dispatch(excel_app)
+
+    if display_alerts:
+        excel_application_to_foreground(excel_app, windowstate, add_workbook_if_empty=False)
+
+    _display_alerts_ = excel_app.DisplayAlerts
+    _enable_events_  = excel_app.EnableEvents
+
+    excel_app.DisplayAlerts = display_alerts
+    excel_app.EnableEvents  = enable_events
+    wb = excel_app.Workbooks.Open(path, **kwargs)
+    excel_app.DisplayAlerts = _display_alerts_
+    excel_app.EnableEvents  = _enable_events_
+
+    excel_application_to_foreground(excel_app, windowstate, add_workbook_if_empty=False)
 
     if reload_addins:
         reload_all_add_ins(excel_app)
 
-    kwargs['ReadOnly']    = kwargs.get('ReadOnly', False)
-    kwargs['UpdateLinks'] = kwargs.get('UpdateLinks', True)
-
-    if kwargs['ReadOnly']:
-        print(vengeance_message('(opening workbook as read-only ...)'))
-
-    _display_alerts_ = excel_app.DisplayAlerts
-
-    excel_app.DisplayAlerts = display_alerts
-    wb = excel_app.Workbooks.Open(path, **kwargs)
-    excel_app.DisplayAlerts = _display_alerts_
-
-    excel_application_to_foreground(excel_app, add_workbook_if_empty=False)
-
-    if windowstate is not None:
-        excel_app.WindowState = windowstate
-
     return wb
 
 
-def __validate_excel_application(excel_app):
+def __validate_excel_dispatch(excel_app):
     if excel_app in (None, 'new'):             excel_app = new_excel_application()
     elif excel_app == 'any':                   excel_app = any_excel_application()
     elif excel_app == 'empty':                 excel_app = empty_excel_application()
     elif not hasattr(excel_app, 'Workbooks'):
         raise ValueError("excel_app parameter must be in (None, 'new', 'any', 'empty') or an Excel application pointer")
-
-    # if reload_addins:
-    #     reload_all_add_ins(excel_app)
 
     return excel_app
 
@@ -274,7 +277,7 @@ def all_excel_instances():
 
 
 def reload_all_add_ins(excel_app):
-    print(vengeance_message('reloading Excel add-ins...'))
+    print(vengeance_message('reloading Excel add-ins'))
 
     for add_in in excel_app.AddIns:
         if add_in.Installed:
@@ -283,14 +286,14 @@ def reload_all_add_ins(excel_app):
             try:
                 add_in.Installed = False
                 add_in.Installed = True
-                print('\t   * {}'.format(name))
+                print('        * {}'.format(name))
             except (ctypes_error, pythoncom_error, NameError) as e:
-                vengeance_warning('failed to load Excel add-in: {}\n{}'.format(name, e))
+                vengeance_warning('    failed to load Excel add-in: {}, {}'.format(name, e))
 
     print()
 
 
-def excel_application_to_foreground(excel_app, add_workbook_if_empty=False):
+def excel_application_to_foreground(excel_app, windowstate=None, add_workbook_if_empty=False):
     excel_app.Visible = True
 
     # excel_app will stay invisible until a workbook is added
@@ -301,6 +304,9 @@ def excel_application_to_foreground(excel_app, add_workbook_if_empty=False):
     # make sure window is not minimized (xlMinimized has weird behavior)
     if excel_app.WindowState != xlMaximized:
         excel_app.WindowState = xlNormal
+
+    if windowstate is not None:
+        excel_app.WindowState = windowstate
 
     SetForegroundWindow(excel_app.Hwnd)
 

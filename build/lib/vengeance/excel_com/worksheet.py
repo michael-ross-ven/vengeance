@@ -193,7 +193,8 @@ def activate_worksheet(ws):
 
 def write_to_excel_range(v, excel_range):
     m = validate_matrix_within_max_worksheet_dimensions(v)
-    m = convert_python_types(m)
+    # m = convert_python_types(m)
+    m = tuple(convert_python_types(m))
 
     a_1 = excel_range.Address
     a_2 = excel_range.Resize(len(m), len(m[0])).Address
@@ -234,28 +235,32 @@ def convert_python_types(m):
             convert non-primitives to repr()
     """
     # region {closure function}
-    def convert_excel_value(row):
-        if isinstance(row, tuple):
-            row = list(row)
+    primitives = (str,
+                  int,
+                  float,
+                  bool,
+                  type(None))
 
-        for i, v in enumerate(row):
-            if v in (None, True, False):
+    def convert_excel_values_in_row(_row_):
+        _row_ = list(_row_)
+
+        for i, v in enumerate(_row_):
+            if isinstance(v, primitives):
                 _v_ = v
-            elif isinstance(v, (bool, int, float, str)):
-                _v_ = v
-            elif isinstance(v, date):
+            elif type(v) == date:
                 _v_ = datetime(v.year, v.month, v.day)
             else:
-                _v_ = repr(v)
+                _v_ = str(v)
 
-            row[i] = _v_
+            _row_[i] = _v_
 
-        return tuple(row)
+        return tuple(_row_)
     # endregion
 
-    return tuple([convert_excel_value(row) for row in m])
-    # for row in m:
-    #     yield tuple([convert_excel_value(v) for v in row])
+    # return tuple([convert_excel_values_in_row(row) for row in m])
+
+    for row in m:
+        yield tuple(convert_excel_values_in_row(row))
 
 
 def validate_matrix_within_max_worksheet_dimensions(v):
