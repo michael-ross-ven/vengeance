@@ -384,5 +384,3 @@ def is_header_row(values, headers):
 
     return value_names == header_names
 
-
-

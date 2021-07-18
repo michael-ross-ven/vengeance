@@ -527,7 +527,7 @@ class flux_cls:
 
         return self
 
-    def insert_columns(self, *names, after=False):
+    def insert_columns(self, *names):
         """ eg:
             flux.insert_columns((0,  'inserted'))        insert as first column
             flux.insert_columns((3,  'inserted'))        insert column before 4th column
@@ -538,7 +538,6 @@ class flux_cls:
                                 (1, 'inserted_c'))
 
             flux.insert_columns(('col_c', 'inserted'))               insert column before column 'col_c'
-            flux.insert_columns(('col_c', 'inserted', after=True))   insert column after column 'col_c'
 
         note on inner / outer loop performance:
             because python struggles on very tight loops,
@@ -559,22 +558,13 @@ class flux_cls:
             return self
 
         names = self.__validate_inserted_items(names, self.headers)
-
-        after = [bool(_) for _ in standardize_variable_arity_values(after, depth=1)]
-        after.extend([False] * (len(names) - len(after)))
-
         names = list(reversed(names))
-        after = list(reversed(after))
 
         header_names = self.header_names()
 
-        for item, _after_ in zip(names, after):
-            before, header = item
-
+        for before, header in names:
             if isinstance(before, int): i = before
             else:                       i = header_names.index(before)
-            if _after_:
-                i += 1
 
             header_names.insert(i, header)
 
@@ -727,40 +717,66 @@ class flux_cls:
         del self.matrix[nrows + 1:]
         return self
 
-    def join(self, other, *on_columns):
+    def join(self, other, *names):
         """
-        what if user wants another mapping method ?
-            d = iterable.map_rows(names_b)
-            d = iterable.map_rows_append(names_b)
+        eg:
+            for row_a, row_b in flux_a.join(flux_b,
+                                           {'other_name': 'name'}):
+                row_a.cost   = row_b.cost
+                row_a.weight = row_b.weight
 
-        or different rowtype?
-            d = iterable.map_rows(names_b, rowtype=namedtuple)
+            for row_a, row_b in flux_a.join(flux_b.map_rows('name', rowtype='namedtuple'),
+                                           'other_name'):
+                row_a.cost   = row_b.cost
+                row_a.weight = row_b.weight
+
+            for row_a, rows_b in flux_a.join(flux_b.map_rows_append('name'),
+                                             'other_name'):
+                for row_b in rows_b:
+                    row_a.cost   = row_b.cost
+                    row_a.weight = row_b.weight
         """
-        names = self.__validate_names_not_empty(on_columns, self.headers, depth=0)
+        _names_ = names
+
+        names = self.__validate_names_not_empty(names, self.headers, depth=0)
+        is_other_flux = isinstance(other, flux_cls)
 
         if isinstance(names, dict):
+            if not is_other_flux:
+                raise TypeError('if names submitted as a dict, other must be a flux_cls')
+
             names_a = list(names.keys())[0]
             names_b = list(names.values())[0]
-        else:
+        elif isinstance(names, tuple):
+            names_a = names[0]
+            names_b = names[-1]
+        elif isinstance(names, str):
             names_a = names
             names_b = names
+        else:
+            raise TypeError('name types must be in (dict, tuple, str)')
 
         self.__validate_all_names_intersect_with_headers(names_a, self.headers)
-
-        if isinstance(other, flux_cls):
+        if is_other_flux:
             self.__validate_all_names_intersect_with_headers(names_b, other.headers)
+
+        if is_other_flux:
             d = other.map_rows(names_b)
         elif isinstance(other, dict):
             d = other
-        else:
+        elif is_collection(other):
             d = {item: item for item in other}
+        else:
+            raise TypeError('other types must be in (flux_cls, dict or some iterable)')
 
         rva = self.row_values_accessor(names_a)
 
-        for row in self.matrix[1:]:
-            k = rva(row)
-            if k in d:
-                yield row, d[k]
+        for row_self in self.matrix[1:]:
+            row_value = rva(row_self)
+            row_other = d.get(row_value)
+
+            if row_other:
+                yield row_self, row_other
 
     def reverse(self):
         self.matrix[1:] = list(reversed(self.matrix[1:]))

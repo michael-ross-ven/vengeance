@@ -15,7 +15,6 @@ from logging import (NOTSET,
                      CRITICAL)
 
 from .. util.filesystem import parse_path
-from .. util.filesystem import parse_file_name
 from .. util.filesystem import standardize_dir
 from .. util.text import object_name
 from .. util.text import styled
@@ -30,7 +29,9 @@ class log_cls(Logger):
 
     def __init__(self, path_or_name='',
                        level='DEBUG',
-                       log_format='%(message)s',
+                       *,
+                       log_format='{levelname}: {message}',
+                       date_format=None,
                        exception_callback=None,
                        colored_statements=False):
         """
@@ -41,6 +42,7 @@ class log_cls(Logger):
             format to be applied to handlers
             eg log_format:
                 '[%(asctime)s] [%(levelname)s] %(message)s'
+                {asctime}; {levelname}; "{message}"
         :param exception_callback:
             function to be invoked when self.exception_handler() is called
             sys.excepthook is automatically set to self.exception_handler if
@@ -49,18 +51,27 @@ class log_cls(Logger):
         if (exception_callback is not None) and not callable(exception_callback):
             raise TypeError('exception_callback must be callable')
 
-        name  = parse_file_name(path_or_name)
-        level = level.upper()
+        name, path = self._parse_path_or_name(path_or_name)
 
-        super().__init__(name, level)
+        super().__init__(name,
+                         level.upper())
 
-        self.path               = self._set_path(path_or_name)
-        self.formatter          = Formatter(log_format)
-        self.exception_callback = exception_callback
-        self.exception_message  = ''
+        if '%(' in log_format:
+            style_format = '%'
+        else:
+            style_format = '{'
 
+        if date_format:
+            self.formatter = Formatter(log_format, date_format, style=style_format)
+        else:
+            self.formatter = Formatter(log_format, style=style_format)
+
+        self.path = path
         self._add_stream_handler(sys.stdout, colored_statements)
         self._add_file_handler(self.path)
+
+        self.exception_callback = exception_callback
+        self.exception_message  = ''
 
         if exception_callback:
             sys.excepthook = self.exception_handler
@@ -93,20 +104,31 @@ class log_cls(Logger):
         for h in self.handlers:
             h.setFormatter(self.formatter)
 
+    # noinspection PyProtectedMember
     def unformat(self, message):
-        # noinspection PyProtectedMember
-        lf = (self.formatter._fmt
-                  .replace('%(asctime)s', '')
-                  .replace('%(levelname)s', '')
-                  .replace('%(message)s', ''))
+
+        if self.formatter._style == '%':
+            lf = (self.formatter._fmt
+                      .replace('%(asctime)s',   '')
+                      .replace('%(levelname)s', '')
+                      .replace('%(message)s',   ''))
+        else:
+            lf = (self.formatter._fmt
+                      .replace('{asctime}',   '')
+                      .replace('{levelname}', '')
+                      .replace('{message}',   ''))
+
         return message.replace(lf, '')
 
-    def add_parent_log(self, p_log):
-        if id(p_log) == id(self):
-            raise ValueError('parent log and self are the same')
+    def add_parent_log(self, parent_log):
+        if id(parent_log) == id(self):
+            raise ValueError('parent log refers to the same object as current log')
 
-        self.parent = p_log
-        self.close_stream_handlers()
+        if isinstance(parent_log, log_cls) and parent_log.path is not None:
+            if str(parent_log.path).lower() == str(self.path).lower():
+                parent_log.close_stream_handlers()
+
+        self.parent = parent_log
 
     def close(self):
         self.close_stream_handlers()
@@ -221,20 +243,19 @@ class log_cls(Logger):
         return exception_message
 
     @staticmethod
-    def _set_path(path):
-        p_path = parse_path(path, explicit_cwd=False)
+    def _parse_path_or_name(path_or_name):
+        p_path = parse_path(path_or_name, explicit_cwd=False)
 
         directory = p_path.directory
         filename  = p_path.filename
         extension = p_path.extension
 
         if not (directory or extension):
-            return ''
+            return filename, None
 
         directory = standardize_dir(directory, explicit_cwd=True)
         if not os.path.exists(directory):
             raise FileExistsError('log directory does not exist: \n{}'.format(directory))
-            # os.makedirs(directory)
 
         if extension == '.py':
             extension = '.log'
@@ -243,7 +264,7 @@ class log_cls(Logger):
 
         path = directory + filename + extension
 
-        return path
+        return filename, path
 
     def __repr__(self):
         return 'vengeance log: {}'.format(self.name)

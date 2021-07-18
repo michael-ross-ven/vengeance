@@ -82,6 +82,9 @@ def enable_ansi_escape_in_console():
     STD_OUTPUT_HANDLE = -11
     DWMODE            = 7
     """
+    global is_utf_console
+    global is_tty_console
+
     if not is_windows_os:
         return
 
@@ -89,6 +92,9 @@ def enable_ansi_escape_in_console():
         import ctypes
         kernel32 = ctypes.windll.kernel32
         kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
+
+        is_utf_console = True
+        is_tty_console = False
     except:
         pass
 
@@ -139,7 +145,7 @@ def __locate_config_path():
 # is_pypy_interpreter     = True
 # is_windows_os           = True
 # dateutil_installed      = False
-ultrajson_installed     = False
+# ultrajson_installed     = False
 # numpy_installed         = False
 # line_profiler_installed = False
 # loads_excel_module      = False

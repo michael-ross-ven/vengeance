@@ -3,7 +3,6 @@ import gc
 import inspect
 import itertools
 import functools
-import re
 import sys
 
 from timeit import default_timer
@@ -18,6 +17,7 @@ else:              __vengeance_prefix__ = '    v: '    # 'v': chr(118)
 
 # region {ansi effect escape codes}
 __effect_end__   = '\x1b[0m'
+# ansi_end         = __effect_end__
 __effect_codes__ = {'bold':      '\x1b[1m',
                     'italic':    '\x1b[3m',
                     'underline': '\x1b[4m',
@@ -159,23 +159,12 @@ def styled(message,
            color=None,
            effect=None):
     """
-    # _message_ = (ansi_start +
-    #              _message_ +
-    #              ansi_end)
-
-    # only apply style to non-whitespace parts of message
-    _message_ = _style_non_whitespace_only(_message_,
-                                           ansi_start, ansi_end)
     """
-    if color is None:  color  = config.get('color')
-    if effect is None: effect = config.get('effect')
-
-    color  = color  or ''
-    effect = effect or ''
+    if color is None:  color  = (config.get('color') or '')
+    if effect is None: effect = (config.get('effect') or '')
 
     color  = (color.lower()
-                   .replace('_', ' ')
-                   .replace('gray', 'grey'))
+                   .replace('_', ' '))
     effect = (effect.lower()
                     .replace(' ', '')
                     .split('|'))
@@ -194,57 +183,18 @@ def styled(message,
     if not color and not effect: return message
 
     ansi_color  = __color_codes__.get(color, color)
-    ansi_effect = ''.join(__effect_codes__.get(e, e) for e in effect)
+    ansi_effect = ''.join([__effect_codes__.get(e, e) for e in effect])
 
-    ansi_start = ansi_color + ansi_effect
-    ansi_end   = __effect_end__
+    __effect_start__  = ansi_color + ansi_effect
 
     # only apply new style to any unstyled parts of message
-    _message_ = message.replace(ansi_end, ansi_end + ansi_start)
-
-    _message_ = (ansi_start +
+    _message_ = message.replace(__effect_end__,
+                                __effect_end__ + __effect_start__)
+    _message_ = (__effect_start__ +
                  _message_ +
-                 ansi_end)
-
-    # only apply style to non-whitespace parts of message
-    # _message_ = _style_non_whitespace_only(_message_,
-    #                                        ansi_start, ansi_end)
+                 __effect_end__)
 
     return _message_
-
-
-def _style_non_whitespace_only(message,
-                               ansi_start, ansi_end):
-    r"""
-    whitespace_re = re.compile(
-        r'''
-        (?P<whitespace>
-            [\\s]+
-        )
-        |
-        (?P<non_whitespace>
-            [^\\s]+
-        )
-        ''', re.X | re.I | re.DOTALL | re.UNICODE)
-    """
-    whitespace_re = re.compile(
-        r'''
-        (?P<whitespace>
-            ^[\s]+
-        )|
-        .+
-        ''', re.X | re.DOTALL)
-
-    matches = []
-    for match in whitespace_re.finditer(message):
-        s = match.group()
-        
-        if match.lastgroup == 'whitespace':
-            matches.append(s)
-        else:
-            matches.append(ansi_start + s + ansi_end)
-
-    return ''.join(matches)
 
 
 def deprecated(f=None, message='deprecated'):
