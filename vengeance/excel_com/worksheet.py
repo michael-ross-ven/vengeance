@@ -193,7 +193,6 @@ def activate_worksheet(ws):
 
 def write_to_excel_range(v, excel_range):
     m = validate_matrix_within_max_worksheet_dimensions(v)
-    # m = convert_python_types(m)
     m = tuple(convert_python_types(m))
 
     a_1 = excel_range.Address
@@ -221,8 +220,6 @@ def escape_excel_range_errors(excel_range):
     except pythoncom_error:
         pass
 
-    # m = tuple([tuple(row) for row in m])
-
     return m
 
 
@@ -235,9 +232,10 @@ def convert_python_types(m):
             convert non-primitives to repr()
     """
     # region {closure function}
-    primitives = (str,
-                  int,
+    primitives = (datetime,
+                  str,
                   float,
+                  int,
                   bool,
                   type(None))
 
@@ -256,8 +254,6 @@ def convert_python_types(m):
 
         return tuple(_row_)
     # endregion
-
-    # return tuple([convert_excel_values_in_row(row) for row in m])
 
     for row in m:
         yield tuple(convert_excel_values_in_row(row))

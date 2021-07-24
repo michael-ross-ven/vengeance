@@ -22,6 +22,7 @@ from comtypes.client.dynamic  import Dispatch     as comtypes_dispatch
 
 from win32com.client.gencache import EnsureDispatch                          # early-bound references
 
+from ..util.filesystem import parse_path
 from ..util.filesystem import standardize_path
 from ..util.filesystem import validate_path_exists
 
@@ -39,9 +40,13 @@ SetForegroundWindow        = ctypes.windll.user32.SetForegroundWindow
 AccessibleObjectFromWindow = ctypes.oledll.oleacc.AccessibleObjectFromWindow
 
 # FindWindowExA only accepts ascii strings
-xl_main_ascii = 'XLMAIN'.encode('ascii')
-xl_desk_ascii = 'XLDESK'.encode('ascii')
-excel7_ascii  = 'EXCEL7'.encode('ascii')
+# xl_main_ascii = 'XLMAIN'.encode('ascii')
+# xl_desk_ascii = 'XLDESK'.encode('ascii')
+# excel7_ascii  = 'EXCEL7'.encode('ascii')
+
+xl_main_ascii = b'XLMAIN'
+xl_desk_ascii = b'XLDESK'
+excel7_ascii  = b'EXCEL7'
 corrupt_hwnds = set()
 
 
@@ -80,26 +85,28 @@ def get_opened_workbook(path):
 
     :return captured Workbook or None
     """
-    path = standardize_path(path, explicit_cwd=False).lower()
+    p_path = parse_path(path.lower(), explicit_cwd=False)
+    name   = p_path.filename + p_path.extension
 
     workbooks = []
     for excel_app in all_excel_instances():
         for wb in excel_app.Workbooks:
-            wb_path = standardize_path(wb.FullName, explicit_cwd=False).lower()
-            wb_name = standardize_path(wb.Name, explicit_cwd=False).lower()
 
-            if path == wb_path:
+            wb_path = wb.FullName
+            wb_name = wb.Name.lower()
+
+            if (p_path.directory and os.path.samefile(path, wb_path)) or \
+               (name == wb_name):
+
                 workbooks.append(wb)
-            elif path == wb_name:
-                workbooks.append(wb)
 
-    if workbooks:
-        if len(workbooks) > 1:
-            vengeance_warning("multiple workbooks matching path: '{}' exist in different "
-                              "Excel applications... returning first match".format(path))
-        return workbooks[0]
+    if not workbooks:
+        return None
+    elif len(workbooks) > 1:
+        vengeance_warning("multiple workbooks in different Excel instances found: '{}' "
+                          .format([wb.FullName for wb in workbooks]))
 
-    return None
+    return workbooks[0]
 
 
 def is_workbook_open(path):
@@ -182,16 +189,21 @@ def __open_workbook_dispatch(path,
 
 
 def __validate_excel_dispatch(excel_app):
-    if excel_app in (None, 'new'):             excel_app = new_excel_application()
-    elif excel_app == 'any':                   excel_app = any_excel_application()
-    elif excel_app == 'empty':                 excel_app = empty_excel_application()
-    elif not hasattr(excel_app, 'Workbooks'):
+    if excel_app in (None, 'new'):   return new_excel_application()
+    elif excel_app == 'any':         return any_excel_application()
+    elif excel_app == 'empty':       return empty_excel_application()
+
+    if not hasattr(excel_app, 'Workbooks'):
         raise ValueError("excel_app parameter must be in (None, 'new', 'any', 'empty') or an Excel application pointer")
 
     return excel_app
 
 
 def new_excel_application():
+    """
+    ?
+    excel_app = comtypes_createobject('Excel.Application', dynamic=False)
+    """
     excel_app = comtypes_createobject('Excel.Application', dynamic=True)
     excel_app = __iunknown_pointer_to_python_object(excel_app, comtypes_idispatch)
     excel_app = EnsureDispatch(excel_app)
@@ -371,14 +383,17 @@ def __excel_application_from_window_handle(window_h):
 
 # noinspection PyTypeChecker, PyProtectedMember
 def __iunknown_pointer_to_python_object(com_ptr, interface):
-    function_pointer = PyDLL(pythoncom.__file__).PyCom_PyObjectFromIUnknown
+    args = (POINTER(IUnknown), c_void_p, BOOL)
 
-    function_pointer.restype  = py_object
-    function_pointer.argtypes = (POINTER(IUnknown), c_void_p, BOOL)
+    object_pointer          = PyDLL(pythoncom.__file__).PyCom_PyObjectFromIUnknown
+    object_pointer.restype  = py_object
+    object_pointer.argtypes = args
 
-    f = function_pointer(com_ptr._comobj, byref(interface._iid_), True)
+    o = object_pointer(com_ptr._comobj,
+                       byref(interface._iid_),
+                       True)
 
-    return f
+    return o
 
 
 # noinspection PyBroadException

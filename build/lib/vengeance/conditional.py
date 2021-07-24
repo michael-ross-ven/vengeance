@@ -26,13 +26,14 @@ ordereddict:
     using about half the memory of collections.OrderedDict 
 
 '''
-config = {}
+config          = {}
+__config_already_read__ = False
 
 python_version      = sys.version_info
-is_pypy_interpreter = ('__pypy__' in iter(sys.builtin_module_names))
-is_windows_os       = (os.name == 'nt')
+is_windows_os       = (os.name == 'nt') or (sys.platform == 'win32')
 is_utf_console      = ('utf' in sys.stdout.encoding.lower())
 is_tty_console      = False
+is_pypy_interpreter = ('__pypy__' in iter(sys.builtin_module_names))
 loads_excel_module  = (not is_pypy_interpreter) and is_windows_os
 
 ordereddict             = dict
@@ -100,12 +101,16 @@ def enable_ansi_escape_in_console():
 
 
 def read_config_file():
+    global config
+    global __config_already_read__
+
+    from configparser import ConfigParser
+
+    __config_already_read__ = True
+
     config_path = __locate_config_path()
     if config_path is None:
         return
-
-    global config
-    from configparser import ConfigParser
 
     cp = ConfigParser()
     cp.read(config_path)
@@ -113,11 +118,12 @@ def read_config_file():
     if cp.has_section('console'):
         cp_section = cp['console']
 
-        config.update({'color':     cp_section.get('color'),
-                       'effect':    cp_section.get('effect'),
-                       'formatter': cp_section.get('formatter')})
+        config.update({'color':              cp_section.get('color'),
+                       'effect':             cp_section.get('effect'),
+                       'formatter':          cp_section.get('formatter'),
+                       'enable_ansi_escape': cp_section.getboolean('enable_ansi_escape')})
 
-        if cp_section.getboolean('enable_ansi_escape'):
+        if config['enable_ansi_escape']:
             enable_ansi_escape_in_console()
 
     # if cp.has_section('filesystem'):
@@ -128,9 +134,10 @@ def read_config_file():
 def __locate_config_path():
     import site
 
-    config_paths = [site.getsitepackages()[1] + '\\vengeance\\config.ini']
-    if is_windows_os:
-        config_paths.append(os.environ['localappdata'] + '\\Temp\\vengeance\\config.ini')
+    config_paths = [site.getsitepackages()[1]  + '\\vengeance\\config.ini',
+                    os.environ['localappdata'] + '\\Temp\\vengeance\\config.ini']
+    if not is_windows_os:
+        del config_paths[-1]
 
     for config_path in config_paths:
         if os.path.exists(config_path):
@@ -139,7 +146,8 @@ def __locate_config_path():
     return None
 
 
-# read_config_file()
+if __config_already_read__ is False:
+    read_config_file()
 
 # is_tty_console          = (hasattr(sys.stdout, 'isatty') and sys.stdout.isatty())
 # is_pypy_interpreter     = True

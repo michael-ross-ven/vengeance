@@ -450,7 +450,10 @@ class flux_cls:
 
         return self
 
-    def execute_commands(self, commands, profiler=False, print_commands=False):
+    def execute_commands(self, commands,
+                               profiler=False,
+                               print_commands=False):
+
         command_nt = namedtuple('Command', ('name', 'method', 'args', 'kwargs'))
 
         profiler = self.__validate_profiler_function(profiler)
@@ -469,7 +472,11 @@ class flux_cls:
             kwargs = command.kwargs
 
             if print_commands:
-                s = '        {}: @{}()'.format(i, function_name(method))
+                call = []
+                if args:   call.append('*{}'.format(args))
+                if kwargs: call.append('**{}'.format(kwargs))
+
+                s = '        command {}: @{}({})'.format(i, function_name(method), ', '.join(call))
                 print(s)
 
             if profiler:

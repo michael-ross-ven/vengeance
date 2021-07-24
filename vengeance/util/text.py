@@ -12,12 +12,13 @@ from ..conditional import is_utf_console
 from ..conditional import is_tty_console
 from ..conditional import config
 
-if is_utf_console: __vengeance_prefix__ = '    ν: '    # 'ν': chr(957), nu
-else:              __vengeance_prefix__ = '    v: '    # 'v': chr(118)
+if is_utf_console:
+    __vengeance_prefix__ = '    ν: '    # 'ν': chr(957), nu
+else:
+    __vengeance_prefix__ = '    v: '    # 'v': chr(118)
 
 # region {ansi effect escape codes}
 __effect_end__   = '\x1b[0m'
-# ansi_end         = __effect_end__
 __effect_codes__ = {'bold':      '\x1b[1m',
                     'italic':    '\x1b[3m',
                     'underline': '\x1b[4m',
@@ -120,20 +121,17 @@ def print_performance(f=None, repeat=5):
                 total += elapsed
 
             average = total / repeat
+            trials  = format_header_lite(format_integer(repeat, comma_sep='_'))
 
-            trials = format_header_lite(format_integer(repeat))
-            star_best  = styled('★★★ ',     'blue')
-            star_avg   = styled('★★   ', 'blue')
-            star_worst = styled('★    ',     'blue')
-
-            s = ('@{} of {}  trials'
-                 '\n        {}best:    {}'
-                 '\n        {}average: {}'
-                 '\n        {}worst:   {}'
+            s = ('@{} of {} trials'
+                 '\n        🏆 best:     {}'
+                 '\n        ★ average:  {}'
+                 '\n        ☆ worst:    {}'
                  .format(function_name(_f_), trials,
-                         star_best,  format_seconds(best),
-                         star_avg,   format_seconds(average),
-                         star_worst, format_seconds(worst)))
+                         format_seconds(best),
+                         format_seconds(average),
+                         format_seconds(worst))
+                 )
             s = vengeance_message(s)
 
             flush_stdout()
@@ -326,9 +324,9 @@ def format_header_lite(h):
     return '⟨{}⟩'.format(h)
 
 
-def format_integer(i):
+def format_integer(i, comma_sep='_'):
     """ eg: '1_000_000' = format_integer(1000000) """
-    return '{:,}'.format(int(i)).replace(',', '_')
+    return '{:,}'.format(int(i)).replace(',', comma_sep)
 
 
 def format_seconds(s):
@@ -362,7 +360,23 @@ def format_seconds(s):
 
 
 def function_parameters(f):
-    # region {closure}
+    """
+
+    def function(something, *, also, also_1=None):
+        pass
+
+
+    Arguments(args=['something', 'also', 'also_1'],
+              varargs=None,
+              varkw=None) = inspect.getargs(function.__code__)
+
+    (something, *, also, also_1=None) = inspect.signature(function)
+
+    OrderedDict([('something',  <Parameter "something">),
+                 ('also',       <Parameter "also">),
+                 ('also_1',     <Parameter "also_1=None">)]) = list(inspect.signature(function).parameters.items())
+    """
+    # region {closure param_cls}
     class param_cls:
         __slots__ = ('name',
                      'kind',
@@ -373,10 +387,15 @@ def function_parameters(f):
             self.name    = p.name
             self.kind    = str(p.kind)
             self.default = p.default
-            self.value   = p.default
+            self.value   = None
+
+            if object_name(p.default) != '_empty':
+                self.value = p.default
 
         def __repr__(self):
-            return '{} {}'.format(self.name, self.kind)
+            return '{}={!r}  {}'.format(self.name,
+                                        self.value,
+                                        '{' + self.kind + '}')
     # endregion
 
     i_params = inspect.signature(f).parameters
@@ -386,11 +405,16 @@ def function_parameters(f):
 
 
 def function_name(f):
-    name = f.__qualname__
+    try:                   name = f.__qualname__
+    except AttributeError: name = str(f)
+
     if '.' in name:
         return name
 
-    modulename = f.__module__.split('.')[-1]
+    try:                   modulename = f.__module__
+    except AttributeError: modulename = str(f)
+
+    modulename = modulename.split('.')[-1]
     return '{}.{}'.format(modulename, name)
 
 

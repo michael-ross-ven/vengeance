@@ -15,7 +15,6 @@ from logging import (NOTSET,
                      CRITICAL)
 
 from .. util.filesystem import parse_path
-from .. util.filesystem import standardize_dir
 from .. util.text import object_name
 from .. util.text import styled
 
@@ -23,21 +22,37 @@ from .. conditional import is_utf_console
 from .. conditional import is_tty_console
 
 
+'''
+log_format='[{levelname}] [{asctime}] {message}',
+log_format='[{asctime}] [{levelname}] [{threadName}] [{process}] {message}',
+log_format='[{asctime}.{msecs:.4f}] [{levelname}] [{threadName}] [{process}] {message}'
+
+date_format='%Y-%m-%d %I:%M:%S %p',
+'''
+
+
 class log_cls(Logger):
     banner_character = '*'
     banner_width     = None
 
-    def __init__(self, path_or_name='',
+    levels = {'notset':   NOTSET,
+              'debug':    DEBUG,
+              'info':     INFO,
+              'warning':  WARNING,
+              'error':    ERROR,
+              'critical': CRITICAL}
+
+    def __init__(self, name_or_path='',
                        level='DEBUG',
                        *,
-                       log_format='{levelname}: {message}',
+                       log_format='[{asctime}] [{levelname}] {message}',
                        date_format=None,
                        exception_callback=None,
                        colored_statements=False):
         """
-        :param path_or_name:
+        :param name_or_path:
             parsed to determine name of logger
-            if path_or_name includes directory or file extension, a file handler is added
+            if name_or_path includes directory or file extension, a file handler is added
         :param log_format:
             format to be applied to handlers
             eg log_format:
@@ -51,24 +66,19 @@ class log_cls(Logger):
         if (exception_callback is not None) and not callable(exception_callback):
             raise TypeError('exception_callback must be callable')
 
-        name, path = self._parse_path_or_name(path_or_name)
+        (name,
+         path) = self.parse_name_or_path(name_or_path)
 
-        super().__init__(name,
-                         level.upper())
+        if isinstance(level, str):
+            level = level.upper()
 
-        if '%(' in log_format:
-            style_format = '%'
-        else:
-            style_format = '{'
+        super().__init__(name, level)
 
-        if date_format:
-            self.formatter = Formatter(log_format, date_format, style=style_format)
-        else:
-            self.formatter = Formatter(log_format, style=style_format)
+        self.formatter = None
 
-        self.path = path
-        self._add_stream_handler(sys.stdout, colored_statements)
-        self._add_file_handler(self.path)
+        self.set_formatter(log_format, date_format)
+        self.add_stream_handler(sys.stdout, self.level, colored_statements)
+        self.add_file_handler(path, self.level)
 
         self.exception_callback = exception_callback
         self.exception_message  = ''
@@ -95,12 +105,29 @@ class log_cls(Logger):
         return handlers
 
     @property
-    def log_format(self):
-        # noinspection PyProtectedMember
+    def paths(self):
+        p = []
+        for h in self.file_handlers:
+            p.append(h.baseFilename)
+
+        return p
+
+    # noinspection PyProtectedMember
+    @property
+    def message_format(self):
         return self.formatter._fmt
 
-    def set_format(self, log_format):
-        self.formatter = Formatter(log_format)
+    def set_formatter(self, log_format, date_format):
+        if '%(' in log_format:
+            style_format = '%'
+        else:
+            style_format = '{'
+
+        if date_format:
+            self.formatter = Formatter(log_format, date_format, style=style_format)
+        else:
+            self.formatter = Formatter(log_format, style=style_format)
+
         for h in self.handlers:
             h.setFormatter(self.formatter)
 
@@ -121,12 +148,9 @@ class log_cls(Logger):
         return message.replace(lf, '')
 
     def add_parent_log(self, parent_log):
+        """ if trying to write to same paths?? """
         if id(parent_log) == id(self):
             raise ValueError('parent log refers to the same object as current log')
-
-        if isinstance(parent_log, log_cls) and parent_log.path is not None:
-            if str(parent_log.path).lower() == str(self.path).lower():
-                parent_log.close_stream_handlers()
 
         self.parent = parent_log
 
@@ -144,7 +168,10 @@ class log_cls(Logger):
             h.close()
             self.removeHandler(h)
 
-    def _add_stream_handler(self, stream, colored_statements):
+    def add_stream_handler(self, stream, level, colored_statements: bool):
+        if isinstance(level, str):
+            level = level.upper()
+
         if not colored_statements:
             h = StreamHandler(stream)
         elif not is_utf_console:
@@ -154,17 +181,22 @@ class log_cls(Logger):
         else:
             h = colored_streamhandler_cls(stream)
 
-        h.setLevel(self.level)
+        h.setLevel(level)
         h.setFormatter(self.formatter)
         self.addHandler(h)
 
-    def _add_file_handler(self, path):
+    def add_file_handler(self, path, level, mode='w'):
+        _, path = self.parse_name_or_path(path)
+
         if not path:
             return
 
-        h = FileHandler(path, mode='w', encoding='utf-8')
+        if isinstance(level, str):
+            level = level.upper()
 
-        h.setLevel(self.level)
+        h = FileHandler(path, mode=mode, encoding='utf-8')
+
+        h.setLevel(level)
         h.setFormatter(self.formatter)
         self.addHandler(h)
 
@@ -243,8 +275,8 @@ class log_cls(Logger):
         return exception_message
 
     @staticmethod
-    def _parse_path_or_name(path_or_name):
-        p_path = parse_path(path_or_name, explicit_cwd=False)
+    def parse_name_or_path(name_or_path):
+        p_path = parse_path(name_or_path, explicit_cwd=False)
 
         directory = p_path.directory
         filename  = p_path.filename
@@ -253,7 +285,6 @@ class log_cls(Logger):
         if not (directory or extension):
             return filename, None
 
-        directory = standardize_dir(directory, explicit_cwd=True)
         if not os.path.exists(directory):
             raise FileExistsError('log directory does not exist: \n{}'.format(directory))
 
@@ -300,4 +331,3 @@ class colored_streamhandler_cls(StreamHandler):
             raise
         except Exception:
             self.handleError(record)
-

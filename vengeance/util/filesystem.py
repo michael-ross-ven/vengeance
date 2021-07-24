@@ -2,25 +2,22 @@
 import csv
 import gc
 import os
+import pickle
 import pprint
-import re
 import shutil
 
-from functools import lru_cache
 from collections import namedtuple
 from datetime import date
 from datetime import datetime
 from glob import glob
 from io import StringIO
+from os.path import isdir  as os_isdir
+from os.path import isfile as os_isfile
 from urllib.parse import urlparse
 from urllib.request import urlopen
 
+from ..conditional import is_windows_os
 from ..conditional import ultrajson_installed
-
-try:
-    import _pickle as cpickle
-except ImportError:
-    import pickle as cpickle
 
 if ultrajson_installed:
     # noinspection PyUnresolvedReferences
@@ -40,7 +37,7 @@ def read_file(path,
               **kwargs):
 
     path, encoding, filetype, mode, kwargs = \
-          __validate_io_arguments(path, encoding, mode, filetype, kwargs, 'read')
+     __validate_io_arguments(path, encoding, mode, filetype, kwargs, 'read')
 
     is_bytes_mode  = ('b' in mode)
     is_url         = is_path_a_url(path)
@@ -56,7 +53,7 @@ def read_file(path,
 
     elif filetype in pickle_extensions:
         with open(path, mode) as f:
-            data = cpickle.load(f, **kwargs)
+            data = pickle.load(f, **kwargs)
 
     elif is_url:
         data = __url_request(path, encoding=encoding)
@@ -84,7 +81,7 @@ def write_file(path,
                **kwargs):
 
     path, encoding, filetype, mode, kwargs = \
-          __validate_io_arguments(path, encoding, mode, filetype, kwargs, 'write')
+     __validate_io_arguments(path, encoding, mode, filetype, kwargs, 'write')
 
     is_bytes_mode  = ('b' in mode)
     was_gc_enabled = gc.isenabled()
@@ -102,7 +99,7 @@ def write_file(path,
 
     elif filetype in pickle_extensions:
         with open(path, mode) as f:
-            cpickle.dump(data, f, **kwargs)
+            pickle.dump(data, f, **kwargs)
 
     elif is_bytes_mode:
         with open(path, mode) as f:
@@ -329,12 +326,6 @@ def __url_request(url, encoding=None):
             return byte_string
 
 
-@lru_cache(maxsize=2**6)
-def is_path_a_url(path):
-    u = urlparse(str(path)).netloc
-    return bool(u)
-
-
 def json_dumps_extended(o, **kwargs):
     kwargs['ensure_ascii'] = kwargs.get('ensure_ascii', False)
     kwargs['indent']       = kwargs.get('indent', 4)
@@ -366,13 +357,13 @@ def clear_dir(filedir):
     if not os.path.exists(filedir):
         return
 
-    if not os.path.isdir(filedir):
+    if not os_isdir(filedir):
         raise TypeError('"{}" is not a directory'.format(filedir))
 
     for item in os.listdir(filedir):
         path = filedir + item
 
-        if os.path.isdir(path):
+        if os_isdir(path):
             shutil.rmtree(path)
         else:
             os.remove(path)
@@ -413,6 +404,12 @@ def file_modified_datetime(path):
     return datetime.fromtimestamp(unix_t)
 
 
+# @lru_cache(2**16)
+def is_path_a_url(path):
+    u = urlparse(str(path)).netloc
+    return bool(u)
+
+
 def parse_path(path,
                pathsep='/',
                explicit_cwd=False):
@@ -420,21 +417,12 @@ def parse_path(path,
     ParsedPath = namedtuple('ParsedPath', ('directory',
                                            'filename',
                                            'extension'))
-    path = str(path)
-    if is_path_a_url(path):
-        return ParsedPath(path, '', '')
 
-    path = (path.replace('"', '')
-                .replace("'", ''))
-    if os.path.isdir(path):
-        filedir   = path
-        filename  = ''
-        extension = ''
-    else:
-        filedir,  filename  = os.path.split(path)
-        filename, extension = os.path.splitext(filename)
+    _path_ = path
+    _path_ = standardize_path(_path_, pathsep, explicit_cwd)
 
-    filedir = standardize_dir(filedir, pathsep, explicit_cwd)
+    filedir,  filename  = os.path.split(_path_)
+    filename, extension = os.path.splitext(filename)
 
     return ParsedPath(filedir, filename, extension)
 
@@ -457,62 +445,76 @@ def standardize_path(path,
                      pathsep='/',
                      explicit_cwd=False):
 
-    p_path = parse_path(path, pathsep, explicit_cwd)
-    p_path = ''.join(p_path)
+    _path_ = path
 
-    return p_path
+    if not _path_:
+        return ''
+
+    if (not explicit_cwd) and (not os.path.isabs(path)):
+        _path_ = os.path.relpath(_path_)
+    else:
+        _path_ = os.path.realpath(_path_)
+
+    if pathsep == '/':
+        _path_ = _path_.replace('\\', '/')
+    else:
+        _path_ = _path_.replace('/', '\\')
+
+    if os_isdir(_path_):
+        if _path_ and (not _path_.endswith(pathsep)):
+            _path_ += pathsep
+
+    return _path_
 
 
 def standardize_dir(filedir,
                     pathsep='/',
                     explicit_cwd=False):
 
-    """
-    re_pathsep_replace:
-        needed because backslash interferes with group escape: r'\1'
-        re.error: bad escape (end of pattern) at position 0
-    """
+    return standardize_path(filedir, pathsep, explicit_cwd)
 
-    # region {regular expressions}
-    if pathsep == '\\':
-        re_pathsep_replace = r'\\'
+
+def traverse_dir(rootdir='.',
+                 pathsep='/',
+                 explicit_cwd=True,
+                 *,
+                 recurse=False,
+                 subdirs_only=False,
+                 files_only=False):
+
+    if not is_windows_os:
+        raise NotImplementedError('only available on windows OS')
+
+    if (subdirs_only is False) and (files_only is False):
+        subdirs_only = True
+        files_only   = True
+
+    rootdir = standardize_dir(rootdir, pathsep, explicit_cwd)
+
+    if recurse:
+        args = 'dir /b /s "{}"'.format(rootdir)
     else:
-        re_pathsep_replace = pathsep
+        args = 'dir /b "{}"'.format(rootdir)
 
-    re_pathsep_sub   = re.compile(r'[/\\]+')
-    re_explicit_path = re.compile(r'^([a-z][:][/\\]|[/\\][/\\])', re.I)
-    re_driveletter   = re.compile(r'^[a-z][:][/\\]')
-    # endregion
+    with os.popen(args) as os_cmd:
+        out = os_cmd.read()
+        out = out.split('\n')
+        out.sort()
 
-    # region {closure}
-    def clean(s):
-        s = (s.replace('"', '')
-              .replace("'", ''))
-        s = re_pathsep_sub.sub(re_pathsep_replace, s)
+    if out and out[0] == '':
+        del out[0]
 
-        if s and (not s.endswith(pathsep)):
-            s += pathsep
+    if recurse is False:
+        out = [rootdir + p for p in out]
 
-        return s
-    # endregion
-
-    filedir = str(filedir)
-    if is_path_a_url(filedir):
-        return filedir
-
-    _filedir_ = clean(filedir)
-
-    if explicit_cwd:
-        if not re_explicit_path.search(_filedir_):
-            _filedir_ = clean(os.getcwd()) + _filedir_
-
-    if re_driveletter.search(_filedir_):
-        _filedir_ = _filedir_[0].upper() + _filedir_[1:]
-
-    # if _filedir_ and (not _filedir_.endswith(pathsep)):
-    #     _filedir_ += pathsep
-
-    return _filedir_
+    if subdirs_only and files_only:
+        return out
+    elif subdirs_only:
+        return [path for path in out
+                     if os_isdir(path)]
+    elif files_only:
+        return [path for path in out
+                     if os_isfile(path)]
 
 
 def validate_path_exists(path):
@@ -521,10 +523,10 @@ def validate_path_exists(path):
      filename,
      extension) = parse_path(path, explicit_cwd=True)
 
+    path = filedir + filename + extension
+
     if not os.path.exists(filedir):
         raise FileNotFoundError('directory not found: \n\t{}'.format(filedir))
-
-    path = filedir + filename + extension
 
     if not os.path.exists(path):
         glob_paths = glob(filedir + filename + '.*')
@@ -541,7 +543,3 @@ def validate_path_exists(path):
                                 '\n\t{}'.format(filedir, filename + extension))
 
     return path
-
-
-
-
