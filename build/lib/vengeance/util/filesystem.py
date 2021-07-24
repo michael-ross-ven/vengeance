@@ -447,12 +447,14 @@ def standardize_path(path,
                      pathsep='/',
                      explicit_cwd=False):
 
-    _path_ = path
+    _path_ = path or ''
+    _path_ = _path_.replace('"', '') \
+                   .replace("'", '/')
 
-    if not _path_:
+    if not _path_ and (not explicit_cwd):
         return ''
 
-    if (not explicit_cwd) and (not os.path.isabs(path)):
+    if (not explicit_cwd) and (not os.path.isabs(_path_)):
         _path_ = os.path.relpath(_path_)
     else:
         _path_ = os.path.realpath(_path_)
@@ -462,8 +464,8 @@ def standardize_path(path,
     else:
         _path_ = _path_.replace('/', '\\')
 
-    if os_isdir(_path_):
-        if _path_ and (not _path_.endswith(pathsep)):
+    if _path_ and os_isdir(_path_):
+        if not _path_.endswith(pathsep):
             _path_ += pathsep
 
     return _path_
@@ -473,7 +475,14 @@ def standardize_dir(filedir,
                     pathsep='/',
                     explicit_cwd=False):
 
-    return standardize_path(filedir, pathsep, explicit_cwd)
+    _filedir_ = filedir or ''
+    _filedir_ = _filedir_.replace('"', '') \
+                         .replace("'", '/')
+
+    if not _filedir_ and (not explicit_cwd):
+        return ''
+
+    return standardize_path(_filedir_, pathsep, explicit_cwd)
 
 
 def traverse_dir(rootdir='.',

@@ -9,7 +9,6 @@ from timeit import default_timer
 from time import sleep
 
 from ..conditional import is_utf_console
-from ..conditional import is_tty_console
 from ..conditional import config
 
 if is_utf_console:
@@ -177,11 +176,10 @@ def styled(message,
                 raise KeyError('styled: invalid effect: {}'.format(e))
 
     if not is_utf_console:       return message
-    if is_tty_console:           return message
     if not color and not effect: return message
 
     ansi_color  = __color_codes__.get(color, color)
-    ansi_effect = ''.join([__effect_codes__.get(e, e) for e in effect])
+    ansi_effect = ''.join(__effect_codes__.get(e, e) for e in effect)
 
     __effect_start__  = ansi_color + ansi_effect
 

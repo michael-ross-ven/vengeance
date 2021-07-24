@@ -27,13 +27,12 @@ ordereddict:
 
 '''
 config          = {}
-__config_already_read__ = False
+config_already_read = False
 
 python_version      = sys.version_info
 is_windows_os       = (os.name == 'nt') or (sys.platform == 'win32')
 is_utf_console      = ('utf' in sys.stdout.encoding.lower())
-is_tty_console      = False
-is_pypy_interpreter = ('__pypy__' in iter(sys.builtin_module_names))
+is_pypy_interpreter = ('__pypy__' in sys.builtin_module_names)
 loads_excel_module  = (not is_pypy_interpreter) and is_windows_os
 
 ordereddict             = dict
@@ -80,33 +79,42 @@ def enable_ansi_escape_in_console():
     how to effectively check if console supports ansi escapes?
         ansi escape shows up as '←' in python.exe console
 
+    # os.popen('chcp 65001')
+
+    import codecs
+    import locale
+    a = codecs.getwriter(locale.getpreferredencoding())(sys.stdout)
+
     STD_OUTPUT_HANDLE = -11
     DWMODE            = 7
     """
     global is_utf_console
-    global is_tty_console
 
     if not is_windows_os:
         return
 
     try:
         import ctypes
-        kernel32 = ctypes.windll.kernel32
-        kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
+
+        SetConsoleMode    = ctypes.windll.kernel32.SetConsoleMode
+        GetStdHandle      = ctypes.windll.kernel32.GetStdHandle
+        STD_OUTPUT_HANDLE = -11
+        DWMODE            = 7
+
+        SetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), DWMODE)
 
         is_utf_console = True
-        is_tty_console = False
+        # is_utf_console =('utf' in sys.stdout.encoding.lower())
     except:
         pass
 
 
 def read_config_file():
     global config
-    global __config_already_read__
-
+    global config_already_read
     from configparser import ConfigParser
 
-    __config_already_read__ = True
+    config_already_read = True
 
     config_path = __locate_config_path()
     if config_path is None:
@@ -125,6 +133,8 @@ def read_config_file():
 
         if config['enable_ansi_escape']:
             enable_ansi_escape_in_console()
+
+    # sys.getfilesystemencoding()
 
     # if cp.has_section('filesystem'):
     #     cp_section = cp['filesystem']
@@ -146,10 +156,9 @@ def __locate_config_path():
     return None
 
 
-if __config_already_read__ is False:
+if config_already_read is False:
     read_config_file()
 
-# is_tty_console          = (hasattr(sys.stdout, 'isatty') and sys.stdout.isatty())
 # is_pypy_interpreter     = True
 # is_windows_os           = True
 # dateutil_installed      = False

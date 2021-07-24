@@ -19,7 +19,6 @@ from .. util.text import object_name
 from .. util.text import styled
 
 from .. conditional import is_utf_console
-from .. conditional import is_tty_console
 
 
 '''
@@ -175,8 +174,6 @@ class log_cls(Logger):
         if not colored_statements:
             h = StreamHandler(stream)
         elif not is_utf_console:
-            h = StreamHandler(stream)
-        elif is_tty_console:
             h = StreamHandler(stream)
         else:
             h = colored_streamhandler_cls(stream)

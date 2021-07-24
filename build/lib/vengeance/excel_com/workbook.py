@@ -40,12 +40,15 @@ from .excel_constants import (xlMaximized,
 FindWindowExA              = ctypes.windll.user32.FindWindowExA
 SetForegroundWindow        = ctypes.windll.user32.SetForegroundWindow
 AccessibleObjectFromWindow = ctypes.oledll.oleacc.AccessibleObjectFromWindow
+OpenProcess                = ctypes.windll.kernel32.OpenProcess
+TerminateProcess           = ctypes.windll.kernel32.TerminateProcess
+CloseHandle                = ctypes.windll.kernel32.CloseHandle
 
-# FindWindowExA only accepts byte strings
-xl_main_ascii = b'XLMAIN'
-xl_desk_ascii = b'XLDESK'
-excel7_ascii  = b'EXCEL7'
 corrupt_hwnds = set()
+
+NATIVE_OM         = -16
+WM_CLOSE          = 16
+PROCESS_TERMINATE = 1
 
 
 def open_workbook(path,
@@ -112,54 +115,54 @@ def is_workbook_open(path):
     return wb is not None
 
 
-# noinspection PyUnusedLocal
 def close_workbook(wb, save):
     """
     provides a few conveniences that the client may not want to deal with
         1) if Workbook is the only one in the Excel application, closes the application as well
         2) correctly releases the com pointer for the workbook
     """
-    import win32process
     import win32gui
-    import win32api
-    import win32con
+    import win32process
+
+    # from win32gui import PostMessage
+    # from win32api import OpenProcess
+    # from win32api import TerminateProcess
+    # from win32api import CloseHandle
+    # GetWindowThreadProcessId   = ctypes.windll.user32.GetWindowThreadProcessId
 
     if save and wb.ReadOnly:
         raise AssertionError("'{}' is open as read-only, cannot save and close".format(wb.Name))
 
-    excel_app = wb.Application
-    _display_alerts_ = excel_app.DisplayAlerts
+    excel_app      = wb.Application
+    window_h       = excel_app.Hwnd
+    display_alerts = excel_app.DisplayAlerts
 
     excel_app.DisplayAlerts = False
     wb.Close(save)
-    excel_app.DisplayAlerts = _display_alerts_
-
-    wb = None
-    del wb
+    excel_app.DisplayAlerts = display_alerts
 
     __close_blank_workbooks(excel_app)
 
     if __is_excel_application_empty(excel_app):
         excel_app.Quit()
+        sleep(1)
 
-        hwnd = excel_app.Hwnd
-        _, pid = win32process.GetWindowThreadProcessId(hwnd)
-        win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
-
-        excel_app = None
-        del excel_app
-
-        sleep(3)
-
-        gc.collect()
+        tid, pid = win32process.GetWindowThreadProcessId(window_h)
+        win32gui.PostMessage(window_h, WM_CLOSE, 0, 0)
+        sleep(1)
 
         try:
-            handle = win32api.OpenProcess(win32con.PROCESS_TERMINATE, 0, pid)
-            if handle:
-                win32api.TerminateProcess(handle, 0)
-                win32api.CloseHandle(handle)
+            hid = OpenProcess(PROCESS_TERMINATE, 0, pid)
+            if hid:
+                TerminateProcess(hid, 0)
+                CloseHandle(hid)
+                sleep(1)
+
         except Exception:
             pass
+
+    del excel_app
+    del wb
 
     gc.collect()
 
@@ -343,7 +346,7 @@ def excel_application_to_foreground(excel_app, windowstate=None, add_workbook_if
 
 
 def __next_window_handle(window_h=0):
-    return FindWindowExA(0, window_h, xl_main_ascii, None)
+    return FindWindowExA(0, window_h, b'XLMAIN', 0)
 
 
 # noinspection PyTypeChecker,PyProtectedMember,PyUnresolvedReferences
@@ -363,17 +366,16 @@ def __excel_application_from_window_handle(window_h):
     if window_h in corrupt_hwnds:
         return None
 
-    xl_desk_hwnd = FindWindowExA(window_h,     None, xl_desk_ascii, None)
-    excel7_hwnd  = FindWindowExA(xl_desk_hwnd, None, excel7_ascii,  None)
+    xl_desk_hwnd = FindWindowExA(window_h,     0, b'XLDESK', 0)
+    excel7_hwnd  = FindWindowExA(xl_desk_hwnd, 0, b'EXCEL7',  0)
 
     if excel7_hwnd == 0:
         corrupt_hwnds.add(window_h)
         return None
 
-    obj_ptr   = POINTER(comtypes_idispatch)()
-    native_om = -16
+    obj_ptr = POINTER(comtypes_idispatch)()
     AccessibleObjectFromWindow(excel7_hwnd,
-                               native_om,
+                               NATIVE_OM,
                                byref(obj_ptr._iid_),
                                byref(obj_ptr))
 
