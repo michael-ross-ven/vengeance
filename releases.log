@@ -1,5 +1,14 @@
 
-2021-07-17
+
+2021-07-23
+$release 56
+    version 1.1.19
+
+    correction to bug in excel_com.workbook
+
+
+
+2021-07-23
 $release 55
     version 1.1.18
 

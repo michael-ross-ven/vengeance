@@ -424,6 +424,8 @@ def parse_path(path,
     filedir,  filename  = os.path.split(_path_)
     filename, extension = os.path.splitext(filename)
 
+    filedir = standardize_dir(filedir, pathsep, explicit_cwd)
+
     return ParsedPath(filedir, filename, extension)
 
 
@@ -519,27 +521,26 @@ def traverse_dir(rootdir='.',
 
 def validate_path_exists(path):
 
-    (filedir,
-     filename,
-     extension) = parse_path(path, explicit_cwd=True)
+    p_path = parse_path(path, explicit_cwd=True)
+    path   = ''.join(p_path)
 
-    path = filedir + filename + extension
-
-    if not os.path.exists(filedir):
-        raise FileNotFoundError('directory not found: \n\t{}'.format(filedir))
+    if not os.path.exists(p_path.directory):
+        raise FileNotFoundError('directory not found: \n\t{}'.format(p_path.directory))
 
     if not os.path.exists(path):
-        glob_paths = glob(filedir + filename + '.*')
+        glob_paths = glob(p_path.directory + p_path.filename + '.*')
         if glob_paths:
-
             extension = parse_file_extension(os.path.split(glob_paths[0])[1], include_dot=True)
             raise FileNotFoundError('file extension not found: '
                                     '\n\t{}'
                                     '\n\t{}'
-                                    '\n\tdid you mean: {}?'.format(filedir, filename, extension))
+                                    '\n\tdid you mean: {}?'.format(p_path.directory,
+                                                                   p_path.filename,
+                                                                   extension))
 
         raise FileNotFoundError('file not found: '
                                 '\n\t{}'
-                                '\n\t{}'.format(filedir, filename + extension))
+                                '\n\t{}'.format(p_path.directory,
+                                                p_path.filename + p_path.extension))
 
     return path

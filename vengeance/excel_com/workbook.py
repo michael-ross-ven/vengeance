@@ -20,6 +20,8 @@ from comtypes.client          import CreateObject as comtypes_createobject
 from comtypes.automation      import IDispatch    as comtypes_idispatch
 from comtypes.client.dynamic  import Dispatch     as comtypes_dispatch
 
+from time import sleep
+
 from win32com.client.gencache import EnsureDispatch                          # early-bound references
 
 from ..util.filesystem import parse_path
@@ -39,11 +41,7 @@ FindWindowExA              = ctypes.windll.user32.FindWindowExA
 SetForegroundWindow        = ctypes.windll.user32.SetForegroundWindow
 AccessibleObjectFromWindow = ctypes.oledll.oleacc.AccessibleObjectFromWindow
 
-# FindWindowExA only accepts ascii strings
-# xl_main_ascii = 'XLMAIN'.encode('ascii')
-# xl_desk_ascii = 'XLDESK'.encode('ascii')
-# excel7_ascii  = 'EXCEL7'.encode('ascii')
-
+# FindWindowExA only accepts byte strings
 xl_main_ascii = b'XLMAIN'
 xl_desk_ascii = b'XLDESK'
 excel7_ascii  = b'EXCEL7'
@@ -121,6 +119,11 @@ def close_workbook(wb, save):
         1) if Workbook is the only one in the Excel application, closes the application as well
         2) correctly releases the com pointer for the workbook
     """
+    import win32process
+    import win32gui
+    import win32api
+    import win32con
+
     if save and wb.ReadOnly:
         raise AssertionError("'{}' is open as read-only, cannot save and close".format(wb.Name))
 
@@ -139,8 +142,24 @@ def close_workbook(wb, save):
     if __is_excel_application_empty(excel_app):
         excel_app.Quit()
 
+        hwnd = excel_app.Hwnd
+        _, pid = win32process.GetWindowThreadProcessId(hwnd)
+        win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
+
         excel_app = None
         del excel_app
+
+        sleep(3)
+
+        gc.collect()
+
+        try:
+            handle = win32api.OpenProcess(win32con.PROCESS_TERMINATE, 0, pid)
+            if handle:
+                win32api.TerminateProcess(handle, 0)
+                win32api.CloseHandle(handle)
+        except Exception:
+            pass
 
     gc.collect()
 
