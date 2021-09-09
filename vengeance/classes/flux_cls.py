@@ -40,8 +40,8 @@ from ..util.iter import to_grouped_dict
 from ..util.text import print_runtime
 from ..util.text import deprecated
 from ..util.text import object_name
-from ..util.text import format_header
-from ..util.text import format_header_lite
+from ..util.text import surround_double_brackets
+from ..util.text import surround_single_brackets
 from ..util.text import format_integer
 from ..util.text import function_parameters
 from ..util.text import function_name
@@ -81,11 +81,12 @@ class flux_cls:
         flux.to_csv('file.csv')
         flux = flux_cls.from_csv('file.csv')
     """
-
-    # as_array_preview_indices
+    # row indices for as_preview_array property
     aap_indices = [1, 5 + 1]
 
     def __init__(self, matrix=None):
+        """ """
+        ''' @types '''
         self.headers: Dict[Union[str, bytes], int]
         self.matrix:  List[flux_row_cls]
 
@@ -103,101 +104,47 @@ class flux_cls:
 
     @property
     def num_cols(self):
-        return len(self.matrix[0].values)
+        return len(self.matrix[0])
 
     @property
     def num_rows(self):
         """ header row is not included, compare to self.__len__ """
         return len(self.matrix) - 1
 
+    def __len__(self):
+        """ header row is included, see self.num_rows """
+        return len(self.matrix)
+
     @property
-    def as_array_preview(self):
-        """
-        to help with debugging: meant to trigger a debugging feature in PyCharm
+    def as_preview(self):
+        """ to help with debugging """
+        r_1 = self.aap_indices[0]
+        r_2 = self.aap_indices[1]
+
+        m = self.__validate_preview_matrix(r_1, r_2)
+        n = m.pop(0)
+        m = [list(zip(n, row)) for row in m]
+
+        return m
+
+    @property
+    def as_preview_array(self):
+        """ to help with debugging
+
         PyCharm will recognize the numpy array and enable the "...view as array"
         option in the debugger which displays values in a special window as a table
-
-        self.aap_indices are class attributes
         """
-        return self.as_array(self.aap_indices[0], self.aap_indices[1])
+        r_1 = self.aap_indices[0]
+        r_2 = self.aap_indices[1]
 
-    def as_array(self, r_1=1, r_2=None):
-        """
-        to help with debugging: meant to trigger a debugging feature in PyCharm
-        PyCharm will recognize the numpy array and enable the "...view as array"
-        option in the debugger which displays values in a special window as a table
-        """
-        # region {closure functions}
-        def start_row_index(r):
-            if r is None:
-                return 1
-            elif r < 0:
-                return len(self.matrix) + r
-            else:
-                return r
-
-        def stop_row_index(r):
-            if r is None:
-                return len(self.matrix)
-            elif r < 0:
-                return len(self.matrix) + r
-            else:
-                return r
-
-        def format_row_index(i):
-            i = format_integer(i)
-            i = format_header_lite(i)
-
-            return i
-        # endregion
-
-        r_1 = max(start_row_index(r_1), 1)
-        r_2 = min(stop_row_index(r_2), len(self.matrix))
-        if r_1 > r_2:
-            r_1, r_2 = r_2, r_1
-
-        n_c  = self.num_cols
-        rows = self.matrix[r_1:r_2]
-        if rows:
-            c_m = max(n_c, *[len(row.values) for row in rows])
-            has_label = ('r_i' in rows[0].__dict__)
+        m = self.__validate_preview_matrix(r_1, r_2)
+        
+        if numpy_installed:
+            return numpy.array(m, dtype=object)
         else:
-            c_m = n_c
-            has_label = False
-
-        is_jagged = (c_m != n_c)
-
-        h_i = format_header_lite('address')
-        h_v = [format_header(n) for n in self.header_names()]
-        h_j = ['🗲'] * (c_m - len(h_v))
-
-        if has_label:
-            h_v.insert(0, format_header_lite('r_i'))
-            c_m += 1
-
-        m = [[h_i, *h_v, *h_j]]
-        for r_i, row in enumerate(rows, r_1):
-            r_i = format_row_index(r_i)
-
-            if has_label:
-                r_v = [format_row_index(row.__dict__.get('r_i', -1)),
-                       *row.values]
-            else:
-                r_v = row.values
-
-            if is_jagged:
-                r_j = ['🗲jagged🗲'] * (c_m - len(r_v))
-                m.append([r_i, *r_v, *r_j])
-            else:
-                m.append([r_i, *r_v])
-
-        if not numpy_installed:
-            m = '\n'.join([str(row) for row in m])
             return m
 
-        return numpy.array(m, dtype=object)
-
-    def header_names(self):
+    def header_names(self) -> List:
         """
         self.matrix[0].values and self.headers.keys may not always be identical
             map_values_to_enum() makes certain modifications to self.headers.keys,
@@ -207,7 +154,7 @@ class flux_cls:
 
     def is_empty(self) -> bool:
         for row in self.matrix:
-            if row.values:
+            if row:
                 return False
 
         return True
@@ -217,14 +164,17 @@ class flux_cls:
         if row.values share pointers to the same underlying list,
         this will usually cause unwanted behaviors to any modifications of row.values
         """
-        row_ids = set()
+        rids = set()
 
         for row in self.matrix:
-            row_id = id(row.values)
-            if row_id in row_ids:
+            if not hasattr(row, 'values'):
+                continue
+
+            rid = id(row.values)
+            if rid in rids:
                 return True
 
-            row_ids.add(row_id)
+            rids.add(rid)
 
         return False
 
@@ -233,33 +183,38 @@ class flux_cls:
 
         d = ordereddict()
         for i, row in enumerate(self.matrix):
-            row_id = id(row.values)
-            row    = enumrow_nt(i, row)
+            if not hasattr(row, 'values'):
+                continue
 
-            if row_id in d:
-                d[row_id].append(row)
+            rid = id(row.values)
+            row = enumrow_nt(i, row)
+
+            if rid in d:
+                d[rid].append(row)
             else:
-                d[row_id] = [row]
+                d[rid] = [row]
 
-        d = ordereddict([('\\x{:x}'.format(row_id), rows) for row_id, rows in d.items()
-                                                          if len(rows) > 1])
+        d = [('\\x{:x}'.format(rid), rows) for rid, rows in d.items()
+                                           if len(rows) > 1]
+        d = ordereddict(d)
+
         return d
 
     def is_jagged(self) -> bool:
-        num_cols = len(self.headers)
+        num_cols = self.num_cols
 
         for row in self.matrix:
-            if len(row.values) != num_cols:
+            if len(row) != num_cols:
                 return True
 
         return False
 
     def jagged_rows(self) -> Generator[namedtuple, None, None]:
         enumrow_nt = namedtuple('EnumRow', ('i', 'row'))
+        num_cols   = self.num_cols
 
-        num_cols = self.num_cols
         for i, row in enumerate(self.matrix):
-            if len(row.values) != num_cols:
+            if len(row) != num_cols:
                 yield enumrow_nt(i, row)
 
     # region {filesystem methods}
@@ -268,7 +223,8 @@ class flux_cls:
                       filetype=None,
                       **kwargs):
 
-        filetype = parse_file_extension((filetype or path), include_dot=True).lower()
+        filetype = parse_file_extension(filetype or path,
+                                        include_dot=True).lower()
 
         if filetype == '.csv':
             return self.to_csv(path, encoding, **kwargs)
@@ -286,7 +242,8 @@ class flux_cls:
                        filetype=None,
                        **kwargs):
 
-        filetype = parse_file_extension((filetype or path), include_dot=True).lower()
+        filetype = parse_file_extension((filetype or path),
+                                        include_dot=True).lower()
 
         if filetype == '.csv':
             return cls.from_csv(path, encoding, **kwargs)
@@ -318,7 +275,8 @@ class flux_cls:
                       **kwargs):
 
         h = tuple(self.header_names())
-        o = [ordereddict(zip(h, row.values)) for row in self.matrix[1:]]
+        # o = [ordereddict(zip(h, row.values)) for row in self.matrix[1:]]
+        o = [ordereddict(zip(h, row)) for row in self.matrix[1:]]
 
         if path is None:
             return json_dumps_extended(o, **kwargs)
@@ -332,9 +290,6 @@ class flux_cls:
                        **kwargs):
 
         o = read_file(path, encoding, filetype='.json', **kwargs)
-        # if isinstance(o, dict):
-        #     o = [o]
-
         return cls(o)
 
     def serialize(self, path, **kwargs):
@@ -408,7 +363,7 @@ class flux_cls:
     def rows(self, r_1=0, r_2=None) -> Generator[Union[List, Tuple], None, None]:
         return (row.values for row in self.matrix[r_1:r_2])
 
-    def dictrows(self, r_1=1, r_2=None) -> Generator[Dict, None, None]:
+    def dicts(self, r_1=1, r_2=None) -> Generator[Dict, None, None]:
         names = tuple(self.header_names())
         for row in self.matrix[r_1:r_2]:
             yield ordereddict(zip(names, row.values))
@@ -418,7 +373,6 @@ class flux_cls:
         for row in self.matrix[r_1:r_2]:
             yield namespace_cls(**ordereddict(zip(names, row.values)))
 
-    # noinspection PyArgumentList
     def namedtuples(self, r_1=1, r_2=None) -> Generator[namedtuple, None, None]:
         row_nt = namedtuple('Row', self.header_names())
         for row in self.matrix[r_1:r_2]:
@@ -453,30 +407,48 @@ class flux_cls:
     def execute_commands(self, commands,
                                profiler=False,
                                print_commands=False):
+        """
+        if profiler is not None and print_commands:
+            # formatter = '           {formatted_runtime}'
+        else:
+            # formatter = '           {formatted_elapsed}'
+        """
 
-        command_nt = namedtuple('Command', ('name', 'method', 'args', 'kwargs'))
+        command_nt = namedtuple('Command', ('name',
+                                            'method',
+                                            'args',
+                                            'kwargs'))
 
         profiler = self.__validate_profiler_function(profiler)
         commands = self.__validate_command_methods(commands, command_nt)
 
+        if profiler is not None and print_commands:
+            # len('\t') + len('v: ')
+            indent_align = (' ' * 4) + \
+                           (' ' * 3)
+        else:
+            indent_align = (' ' * 4)
+
         if print_commands:
-            s = '{}.execute_commands:'.format(self.__class__.__name__)
+            s = function_name(self.execute_commands)
             s = vengeance_message(s)
             print(s)
 
         completed_commands = []
-        for i, command in enumerate(commands, 1):
+        for i, command in enumerate(commands):
             name   = command.name
             method = command.method
             args   = command.args
             kwargs = command.kwargs
 
             if print_commands:
-                call = []
-                if args:   call.append('*{}'.format(args))
-                if kwargs: call.append('**{}'.format(kwargs))
+                pc = []
+                if args:   pc.append('*{}' .format(args))
+                if kwargs: pc.append('**{}'.format(kwargs))
 
-                s = '        command {}: @{}({})'.format(i, function_name(method), ', '.join(call))
+                s = indent_align + '{}  @{}({})'.format(surround_single_brackets(i),
+                                                        function_name(method),
+                                                        ', '.join(pc))
                 print(s)
 
             if profiler:
@@ -510,9 +482,12 @@ class flux_cls:
         empty_column = [None] * self.num_rows
 
         m = []
+
         for n in names:
-            if n in headers: column = all_columns[headers[n]]
-            else:            column = empty_column
+            if n in headers:
+                column = all_columns[headers[n]]
+            else:
+                column = empty_column
 
             m.append([n] + column)
 
@@ -531,6 +506,47 @@ class flux_cls:
             names[i] = h_new
 
         self.reset_headers(names)
+
+        return self
+
+    def append_columns(self, *names, values=None):
+        names = standardize_variable_arity_values(names, depth=1)
+        if not names:
+            return self
+
+        self.__validate_no_duplicate_names(names)
+        self.__validate_no_names_intersect_with_headers(names, self.headers)
+
+        _values_ = standardize_variable_arity_values(values, depth=2)
+
+        num_rows   = len(self.matrix) - 1
+        num_cols   = len(names)
+        v_num_rows = len(_values_)
+        v_num_cols = len(_values_[0])
+
+        mismatched_dimensions = (v_num_rows != num_rows)  or (v_num_cols != num_cols)
+        is_single_value       = (v_num_rows == 1)        and (v_num_cols == 1)
+        is_single_column      = (v_num_rows == num_rows) and (num_cols == 1)
+        is_transposed         = (v_num_rows == num_cols) and (v_num_cols == num_rows)
+
+        if mismatched_dimensions:
+            if is_single_value:
+                _row_    = [_values_[0][0] for _ in range(num_cols)]
+                _values_ = [_row_          for _ in range(num_rows)]
+            elif is_single_column:
+                _values_ = transpose([_values_], list)
+            elif is_transposed:
+                _values_ = transpose(_values_, list)
+            else:
+                raise IndexError('invalid dimensions for column values\n'
+                                 'expected: {:,} cols x {:,} rows\n'
+                                 'values:   {:,} cols x {:,} rows'.format(num_cols, num_rows, v_num_cols, v_num_rows))
+
+        header_names = self.header_names() + list(names)
+        for row, v in zip(self.matrix[1:], _values_):
+            row.values.extend(v)
+
+        self.reset_headers(header_names)
 
         return self
 
@@ -585,65 +601,6 @@ class flux_cls:
 
         return self
 
-    def append_columns(self, *names, values=None):
-        """
-        # if max([iteration_depth(n) for n in names]) > 2:
-        #     raise IterationDepthError('values not submitted as keyword?')
-
-        # if 'values' in values:
-        #     values = values.pop('values')
-
-        # nd = iteration_depth(values)
-
-        # is_single_row    = (v_num_rows == 1)        and (v_num_cols == num_rows)
-
-        # if is_single_value:
-            # _row_    = [_values_[0][0] for _ in range(num_cols)]
-            # _values_ = [_row_          for _ in range(num_rows)]
-            # v = _values_[0][0]
-            # _values_ = [[v for _ in range(num_cols)]
-            #                for _ in range(num_rows)]
-        """
-        names = standardize_variable_arity_values(names, depth=1)
-        if not names:
-            return self
-
-        self.__validate_no_duplicate_names(names)
-        self.__validate_no_names_intersect_with_headers(names, self.headers)
-
-        _values_ = standardize_variable_arity_values(values, depth=2)
-
-        num_rows   = len(self.matrix) - 1
-        num_cols   = len(names)
-        v_num_rows = len(_values_)
-        v_num_cols = len(_values_[0])
-
-        mismatched_dimensions = (v_num_rows != num_rows)  or (v_num_cols != num_cols)
-        is_single_value       = (v_num_rows == 1)        and (v_num_cols == 1)
-        is_single_column      = (v_num_rows == num_rows) and (num_cols == 1)
-        is_transposed         = (v_num_rows == num_cols) and (v_num_cols == num_rows)
-
-        if mismatched_dimensions:
-            if is_single_value:
-                _row_    = [_values_[0][0] for _ in range(num_cols)]
-                _values_ = [_row_          for _ in range(num_rows)]
-            elif is_single_column:
-                _values_ = transpose([_values_], list)
-            elif is_transposed:
-                _values_ = transpose(_values_, list)
-            else:
-                raise IndexError('invalid dimensions for column values\n'
-                                 'expected: {:,} cols x {:,} rows\n'
-                                 'values:   {:,} cols x {:,} rows'.format(num_cols, num_rows, v_num_cols, v_num_rows))
-
-        header_names = self.header_names() + list(names)
-        for row, v in zip(self.matrix[1:], _values_):
-            row.values.extend(v)
-
-        self.reset_headers(header_names)
-
-        return self
-
     def delete_columns(self, *names):
         """
         method will fail if columns are jagged, do a try / except on del row.values[i]
@@ -668,12 +625,13 @@ class flux_cls:
             return self
 
         indices = self.__validate_names_as_indices(names, self.headers)
-        self.__validate_no_duplicate_names(indices)
+        indices = self.__validate_no_duplicate_names(indices)
 
         if set(indices) == set(self.headers.values()):
             return self.reset_matrix(None)
 
         indices.sort(reverse=True)
+
         for i in indices:
             for row in self.matrix:
                 del row.values[i]
@@ -692,8 +650,9 @@ class flux_cls:
         _, m = self.__validate_headers_and_matrix(rows, self.headers)
 
         if replace_headers:
-            self.reset_headers(m.pop(0).values)
             i = 1
+            self.reset_headers(m.pop(0).values)
+
         elif m[0].is_header_row():
             del m[0]
 
@@ -722,10 +681,13 @@ class flux_cls:
             raise ValueError('nrows must be positive')
 
         del self.matrix[nrows + 1:]
+
         return self
 
     def join(self, other, *names):
         """
+        other: Union[dict, tuple, str]
+
         eg:
             for row_a, row_b in flux_a.join(flux_b,
                                            {'other_name': 'name'}):
@@ -742,16 +704,17 @@ class flux_cls:
                 for row_b in rows_b:
                     row_a.cost   = row_b.cost
                     row_a.weight = row_b.weight
+
+        # _names_ = names
         """
-        _names_ = names
+        if isinstance(names, dict) and not isinstance(other, flux_cls):
+            raise TypeError('if names submitted as a dict, other must be a flux_cls')
 
         names = self.__validate_names_not_empty(names, self.headers, depth=0)
+
         is_other_flux = isinstance(other, flux_cls)
 
         if isinstance(names, dict):
-            if not is_other_flux:
-                raise TypeError('if names submitted as a dict, other must be a flux_cls')
-
             names_a = list(names.keys())[0]
             names_b = list(names.values())[0]
         elif isinstance(names, tuple):
@@ -763,7 +726,8 @@ class flux_cls:
         else:
             raise TypeError('name types must be in (dict, tuple, str)')
 
-        self.__validate_all_names_intersect_with_headers(names_a, self.headers)
+        rva = self.row_values_accessor(names_a)
+
         if is_other_flux:
             self.__validate_all_names_intersect_with_headers(names_b, other.headers)
 
@@ -776,11 +740,9 @@ class flux_cls:
         else:
             raise TypeError('other types must be in (flux_cls, dict or some iterable)')
 
-        rva = self.row_values_accessor(names_a)
-
         for row_self in self.matrix[1:]:
-            row_value = rva(row_self)
-            row_other = d.get(row_value)
+            key_value = rva(row_self)
+            row_other = d.get(key_value)
 
             if row_other:
                 yield row_self, row_other
@@ -892,14 +854,31 @@ class flux_cls:
             return self.filtered(evaluate_unique)
 
     def map_rows(self, *names, rowtype=flux_row_cls) -> Dict[Any, flux_row_cls]:
-        """ dictionary of {row_value: row} """
+        """ return dictionary of {column_value: row}
+
+        valid rowtypes = {'flux_row_cls',
+                          'namedrow',
+                          'namedtuple',
+                          'tuple',
+                          'list',
+                          'dict'}
+        """
+
         items = self.__zip_row_items(names, rowtype=rowtype)
         d = ordereddict(items)
 
         return d
 
     def map_rows_append(self, *names, rowtype=flux_row_cls) -> Dict[Any, List]:
-        """ dictionary of {row_value: [rows]} """
+        """ return dictionary of {column_value: [rows]}
+
+        valid rowtypes = {'flux_row_cls',
+                          'namedrow',
+                          'namedtuple',
+                          'tuple',
+                          'list',
+                          'dict'}
+        """
         items = self.__zip_row_items(names, rowtype=rowtype)
 
         d = ordereddict()
@@ -910,14 +889,30 @@ class flux_cls:
         return d
 
     def group_rows(self, *names, rowtype=flux_row_cls) -> Dict[Any, Dict]:
-        """ dictionary of dictionaries {row_value_a: {row_value_b: row}} """
+        """ return dictionary of dictionaries {column_value_a: {row_value_b: row}}
+
+        valid rowtypes = {'flux_row_cls',
+                          'namedrow',
+                          'namedtuple',
+                          'tuple',
+                          'list',
+                          'dict'}
+        """
         d = self.map_rows(names, rowtype=rowtype)
         d = to_grouped_dict(d)
 
         return d
 
     def group_rows_append(self, *names, rowtype=flux_row_cls) -> Dict[Any, Dict]:
-        """ dictionary of dictionaries {row_value_a: {row_value_b: [rows]}} """
+        """ return dictionary of dictionaries {column_value_a: {row_value_b: [rows]}}
+
+        valid rowtypes = {'flux_row_cls',
+                          'namedrow',
+                          'namedtuple',
+                          'tuple',
+                          'list',
+                          'dict'}
+        """
         d = self.map_rows_append(names, rowtype=rowtype)
         d = to_grouped_dict(d)
 
@@ -946,9 +941,9 @@ class flux_cls:
         keys = (rva(row) for row in self.matrix[1:])
 
         if rowtype   == 'flux_row_cls': values = (row for row in self.matrix[1:])
-        elif rowtype == 'dict':         values = (v for v in self.dictrows())
-        elif rowtype == 'namedrow':     values = (v for v in self.namedrows())
-        elif rowtype == 'namedtuple':   values = (v for v in self.namedtuples())
+        elif rowtype == 'dict':         values = (v for v in self.dicts(1))
+        elif rowtype == 'namedrow':     values = (v for v in self.namedrows(1))
+        elif rowtype == 'namedtuple':   values = (v for v in self.namedtuples(1))
         elif rowtype == 'list':         values = (list(row.values)  for row in self.matrix[1:])
         elif rowtype == 'tuple':        values = (tuple(row.values) for row in self.matrix[1:])
         else:
@@ -962,31 +957,31 @@ class flux_cls:
 
         return ordereddict(items).keys()
 
-    # noinspection PyUnusedLocal
     def contiguous(self, *names):
         """ :return: yield (value, i_1, i_2) namedtuple where values are contiguous
-
-        (contiguous values may only span a single row ie, i_1 == i_2)
         """
         contiguous_nt = namedtuple('Contiguous', ('value', 'i_1', 'i_2', 'rows'))
 
-        i_1 = 1
-        i_2 = i_1
+        num_rows = self.num_rows
+        if num_rows < 1:
+            return
 
         rva = self.row_values_accessor(names)
-        v_1 = rva(self.matrix[i_1])
+        v_1 = rva(self.matrix[1])
         v_2 = v_1
 
-        for i_2, row in enumerate(self.matrix[i_1 + 1:], i_1 + 1):
+        i_1 = 1
+        for i_2, row in enumerate(self.matrix[2:], 2):
             v_2 = rva(row)
 
             if v_2 != v_1:
-                yield contiguous_nt(v_2, i_1, i_2 - 1, self.matrix[i_1:i_2])
+                yield contiguous_nt(v_1, i_1, i_2 - 1,
+                                    self.matrix[i_1:i_2])
                 v_1 = v_2
                 i_1 = i_2
 
-        i_2 = len(self.matrix) - 1
-        yield contiguous_nt(v_2, i_1, i_2, self.matrix[i_1:])
+        yield contiguous_nt(v_2, i_1, num_rows,
+                            self.matrix[i_1:])
 
     def indices(self, start=1, step=1):
         """
@@ -1067,7 +1062,7 @@ class flux_cls:
 
         return rva
 
-    def __getitem__(self, names):
+    def __getitem__(self, names) -> Generator[Any, None, None]:
         return self.columns(names)
 
     def __setitem__(self, name, values):
@@ -1158,30 +1153,30 @@ class flux_cls:
         else:
             self.__dict__.update(state)
 
-    def __len__(self):
-        """ header row is included, see self.num_rows """
-        return len(self.matrix)
-
     def __reversed__(self):
         return (row for row in reversed(self.matrix[1:]))
 
     def __repr__(self):
-        if self.is_empty():
-            return format_header('')
 
-        if self.is_jagged():
-            if self.has_duplicate_row_pointers(): jagged_label = '**dup**  🗲jagged🗲  '
-            else:                                 jagged_label = '🗲jagged🗲  '
+        if self.is_empty():
+            num_rows = '0'
+            headers  = ''
+            jagged_label = ''
         else:
+            num_rows = '1+' + format_integer(len(self.matrix) - 1)
+            headers  = ', '.join([str(n) for n in self.header_names()])
             jagged_label = ''
 
-        num_rows = format_integer(len(self.matrix) - 1)
-        num_rows = format_header_lite('1+' + num_rows)
+            if self.is_jagged():
+                if self.has_duplicate_row_pointers():
+                    jagged_label = '☛dup_row_pointers☛ 🗲jagged🗲  '
+                else:
+                    jagged_label = '🗲jagged🗲  '
 
-        headers = ', '.join(str(n) for n in self.header_names())
-        headers = format_header(headers)
+        num_rows = surround_single_brackets(num_rows)
+        headers  = surround_double_brackets(headers)
 
-        return '{}{}  {}'.format(jagged_label, num_rows, headers)
+        return '{}{} {}'.format(jagged_label, num_rows, headers)
 
     # region {validation functions}
     @staticmethod
@@ -1254,7 +1249,7 @@ class flux_cls:
         # list of objects (with __slots__ attributes)
         elif hasattr(row_first, '__slots__'):
             h = tuple(row_first.__slots__)
-            m = [[*h]] + \
+            m = [[*row_first.__slots__]] + \
                 [[*[row.__getattribute__(n) for n in h]] for row in m]
 
         else:
@@ -1497,31 +1492,95 @@ class flux_cls:
         return parsed
 
     @staticmethod
+    # noinspection PyUnresolvedReferences
     def __validate_profiler_function(use_profiler):
         if use_profiler in (None, False):
             return None
 
+        formatter = '           {formatted_runtime}'
+        # formatter = '           {formatted_elapsed}'
+
         if use_profiler is True:
             if line_profiler_installed:
-                # noinspection PyUnresolvedReferences
                 from line_profiler import LineProfiler
                 return LineProfiler()
             else:
-                return print_runtime
+                return print_runtime(formatter=formatter)
 
         profiler = str(use_profiler).lower()
 
-        if profiler == 'print_runtime':
-            return print_runtime
+        if profiler in ('print_runtime', 'print-runtime', 'printruntime'):
+            return print_runtime(formatter=formatter)
 
-        if profiler in ('line_profiler', 'lineprofiler'):
+        if profiler in ('line_profiler', 'line-profiler', 'lineprofiler'):
             if line_profiler_installed is False:
                 raise ImportError("'line_profiler' package not installed")
 
-            # noinspection PyUnresolvedReferences
             from line_profiler import LineProfiler
             return LineProfiler()
 
         raise ValueError("invalid profiler: '{}', profiler should be in "
                          "\n(None, False, True, 'print_runtime', 'line_profiler')".format(profiler))
+
+    def __validate_matrix_indices(self, r_1=1, r_2=None):
+        # region {closure functions}
+        def start_row_index(r):
+            if r is None:
+                return 1
+            elif r < 0:
+                return len(self.matrix) + r
+            else:
+                return r
+
+        def stop_row_index(r):
+            if r is None:
+                return len(self.matrix)
+            elif r < 0:
+                return len(self.matrix) + r
+            else:
+                return r
+        # endregion
+
+        r_1 = max(start_row_index(r_1), 1)
+        r_2 = min(stop_row_index(r_2),  len(self.matrix))
+        if r_1 > r_2:
+            r_1, r_2 = r_2, r_1
+
+        return r_1, r_2
+
+    def __validate_preview_matrix(self, r_1=1, r_2=None):
+        """
+        to help with debugging: meant to trigger a debugging feature in PyCharm
+        PyCharm will recognize the numpy array and enable the "...view as array"
+        option in the debugger which displays values in a special window as a table
+        """
+        # region {closure functions}
+        def format_row_index(i):
+            i = format_integer(i)
+            i = surround_single_brackets(i)
+
+            return i
+        # endregion
+
+        r_1, r_2 = self.__validate_matrix_indices(r_1, r_2)
+
+        rows = self.matrix[r_1:r_2]
+        if rows:
+            c_m = max([len(row) for row in rows])
+        else:
+            c_m = 0
+
+        c_m = max(self.num_cols, c_m)
+        h_v = [surround_double_brackets(n) for n in self.header_names()]
+        h_j = ['🗲'] * (c_m - len(h_v))
+
+        m = [['⟨r_i⟩', *h_v, *h_j]]
+        for r_i, row in enumerate(rows, r_1):
+            r_i = format_row_index(r_i)
+            r_v = row
+            r_j = ['🗲jagged🗲'] * (c_m - len(r_v))
+
+            m.append([r_i, *r_v, *r_j])
+
+        return m
     # endregion

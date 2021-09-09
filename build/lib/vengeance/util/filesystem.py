@@ -124,7 +124,7 @@ def __validate_io_arguments(path,
     path          = __validate_path(path)
     filetype      = __validate_filetype(path, filetype)
     mode          = __validate_mode(mode, filetype)
-    # encoding      = __validate_encoding(encoding, mode, filetype)
+    encoding      = __validate_encoding(encoding)
     read_or_write = __validate_read_or_write(path, mode, read_or_write)
     kwargs        = __validate_file_keyword_args(encoding, filetype, kwargs, read_or_write)
 
@@ -136,8 +136,7 @@ def __validate_io_arguments(path,
 
 
 def __validate_path(path):
-    path = str(path)
-    path = standardize_path(path, explicit_cwd=True)
+    path = standardize_path(path, abspath=True)
 
     return path
 
@@ -186,13 +185,8 @@ def __validate_mode(mode, filetype):
     return mode
 
 
-# def __validate_encoding(encoding, mode, filetype):
-#     is_bytes_mode = ('b' in mode)
-#
-#     if is_bytes_mode:
-#         encoding = None
-#
-#     return encoding
+def __validate_encoding(encoding):
+    return encoding
 
 
 def __validate_file_keyword_args(encoding, filetype, kwargs, read_or_write):
@@ -352,7 +346,7 @@ def json_unhandled_conversion(v):
 
 
 def clear_dir(filedir):
-    filedir = standardize_dir(filedir, explicit_cwd=True)
+    filedir = standardize_path(filedir, abspath=True)
 
     if not os.path.exists(filedir):
         return
@@ -374,8 +368,8 @@ def copy_dir(s_dir, d_dir, ignore=None, dirs_exist_ok=False):
     shutil.copytree will fail if shutil.rmtree hasn't finished deleting folder:
         PermissionError: [WinError 5] Access is denied
     """
-    s_dir = standardize_dir(s_dir)
-    d_dir = standardize_dir(d_dir)
+    s_dir = standardize_path(s_dir)
+    d_dir = standardize_path(d_dir)
 
     if ignore:
         if isinstance(ignore, str):
@@ -406,37 +400,37 @@ def file_modified_datetime(path):
 
 # @lru_cache(2**16)
 def is_path_a_url(path):
-    u = urlparse(str(path)).netloc
+    u = urlparse(path).netloc
     return bool(u)
 
 
 def parse_path(path,
                pathsep='/',
-               explicit_cwd=False):
+               abspath=False) -> namedtuple:
 
     ParsedPath = namedtuple('ParsedPath', ('directory',
                                            'filename',
                                            'extension'))
 
     _path_ = path
-    _path_ = standardize_path(_path_, pathsep, explicit_cwd)
+    _path_ = standardize_path(_path_, pathsep, abspath)
 
-    filedir,  filename  = os.path.split(_path_)
-    filename, extension = os.path.splitext(filename)
+    directory, filename  = os.path.split(_path_)
+    filename,  extension = os.path.splitext(filename)
 
-    filedir = standardize_dir(filedir, pathsep, explicit_cwd)
+    directory = standardize_path(directory, pathsep, abspath)
 
-    return ParsedPath(filedir, filename, extension)
+    return ParsedPath(directory, filename, extension)
 
 
 def parse_file_name(path):
-    filename, _ = os.path.splitext(str(path))
+    filename, _ = os.path.splitext(path)
 
     return filename
 
 
 def parse_file_extension(filename, include_dot=True):
-    _, extension = os.path.splitext(str(filename))
+    _, extension = os.path.splitext(filename)
     if (include_dot is False) and extension.startswith('.'):
         extension = extension[1:]
 
@@ -445,16 +439,13 @@ def parse_file_extension(filename, include_dot=True):
 
 def standardize_path(path,
                      pathsep='/',
-                     explicit_cwd=False):
+                     abspath=False):
 
     _path_ = path or ''
-    _path_ = _path_.replace('"', '') \
-                   .replace("'", '/')
-
-    if not _path_ and (not explicit_cwd):
+    if not _path_ and (not abspath):
         return ''
 
-    if (not explicit_cwd) and (not os.path.isabs(_path_)):
+    if (not abspath) and (not os.path.isabs(_path_)):
         _path_ = os.path.relpath(_path_)
     else:
         _path_ = os.path.realpath(_path_)
@@ -464,6 +455,9 @@ def standardize_path(path,
     else:
         _path_ = _path_.replace('/', '\\')
 
+    _path_ = _path_.replace('"', '') \
+                   .replace("'", '')
+
     if _path_ and os_isdir(_path_):
         if not _path_.endswith(pathsep):
             _path_ += pathsep
@@ -471,23 +465,9 @@ def standardize_path(path,
     return _path_
 
 
-def standardize_dir(filedir,
-                    pathsep='/',
-                    explicit_cwd=False):
-
-    _filedir_ = filedir or ''
-    _filedir_ = _filedir_.replace('"', '') \
-                         .replace("'", '/')
-
-    if not _filedir_ and (not explicit_cwd):
-        return ''
-
-    return standardize_path(_filedir_, pathsep, explicit_cwd)
-
-
 def traverse_dir(rootdir='.',
                  pathsep='/',
-                 explicit_cwd=True,
+                 abspath=True,
                  *,
                  recurse=False,
                  subdirs_only=False,
@@ -500,7 +480,7 @@ def traverse_dir(rootdir='.',
         subdirs_only = True
         files_only   = True
 
-    rootdir = standardize_dir(rootdir, pathsep, explicit_cwd)
+    rootdir = standardize_path(rootdir, pathsep, abspath)
 
     if recurse:
         args = 'dir /b /s "{}"'.format(rootdir)
@@ -530,7 +510,7 @@ def traverse_dir(rootdir='.',
 
 def validate_path_exists(path):
 
-    p_path = parse_path(path, explicit_cwd=True)
+    p_path = parse_path(path, abspath=True)
     path   = ''.join(p_path)
 
     if not os.path.exists(p_path.directory):

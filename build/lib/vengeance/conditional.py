@@ -26,14 +26,14 @@ ordereddict:
     using about half the memory of collections.OrderedDict 
 
 '''
-config          = {}
-config_already_read = False
+config             = {}
+config_file_loaded = False
 
 python_version      = sys.version_info
-is_windows_os       = (os.name == 'nt') or (sys.platform == 'win32')
+is_windows_os       = (os.name == 'nt' or sys.platform == 'win32')
 is_utf_console      = ('utf' in sys.stdout.encoding.lower())
 is_pypy_interpreter = ('__pypy__' in sys.builtin_module_names)
-loads_excel_module  = (not is_pypy_interpreter) and is_windows_os
+loads_excel_module  = (not is_pypy_interpreter and is_windows_os)
 
 ordereddict             = dict
 dateutil_installed      = False
@@ -72,7 +72,57 @@ except ImportError:
     pass
 
 
-def enable_ansi_escape_in_console():
+def load_vengeance_configuration_file():
+    global config
+    global config_file_loaded
+
+    config_file_loaded = True
+
+    vcf = __load_vengeance_configuration_file()
+    if vcf is None:
+        return
+
+    if vcf.has_section('console'):
+        cp_section = vcf['console']
+
+        config.update({'color':              cp_section.get('color'),
+                       'effect':             cp_section.get('effect'),
+                       'formatter':          cp_section.get('formatter'),
+                       'enable_ansi_escape': cp_section.getboolean('enable_ansi_escape')})
+
+        if config['enable_ansi_escape']:
+            __enable_ansi_escape_in_windows_console()
+
+    # sys.getfilesystemencoding()
+
+    # if cp.has_section('filesystem'):
+    #     cp_section = cp['filesystem']
+    #     config.update({'encoding': cp_section.get('encoding')})
+
+
+def __load_vengeance_configuration_file():
+    import site
+
+    config_paths = [site.getsitepackages()[1]  + '\\vengeance\\config.ini']
+
+    if is_windows_os:
+        try:    config_paths.append(os.environ['localappdata'] + '\\Temp\\vengeance\\config.ini')
+        except: pass
+
+    for config_path in config_paths:
+        if os.path.exists(config_path):
+
+            from configparser import ConfigParser
+
+            vcf = ConfigParser()
+            vcf.read(config_path)
+
+            return vcf
+
+    return None
+
+
+def __enable_ansi_escape_in_windows_console():
     """ attempt to turn on ansi escape colors in console
 
     ansi escape: \x1b, \033, <0x1b>, 
@@ -87,14 +137,16 @@ def enable_ansi_escape_in_console():
 
     STD_OUTPUT_HANDLE = -11
     DWMODE            = 7
-    """
-    global is_utf_console
 
+    # GetConsoleMode = ctypes.windll.kernel32.GetConsoleMode
+    # print(f'{GetConsoleMode(STD_OUTPUT_HANDLE) = }')
+    """
     if not is_windows_os:
         return
 
     try:
         import ctypes
+        global is_utf_console
 
         SetConsoleMode    = ctypes.windll.kernel32.SetConsoleMode
         GetStdHandle      = ctypes.windll.kernel32.GetStdHandle
@@ -102,62 +154,15 @@ def enable_ansi_escape_in_console():
         DWMODE            = 7
 
         SetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), DWMODE)
-
         is_utf_console = True
-        # is_utf_console =('utf' in sys.stdout.encoding.lower())
+
     except:
-        pass
+        is_utf_console = False
 
 
-def read_config_file():
-    global config
-    global config_already_read
-    from configparser import ConfigParser
+if config_file_loaded is False:
+    load_vengeance_configuration_file()
 
-    config_already_read = True
-
-    config_path = __locate_config_path()
-    if config_path is None:
-        return
-
-    cp = ConfigParser()
-    cp.read(config_path)
-
-    if cp.has_section('console'):
-        cp_section = cp['console']
-
-        config.update({'color':              cp_section.get('color'),
-                       'effect':             cp_section.get('effect'),
-                       'formatter':          cp_section.get('formatter'),
-                       'enable_ansi_escape': cp_section.getboolean('enable_ansi_escape')})
-
-        if config['enable_ansi_escape']:
-            enable_ansi_escape_in_console()
-
-    # sys.getfilesystemencoding()
-
-    # if cp.has_section('filesystem'):
-    #     cp_section = cp['filesystem']
-    #     config.update({'encoding': cp_section.get('encoding')})
-
-
-def __locate_config_path():
-    import site
-
-    config_paths = [site.getsitepackages()[1]  + '\\vengeance\\config.ini',
-                    os.environ['localappdata'] + '\\Temp\\vengeance\\config.ini']
-    if not is_windows_os:
-        del config_paths[-1]
-
-    for config_path in config_paths:
-        if os.path.exists(config_path):
-            return config_path
-
-    return None
-
-
-if config_already_read is False:
-    read_config_file()
 
 # is_pypy_interpreter     = True
 # is_windows_os           = True

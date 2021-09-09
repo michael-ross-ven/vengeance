@@ -1,17 +1,17 @@
 
-from collections import Iterable
-from collections import ItemsView
-from collections import KeysView
-from collections import ValuesView
 from collections import namedtuple
+# from collections import Iterable, ItemsView
 
-from itertools import chain
 from typing import Generator
 from typing import Union
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Tuple
+from typing import Iterable
+from typing import ItemsView
+from typing import KeysView
+from typing import ValuesView
 
 from ..conditional import ordereddict
 from .classes.tree_cls import tree_cls
@@ -26,7 +26,7 @@ class ColumnNameError(ValueError):
     pass
 
 
-def iteration_depth(values, first_element_only=True):
+def iteration_depth(values, first_element_only=False):
     """
     this function is heavily utilized to correctly un-nest function arguments
     in flux_cls methods
@@ -59,7 +59,7 @@ def iteration_depth(values, first_element_only=True):
 def modify_iteration_depth(values,
                            depth=None,
                            depth_offset=None,
-                           first_element_only=True):
+                           first_element_only=False):
     """
     this function is heavily utilized to correctly un-nest function arguments
     in flux_cls methods
@@ -81,8 +81,18 @@ def modify_iteration_depth(values,
 
             # has_multiple_depths = set(iteration_depth(_v_, first_element_only=False) for _v_ in v)
 
-    """
 
+            if is_descendable(values):
+                values = values[0]
+            else:
+                break
+
+            # if first_element_only:
+            #     if is_descendable(values): values = values[0]
+            #     else:                      break
+            # else:
+            #     values = list(chain.from_iterable(values))
+    """
     if depth is None and depth_offset is None:
         raise ValueError('conflicting values for depth and depth_offset')
 
@@ -90,18 +100,16 @@ def modify_iteration_depth(values,
         raise ValueError('conflicting values for depth and depth_offset')
 
     if depth_offset is None:
-        value_depth  = iteration_depth(values, first_element_only=first_element_only)
+        value_depth  = iteration_depth(values, first_element_only)
         depth_offset = depth - value_depth
 
     if depth_offset < 0:
         for _ in range(abs(depth_offset)):
 
-            if first_element_only:
-                if is_descendable(values): values = values[0]
-                else:                      break
+            if is_descendable(values):
+                values = values[0]
             else:
-                values = list(chain(*values))
-                # values = list(chain.from_iterable(values))
+                break
 
     elif depth_offset > 0:
         for _ in range(depth_offset):
@@ -120,7 +128,11 @@ def standardize_variable_arity_values(values,
     eg flux_cls:
         def append_columns(self, *names):
             names = standardize_variable_arity_values(names, depth=1)
+
+    # while is_descendable(values):
+    #     values = values[0]
     """
+
     # convert iterators, even if they are nested
     if is_descendable(values) and is_exhaustable(values[0]):
         values = iterator_to_collection(values[0])
@@ -156,25 +168,18 @@ def is_collection(o):
         False = is_collection(range(3))
         True  = is_collection(list(range(3)))
     """
-    if isinstance(o, (str, bytes)):
+    if isinstance(o, (str, bytes, range, dict, ItemsView)):
         return False
-
-    if isinstance(o, range):
-        return False
-
-    return isinstance(o, Iterable)
+    else:
+        return isinstance(o, Iterable)
 
 
 # noinspection PyStatementEffect,PyBroadException
 def is_subscriptable(o):
-    """
-    from typing import Sequence
-    isinstance(o, Sequence)
-    """
     try:
         o[0]
         return True
-    except Exception:
+    except:
         return False
 
 

@@ -1,5 +1,5 @@
-build
-dist
-build/*
-dist/*
+build/
+dist/
+vengeance.egg-info/
 vengeance/config.ini
+.gitignore

@@ -8,8 +8,9 @@ from typing import Union
 from ..util.classes.namespace_cls import namespace_cls
 from ..util.iter import is_header_row
 
-from ..util.text import format_header
-from ..util.text import format_header_lite
+from ..util.text import surround_double_brackets
+from ..util.text import surround_single_brackets
+from ..util.text import surround_square_brackets
 from ..util.text import format_integer
 
 from ..conditional import ordereddict
@@ -43,13 +44,13 @@ class flux_row_cls:
         self.__dict__['values']   = values
 
     @property
-    def as_array(self):
+    def as_preview_array(self):
         """
         to help with debugging: meant to trigger a debugging feature in PyCharm
         PyCharm will recognize the ndarray and enable the "...view as array"
         option in the debugger which displays values in a special window as a table
         """
-        names  = [format_header(n) for n in self.header_names()]
+        names  = [surround_double_brackets(n) for n in self.header_names()]
         values = list(self.__dict__['values'])
 
         c_m = max(len(names), len(values))
@@ -60,7 +61,7 @@ class flux_row_cls:
             names.insert(0,  '⟨address⟩')
             values.insert(0, '⟨{}⟩'.format(self.__dict__['address']))
         elif 'r_i' in self.__dict__:
-            names.insert(0,  '⟨address⟩')
+            names.insert(0,  '⟨r_i⟩')
             values.insert(0, '⟨{:,}⟩'.format(self.__dict__['r_i']).replace(',', '_'))
 
         m = list(zip(names, values))
@@ -111,36 +112,30 @@ class flux_row_cls:
         row_nt = namedtuple('Row', self.header_names())
         return row_nt(*self.__dict__['values'])
 
-    # noinspection PyProtectedMember,PyUnusedLocal
-    def join_values(self, row_b, on_columns=None):
+    def join_values(self, other, names=None):
         """ copies all values where header names are shared with row_b
-        :type row_b: flux_row_cls
-        :type on_columns: shared column names
+        :type other: flux_row_cls
+        :type names: list[str]
         """
-        # region {closure function}
-        def intersecting_names(_names_):
-            if not _names_:
-                _names_ = headers_a.keys() & headers_b.keys()
-                if not _names_:
-                    raise ValueError('no intersecting column names')
-
-            return _names_
-        # endregion
-
-        if not isinstance(row_b, flux_row_cls):
+        if not isinstance(other, flux_row_cls):
             raise TypeError('row expected to be flux_row_cls')
 
         headers_a = self.__dict__['_headers']
-        headers_b = row_b._headers
-
         values_a  = self.__dict__['values']
-        values_b  = row_b.values
 
-        names = intersecting_names(on_columns)
+        headers_b = other.__dict__['_headers']
+        values_b  = other.__dict__['values']
 
-        for name in names:
-            i_b = headers_b[name]
+        _names_ = names or (headers_a.keys() & headers_b.keys())
+        if not _names_:
+            raise ValueError('no intersecting column names')
+
+        if isinstance(_names_, str):
+            _names_ = [_names_]
+
+        for name in _names_:
             i_a = headers_a[name]
+            i_b = headers_b[name]
 
             values_a[i_a] = values_b[i_b]
 
@@ -221,28 +216,31 @@ class flux_row_cls:
 
     def __repr__(self):
         if 'address' in self.__dict__:
-            row_label = format_header_lite(self.__dict__['address'])
+            row_label = surround_single_brackets(self.__dict__['address'])
             row_label = ' {}   '.format(row_label)
         elif 'r_i' in self.__dict__:
             row_label = format_integer(self.__dict__['r_i'])
-            row_label = format_header_lite(row_label)
+            row_label = surround_single_brackets(row_label)
             row_label = ' {}   '.format(row_label)
         else:
             row_label = ''
 
         if self.is_jagged():
             jagged_label = len(self.__dict__['values']) - len(self.__dict__['_headers'])
-            jagged_label = format_header_lite('{:+}'.format(jagged_label))
+            jagged_label = surround_single_brackets('{:+}'.format(jagged_label))
             jagged_label = ' 🗲jagged {}🗲  '.format(jagged_label)
         else:
             jagged_label = ''
 
         if self.is_header_row():
             values = ', '.join(str(n) for n in self.header_names())
-            values = format_header(values)
+            values = surround_double_brackets(values)
         else:
             values = (repr(self.__dict__['values']).replace('"', '')
                                                    .replace("'", ''))
+            if values.startswith('['):
+                values = surround_square_brackets(values[1:-1])
+                # values = '⟦' + values[1:-1] + '⟧'
 
         return '{}{}{}'.format(row_label, jagged_label, values)
 

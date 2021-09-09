@@ -9,24 +9,11 @@ class namespace_cls:
     def __init__(self, **kwargs):
         self.__dict__ = ordereddict(kwargs)
 
-    @property
-    def _namespace_attributes(self):
-        return self.__dict__
-
-    @property
-    def _namespace_pformat(self):
-        keys = ['{!r}: '.format(k) for k in self.__dict__.keys()]
-        _padding_right_  = '{: <%i}' % max(len(k) for k in keys)
-
-        keys  = [_padding_right_.format(k) for k in keys]
-        items = ['{} {!r}'.format(k, v) for k, v in zip(keys, self.__dict__.values())]
-        items = '\n'.join(items)
-        items = items.replace("'", '"')
-
-        return items
-
     def __iter__(self):
-        return ((k, v) for k, v in self.__dict__.items())
+        return (v for v in self.__dict__.values())
+
+    # def __iter__(self):
+    #     return (k for k in self.__dict__.keys())
 
     def __eq__(self, other):
         if (not hasattr(self, '__dict__')) or (not hasattr(other, '__dict__')):
@@ -42,6 +29,9 @@ class namespace_cls:
 
     def __setitem__(self, name, value):
         self.__dict__[name] = value
+
+    def __len__(self):
+        return len(self.__dict__)
 
     def __repr__(self):
         items = ['{}={!r}'.format(k, v) for k, v in self.__dict__.items()]

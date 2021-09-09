@@ -120,13 +120,18 @@ def print_performance(f=None, repeat=5):
                 total += elapsed
 
             average = total / repeat
-            trials  = format_header_lite(format_integer(repeat, comma_sep='_'))
 
-            s = ('@{} of {} trials'
-                 '\n        🏆 best:     {}'
-                 '\n        ★ average:  {}'
+            num_trials = surround_single_brackets(format_integer(repeat, comma_sep='_'))
+            num_trials = '{} trials'.format(num_trials)
+            if repeat == 1:
+                num_trials = num_trials[:-1]
+
+            s = ('@{} over {}:'
+                 '\n        ★ best:     {}'
+                 '\n        ☆ average:  {}'
                  '\n        ☆ worst:    {}'
-                 .format(function_name(_f_), trials,
+                 .format(function_name(_f_),
+                         num_trials,
                          format_seconds(best),
                          format_seconds(average),
                          format_seconds(worst))
@@ -155,8 +160,7 @@ def print_performance(f=None, repeat=5):
 def styled(message,
            color=None,
            effect=None):
-    """
-    """
+
     if color is None:  color  = (config.get('color') or '')
     if effect is None: effect = (config.get('effect') or '')
 
@@ -314,17 +318,24 @@ def vengeance_message(message):
     return __vengeance_prefix__ + str(message)
 
 
-def format_header(h):
+def surround_double_brackets(h):
     return '⟪{}⟫'.format(h)
 
 
-def format_header_lite(h):
+def surround_single_brackets(h):
     return '⟨{}⟩'.format(h)
 
 
+def surround_square_brackets(h):
+    return '⟦{}⟧'.format(h)
+
+
 def format_integer(i, comma_sep='_'):
-    """ eg: '1_000_000' = format_integer(1000000) """
-    return '{:,}'.format(int(i)).replace(',', comma_sep)
+    """ eg:
+    '1_000_000' = format_integer(1000000)
+    """
+    _i_ = '{:,}'.format(int(i))
+    return _i_.replace(',', comma_sep)
 
 
 def format_seconds(s):
@@ -403,16 +414,23 @@ def function_parameters(f):
 
 
 def function_name(f):
-    try:                   name = f.__qualname__
-    except AttributeError: name = str(f)
+    try:
+        name = f.__qualname__
+    except AttributeError:
+        try:
+            if isinstance(f, property): name = str(f.fget).split(' ')[1]
+            else:                       name = str(f)
+        except:
+            name = str(f)
 
-    if '.' in name:
+    if '.' in name:         # probably a class method
         return name
 
     try:                   modulename = f.__module__
     except AttributeError: modulename = str(f)
 
     modulename = modulename.split('.')[-1]
+
     return '{}.{}'.format(modulename, name)
 
 
@@ -423,7 +441,9 @@ def object_name(o):
     try:                   return o.__class__.__name__
     except AttributeError: pass
 
-    return type(o).__name__
+    try:                   return type(o).__name__
+    except AttributeError: return ''
+
 
 
 

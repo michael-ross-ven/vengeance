@@ -86,7 +86,7 @@ def get_opened_workbook(path):
 
     :return captured Workbook or None
     """
-    p_path = parse_path(path.lower(), explicit_cwd=False)
+    p_path = parse_path(path.lower(), abspath=False)
     name   = p_path.filename + p_path.extension
 
     workbooks = []

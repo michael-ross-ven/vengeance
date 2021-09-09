@@ -18,8 +18,8 @@ pip install vengeance[comtypes,pypiwin32,python-dateutil,numpy]
 """
 
 
-__version__ = '1.1.20'
-__release__ = '$release 57'
+__version__ = '1.1.21'
+__release__ = '$release 58'
 long_description = ('https://github.com/michael-ross-ven/vengeance/blob/master/README.md'
                     '\n\n(specialize this for pypi.org later)')
 
