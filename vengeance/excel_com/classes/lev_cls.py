@@ -8,7 +8,7 @@ from typing import Generator
 from typing import List
 from typing import Any
 
-from .lev_row_cls import lev_row_cls
+from ... classes.flux_row_cls import flux_row_cls
 
 from .. import excel_address
 from .. import worksheet
@@ -22,7 +22,7 @@ from ... util.text import object_name
 from ... conditional import ordereddict
 
 
-class excel_levity_cls:
+class lev_cls:
     allow_focus = False
 
     def __init__(self, ws, *,
@@ -175,7 +175,7 @@ class excel_levity_cls:
 
         return worksheet.is_range_empty(self.ws.Range(a))
 
-    def rows(self, r_1='*h', r_2='*l') -> Generator[List, Any, Any]:
+    def values(self, r_1='*h', r_2='*l') -> Generator[List, Any, Any]:
         if self.is_empty():
             return ([] for _ in range(1))
 
@@ -184,7 +184,7 @@ class excel_levity_cls:
 
         return (row for row in worksheet.escape_excel_range_errors(excel_range))
 
-    def lev_rows(self, r_1='*h', r_2='*l') -> Generator[lev_row_cls, Any, Any]:
+    def flux_rows(self, r_1='*h', r_2='*l') -> Generator[flux_row_cls, Any, Any]:
         if self.headers:
             headers = map_values_to_enum(self.headers.keys())
         elif self.m_headers:
@@ -193,9 +193,9 @@ class excel_levity_cls:
             headers = ordereddict()
 
         if self.is_empty():
-            return (lev_row_cls(headers, [], '') for _ in range(1))
+            return (flux_row_cls(headers, [], '') for _ in range(1))
 
-        reserved = headers.keys() & set(lev_row_cls.reserved_names())
+        reserved = headers.keys() & set(flux_row_cls.reserved_names())
         if reserved:
             raise NameError("reserved name(s) {} found in header row {}"
                             .format(list(reserved), list(headers.keys())))
@@ -208,7 +208,7 @@ class excel_levity_cls:
 
         for r, row in enumerate(worksheet.escape_excel_range_errors(excel_range), r_1):
             a = '${}${}:${}${}'.format(c_1, r, c_2, r)
-            yield lev_row_cls(headers, row, a)
+            yield flux_row_cls(headers, row, a)
 
     def activate(self):
         if self.allow_focus:
@@ -389,7 +389,7 @@ class excel_levity_cls:
 
     def __setitem__(self, reference, v):
         """ write value(s) to excel range """
-        excel_range  = self.range(reference)
+        excel_range = self.range(reference)
 
         m = self.__validate_matrix_within_range_boundaries(v, excel_range)
 
@@ -403,8 +403,8 @@ class excel_levity_cls:
         if was_filtered:
             self.reapply_filter()
 
-    def __iter__(self) -> Generator[lev_row_cls, Any, Any]:
-        return self.lev_rows('*f')
+    def __iter__(self) -> Generator[flux_row_cls, Any, Any]:
+        return self.flux_rows('*f')
 
     def __repr__(self):
         if not self.is_worksheet_type:

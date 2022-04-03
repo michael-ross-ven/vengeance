@@ -7,6 +7,8 @@ from setuptools import setup
 Publishing (Perfect) Python Packages on PyPi
 https://youtu.be/GIF3LaRqgXo
 
+https://pandao.github.io/editor.md/en.html
+
 ?
 https://hynek.me/articles/conditional-python-dependencies/
 
@@ -22,6 +24,10 @@ __version__ = '1.1.21'
 __release__ = '$release 58'
 long_description = ('https://github.com/michael-ross-ven/vengeance/blob/master/README.md'
                     '\n\n(specialize this for pypi.org later)')
+
+# NOT tested!
+# with open('README.md', 'r') as f:
+#     long_description = f.read()
 
 is_windows_os = (os.name == 'nt')
 

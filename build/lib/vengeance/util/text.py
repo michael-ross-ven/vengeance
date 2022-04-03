@@ -47,7 +47,8 @@ __color_codes__ = {'grey':           '\x1b[29m',
 def print_runtime(f=None,
                   color=None,
                   effect=None,
-                  formatter=None):
+                  formatter=None,
+                  end='\n'):
 
     def runtime_wrapper(_f_):
         @functools.wraps(_f_)
@@ -55,6 +56,7 @@ def print_runtime(f=None,
             tic  = default_timer()
             retv = _f_(*args, **kwargs)
             toc  = default_timer()
+
             elapsed = -(tic - toc)
 
             # variables for .format(**locals())
@@ -69,16 +71,15 @@ def print_runtime(f=None,
                 s = formatter.format(**locals())
 
             s = styled(s, color, effect)
-
             flush_stdout()
-            print_unicode(s)
+            print_unicode(s, end)
 
             return retv
 
         return functools_wrapper
 
     if (f is not None) and not callable(f):
-        f, color, effect, formatter = None, f, color, effect
+        f, color, effect, formatter, end = None, f, color, effect, end
 
     if color is None:     color     = config.get('color')
     if effect is None:    effect    = config.get('effect')
@@ -161,8 +162,8 @@ def styled(message,
            color=None,
            effect=None):
 
-    if color is None:  color  = (config.get('color') or '')
-    if effect is None: effect = (config.get('effect') or '')
+    if color is None:  color  = config.get('color',  '')
+    if effect is None: effect = config.get('effect', '')
 
     color  = (color.lower()
                    .replace('_', ' '))
@@ -306,12 +307,12 @@ def flush_stdout(sleep_ms=None):
         sleep(sleep_ms / 1000)
 
 
-def print_unicode(s):
+def print_unicode(s, end='\n'):
     """ replace all \x1b[34m with regex? """
     try:
-        print(s)
+        print(s, end=end)
     except UnicodeError:
-        print(ascii(s))
+        print(ascii(s), end=end)
 
 
 def vengeance_message(message):

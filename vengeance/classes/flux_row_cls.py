@@ -10,7 +10,6 @@ from ..util.iter import is_header_row
 
 from ..util.text import surround_double_brackets
 from ..util.text import surround_single_brackets
-from ..util.text import surround_square_brackets
 from ..util.text import format_integer
 
 from ..conditional import ordereddict
@@ -24,9 +23,9 @@ class flux_row_cls:
 
     @classmethod
     def reserved_names(cls):
-        return ['_headers', 'values'] + dir(cls)
+        return ['_headers', 'values', 'row_label'] + dir(cls)
 
-    def __init__(self, headers, values):
+    def __init__(self, headers, values, row_label=None):
         """
         :param headers: OrderedDict of {'header': int}
             headers is a single dictionary passed byref from the flux_cls to many flux_row_cls instances
@@ -40,42 +39,44 @@ class flux_row_cls:
         self._headers: Dict[Union[str, bytes], int]
         self.values:   List
 
-        self.__dict__['_headers'] = headers
-        self.__dict__['values']   = values
+        self.__dict__['_headers']  = headers
+        self.__dict__['values']    = values
+        self.__dict__['row_label'] = row_label
 
     @property
-    def as_preview_array(self):
+    def _preview_as_tuple(self) -> List:
+        """ to help with debugging """
+        names  = [surround_double_brackets(n) for n in self.header_names()]
+        values = list(self.__dict__['values'])
+
+        c_m = max(len(names), len(values))
+        names.extend(['🗲missing🗲']  * (c_m - len(names)))
+        values.extend(['🗲missing🗲'] * (c_m - len(values)))
+
+        label = self.__dict__['row_label']
+        if isinstance(label, int):
+            names.insert(0,  surround_single_brackets('label'))
+            values.insert(0, surround_single_brackets(format_integer(label)))
+        elif isinstance(label, str):
+            names.insert(0,  surround_single_brackets('label'))
+            values.insert(0, surround_single_brackets(label))
+
+        m = list(zip(names, values))
+
+        return m
+
+    @property
+    def _preview_as_array(self):
         """
         to help with debugging: meant to trigger a debugging feature in PyCharm
         PyCharm will recognize the ndarray and enable the "...view as array"
         option in the debugger which displays values in a special window as a table
         """
-        names  = [surround_double_brackets(n) for n in self.header_names()]
-        values = list(self.__dict__['values'])
+        m = self._preview_as_tuple
+        if numpy_installed:
+            m = numpy.array(m, dtype=object)
 
-        c_m = max(len(names), len(values))
-        names.extend(['🗲']          * (c_m - len(names)))
-        values.extend(['🗲jagged🗲'] * (c_m - len(values)))
-
-        if 'address' in self.__dict__:
-            names.insert(0,  '⟨address⟩')
-            values.insert(0, '⟨{}⟩'.format(self.__dict__['address']))
-        elif 'r_i' in self.__dict__:
-            names.insert(0,  '⟨r_i⟩')
-            values.insert(0, '⟨{:,}⟩'.format(self.__dict__['r_i']).replace(',', '_'))
-
-        m = list(zip(names, values))
-
-        if not numpy_installed:
-            _nf_ = max([len(n) for n in names])  + 1
-            _nf_ = '{: <%s}' % str(_nf_)
-
-            m = [' '.join([_nf_.format(n), v]) for n, v in m]
-            m = '\n'.join(m)
-
-            return m
-
-        return numpy.array(m, dtype=object)
+        return m
 
     @property
     def headers(self):
@@ -104,8 +105,7 @@ class flux_row_cls:
         return ordereddict(zip(self.header_names(), self.__dict__['values']))
 
     def namedrow(self):
-        d = ordereddict(zip(self.header_names(), self.__dict__['values']))
-        return namespace_cls(**d)
+        return namespace_cls(zip(self.header_names(), self.__dict__['values']))
 
     # noinspection PyArgumentList
     def namedtuple(self):
@@ -158,10 +158,10 @@ class flux_row_cls:
             self.__dict__['values'][i] = value
         except (TypeError, IndexError) as e:
 
-            if name in self.__dict__:
-                self.__dict__[name] = value
-            elif isinstance(self.__dict__['values'], tuple):
+            if isinstance(self.__dict__['values'], tuple):
                 raise e
+            elif name in self.__dict__:
+                self.__dict__[name] = value
             else:
                 self.__raise_attribute_error(name, self.headers)
 
@@ -206,29 +206,34 @@ class flux_row_cls:
         return iter(self.__dict__['values'])
 
     def __eq__(self, other):
-        return hash(self) == hash(other)
+        a = id(self.__dict__['_headers']) + hash(tuple(self.__dict__['values']))
+        b = id(other.__dict__['_headers']) + hash(tuple(other.__dict__['values']))
+
+        return a == b
 
     def __ne__(self, other):
         return not self.__eq__(other)
 
-    def __hash__(self):
-        return id(self.__dict__['_headers']) + hash(tuple(self.__dict__['values']))
+    # def __hash__(self):
+    #     """ should you be able to hash a list? """
+    #     return id(self.__dict__['_headers']) + hash(tuple(self.__dict__['values']))
 
     def __repr__(self):
-        if 'address' in self.__dict__:
-            row_label = surround_single_brackets(self.__dict__['address'])
-            row_label = ' {}   '.format(row_label)
-        elif 'r_i' in self.__dict__:
-            row_label = format_integer(self.__dict__['r_i'])
+        label = self.__dict__['row_label']
+        if isinstance(label, int):
+            row_label = format_integer(label)
             row_label = surround_single_brackets(row_label)
-            row_label = ' {}   '.format(row_label)
+            row_label = '{} '.format(row_label)
+        elif isinstance(label, str):
+            row_label = surround_single_brackets(label)
+            row_label = '{} '.format(row_label)
         else:
             row_label = ''
 
         if self.is_jagged():
             jagged_label = len(self.__dict__['values']) - len(self.__dict__['_headers'])
             jagged_label = surround_single_brackets('{:+}'.format(jagged_label))
-            jagged_label = ' 🗲jagged {}🗲  '.format(jagged_label)
+            jagged_label = '🗲jagged {}🗲  '.format(jagged_label)
         else:
             jagged_label = ''
 
@@ -238,9 +243,6 @@ class flux_row_cls:
         else:
             values = (repr(self.__dict__['values']).replace('"', '')
                                                    .replace("'", ''))
-            if values.startswith('['):
-                values = surround_square_brackets(values[1:-1])
-                # values = '⟦' + values[1:-1] + '⟧'
 
         return '{}{}{}'.format(row_label, jagged_label, values)
 

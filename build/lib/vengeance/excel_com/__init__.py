@@ -11,7 +11,7 @@ from .workbook import any_excel_application
 from .workbook import empty_excel_application
 from .workbook import all_excel_instances
 
-from .classes import excel_levity_cls
+from .classes import lev_cls
 
 __all__ = ['col_letter_offset',
            'col_letter',
@@ -25,4 +25,4 @@ __all__ = ['col_letter_offset',
            'empty_excel_application',
            'all_excel_instances',
 
-           'excel_levity_cls']
+           'lev_cls']

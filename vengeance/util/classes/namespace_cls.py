@@ -6,14 +6,19 @@ class namespace_cls:
     """
     similar to types.SimpleNamespace
     """
-    def __init__(self, **kwargs):
-        self.__dict__ = ordereddict(kwargs)
+    def __init__(self, kwargs):
+        if not isinstance(kwargs, dict):
+            kwargs = ordereddict(kwargs)
+
+        self.__dict__ = kwargs
+
+    # @property
+    # def values(self):
+    #     return list(self.__dict__.values())
 
     def __iter__(self):
+        """ return (k for k in self.__dict__.keys()) """
         return (v for v in self.__dict__.values())
-
-    # def __iter__(self):
-    #     return (k for k in self.__dict__.keys())
 
     def __eq__(self, other):
         if (not hasattr(self, '__dict__')) or (not hasattr(other, '__dict__')):

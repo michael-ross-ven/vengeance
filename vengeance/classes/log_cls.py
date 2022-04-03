@@ -261,7 +261,7 @@ class log_cls(Logger):
                                mode='w',
                                encoding='utf-8'):
 
-        _, path = self.parse_name_or_path(path)
+        path = self.resolve_log_path(path)
         if not path:
             return
 
@@ -353,23 +353,23 @@ class log_cls(Logger):
         return '{}: [{}]  handlers={{{}}}'.format(self.name, ln, rh)
 
     @staticmethod
-    def parse_name_or_path(name_or_path):
+    def resolve_log_path(name_or_path):
         p_path = parse_path(name_or_path, abspath=False)
 
-        directory = p_path.directory
-        filename  = p_path.filename
-        extension = p_path.extension
+        if not (p_path.directory or p_path.extension):
+            return None
 
-        if not (directory or extension):
-            return filename, None
+        if p_path.directory:
+            directory = p_path.directory
+        else:
+            directory = standardize_path(p_path.directory, abspath=True)
 
         if not os.path.exists(directory):
             raise FileExistsError('log directory does not exist: \n{}'.format(directory))
 
-        directory = standardize_path(directory)
-        path = directory + filename + extension
+        path = directory + p_path.filename + p_path.extension
 
-        return filename, path
+        return path
 
     @staticmethod
     def log_formatter(log_format, date_format):
@@ -380,6 +380,7 @@ class log_cls(Logger):
         else:
             style_format = '$'
 
+        # noinspection PyTypeChecker
         return Formatter(log_format,
                          date_format,
                          style_format)

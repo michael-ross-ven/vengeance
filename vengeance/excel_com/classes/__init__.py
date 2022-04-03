@@ -1,4 +1,4 @@
 
-from .excel_levity_cls import excel_levity_cls
+from .lev_cls import lev_cls
 
-__all__ = ['excel_levity_cls']
+__all__ = ['lev_cls']

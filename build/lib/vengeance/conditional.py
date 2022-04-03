@@ -18,7 +18,7 @@ loads_excel_module:
     vengeance.excel_com functions:
         vengeance.open_workbook
         vengeance.close_workbook
-        vengeance.excel_levity_cls
+        vengeance.lev_cls
         etc ...
 
 ordereddict:
@@ -73,10 +73,16 @@ except ImportError:
 
 
 def load_vengeance_configuration_file():
+    """
+    sys.getfilesystemencoding()
+    locale.getpreferredencoding()
+
+    if cp.has_section('filesystem'):
+        cp_section = cp['filesystem']
+        config.update({'encoding': cp_section.get('encoding')})
+    """
     global config
     global config_file_loaded
-
-    config_file_loaded = True
 
     vcf = __load_vengeance_configuration_file()
     if vcf is None:
@@ -84,7 +90,6 @@ def load_vengeance_configuration_file():
 
     if vcf.has_section('console'):
         cp_section = vcf['console']
-
         config.update({'color':              cp_section.get('color'),
                        'effect':             cp_section.get('effect'),
                        'formatter':          cp_section.get('formatter'),
@@ -93,11 +98,7 @@ def load_vengeance_configuration_file():
         if config['enable_ansi_escape']:
             __enable_ansi_escape_in_windows_console()
 
-    # sys.getfilesystemencoding()
-
-    # if cp.has_section('filesystem'):
-    #     cp_section = cp['filesystem']
-    #     config.update({'encoding': cp_section.get('encoding')})
+    config_file_loaded = True
 
 
 def __load_vengeance_configuration_file():
@@ -111,7 +112,6 @@ def __load_vengeance_configuration_file():
 
     for config_path in config_paths:
         if os.path.exists(config_path):
-
             from configparser import ConfigParser
 
             vcf = ConfigParser()

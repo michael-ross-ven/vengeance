@@ -200,6 +200,7 @@ def is_dictview(o):
 def is_vengeance_class(o):
     base_cls_names      = set(base_class_names(o))
     vengeance_cls_names = {'flux_cls',
+                           'lev_cls',
                            'excel_levity_cls'}
 
     return bool(base_cls_names & vengeance_cls_names)
@@ -218,7 +219,7 @@ def is_descendable(o):
 
 def iterator_to_collection(o):
     if is_vengeance_class(o):
-        return list(o.rows())
+        return list(o.values())
 
     if isinstance(o, (range, set)) or \
        is_exhaustable(o) or \
@@ -276,7 +277,7 @@ def to_namespaces(o):
 
     if isinstance(o, dict):
         d = {k: traverse(k, v) for k, v in o.items()}
-        return namespace_cls(**d)
+        return namespace_cls(d)
     elif is_collection(o):
         return [traverse(None, v) for v in o]
     else:

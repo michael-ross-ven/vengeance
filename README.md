@@ -1,7 +1,9 @@
 ## Managing tabular data shouldn't be complicated.
 ---
-##### See https://github.com/michael-ross-ven/vengeance_unittest project for examples.
-##### Start with *flux_example.py* and *excel_levity_example.py*
+##### See
+##### https://github.com/michael-ross-ven/vengeance_example/blob/main/flux_example.py
+##### https://github.com/michael-ross-ven/vengeance_example/blob/main/excel_example.py
+##### for examples
 \
 \
 Values stored as list of lists (ie, a matrix) should be easily managed without the need to install a 

@@ -1,4 +1,22 @@
 
+2022-04-02
+$release 59
+    version 1.1.22
+
+    flux_cls:
+        .as_preview_array property renamed to ._preview_as_array
+        .as_preview property renamed to ._preview_as_tuples
+        .aap_indices property renamed to .preview_indices
+        .matrix_by_headers renamed to .reassign_columns
+
+    flux_row_cls:
+        .row_label attribute added to class
+
+    excel_levity_cls:
+        renamed to lev_cls
+
+
+
 2021-09-09
 $release 58
     version 1.1.21

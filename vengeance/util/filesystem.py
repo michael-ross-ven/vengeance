@@ -3,12 +3,12 @@ import csv
 import gc
 import os
 import pickle
-import pprint
 import shutil
 
 from collections import namedtuple
 from datetime import date
 from datetime import datetime
+from functools import lru_cache
 from glob import glob
 from io import StringIO
 from os.path import isdir  as os_isdir
@@ -36,14 +36,16 @@ def read_file(path,
               filetype=None,
               **kwargs):
 
-    path, encoding, filetype, mode, kwargs = \
-     __validate_io_arguments(path, encoding, mode, filetype, kwargs, 'read')
+    was_gc_enabled   = gc.isenabled()
+    if was_gc_enabled: gc.disable()
 
-    is_bytes_mode  = ('b' in mode)
-    is_url         = is_path_a_url(path)
-    was_gc_enabled = gc.isenabled()
-
-    gc.disable()
+    path, encoding, filetype, mode, kwargs = __validate_io_arguments(path,
+                                                                     encoding,
+                                                                     mode,
+                                                                     filetype,
+                                                                     kwargs,
+                                                                     'read')
+    is_url = is_path_a_url(path)
 
     if filetype == '.csv':
         data = __read_csv(path, mode, encoding, kwargs)
@@ -51,28 +53,22 @@ def read_file(path,
     elif filetype == '.json':
         data = __read_json(path, mode, encoding, kwargs)
 
-    elif filetype in pickle_extensions:
-        with open(path, mode) as f:
-            data = pickle.load(f, **kwargs)
-
     elif is_url:
         data = __url_request(path, encoding=encoding)
 
-    elif is_bytes_mode:
+    elif filetype in pickle_extensions:
         with open(path, mode) as f:
-            data = f.read()
+            data = pickle.load(f, **kwargs)
 
     else:
         with open(path, mode, encoding=encoding) as f:
             data = f.read()
 
-    if was_gc_enabled:
-        gc.enable()
+    if was_gc_enabled: gc.enable()
 
     return data
 
 
-# noinspection DuplicatedCode
 def write_file(path,
                data,
                encoding=None,
@@ -80,13 +76,18 @@ def write_file(path,
                filetype=None,
                **kwargs):
 
-    path, encoding, filetype, mode, kwargs = \
-     __validate_io_arguments(path, encoding, mode, filetype, kwargs, 'write')
+    was_gc_enabled   = gc.isenabled()
+    if was_gc_enabled: gc.disable()
 
-    is_bytes_mode  = ('b' in mode)
-    was_gc_enabled = gc.isenabled()
+    is_data_bytes = isinstance(data, bytes)
 
-    gc.disable()
+    path, encoding, filetype, mode, kwargs = __validate_io_arguments(path,
+                                                                     encoding,
+                                                                     mode,
+                                                                     filetype,
+                                                                     kwargs,
+                                                                     'write',
+                                                                     is_data_bytes)
 
     if filetype == '.csv':
         newline = kwargs.pop('newline')
@@ -101,17 +102,11 @@ def write_file(path,
         with open(path, mode) as f:
             pickle.dump(data, f, **kwargs)
 
-    elif is_bytes_mode:
-        with open(path, mode) as f:
-            f.write(data)
-
     else:
-        if not isinstance(data, str): data = pprint.pformat(data, **kwargs)
         with open(path, mode, encoding=encoding) as f:
             f.write(data)
 
-    if was_gc_enabled:
-        gc.enable()
+    if was_gc_enabled: gc.enable()
 
 
 def __validate_io_arguments(path,
@@ -119,14 +114,18 @@ def __validate_io_arguments(path,
                             mode,
                             filetype,
                             kwargs,
-                            read_or_write):
+                            read_or_write,
+                            is_data_bytes=False):
 
     path          = __validate_path(path)
     filetype      = __validate_filetype(path, filetype)
-    mode          = __validate_mode(mode, filetype)
-    encoding      = __validate_encoding(encoding)
+    mode          = __validate_mode(mode, filetype, is_data_bytes)
+    encoding      = __validate_encoding(mode, encoding)
     read_or_write = __validate_read_or_write(path, mode, read_or_write)
-    kwargs        = __validate_file_keyword_args(encoding, filetype, kwargs, read_or_write)
+    kwargs        = __validate_file_keyword_args(encoding,
+                                                 filetype,
+                                                 kwargs,
+                                                 read_or_write)
 
     return (path,
             encoding,
@@ -136,9 +135,7 @@ def __validate_io_arguments(path,
 
 
 def __validate_path(path):
-    path = standardize_path(path, abspath=True)
-
-    return path
+    return standardize_path(path, abspath=True)
 
 
 def __validate_filetype(path, filetype):
@@ -157,9 +154,7 @@ def __validate_filetype(path, filetype):
     filetype = filetype or parse_file_extension(path, include_dot=True)
     filetype = filetype.lower().strip()
 
-    if not filetype:
-        raise TypeError('empty file type')
-    elif not filetype.startswith('.'):
+    if filetype and not filetype.startswith('.'):
         filetype = '.' + filetype
 
     if filetype.startswith('.xl') or filetype in notimplemented_extensions:
@@ -168,11 +163,11 @@ def __validate_filetype(path, filetype):
     return filetype
 
 
-def __validate_mode(mode, filetype):
+def __validate_mode(mode, filetype, is_data_bytes):
     is_rw_mode          = ('+' in mode)
     is_bytes_mode       = ('b' in mode)
     is_pickle_extension = (filetype in pickle_extensions)
-    is_csv_extension    = (filetype == '.csv')
+    is_csv_extension    = (filetype in ('.csv',))
 
     if is_rw_mode:
         raise ValueError('read-write mode not supported')
@@ -181,11 +176,18 @@ def __validate_mode(mode, filetype):
 
     if is_pickle_extension and (not is_bytes_mode):
         mode = mode + 'b'
+    elif is_data_bytes and (not is_bytes_mode):
+        mode = mode + 'b'
 
     return mode
 
 
-def __validate_encoding(encoding):
+def __validate_encoding(mode, encoding):
+    is_bytes_mode = ('b' in mode)
+
+    if is_bytes_mode:
+        encoding = None
+
     return encoding
 
 
@@ -224,11 +226,11 @@ def __validate_read_or_write(path, mode, read_or_write):
     is_append_mode = ('a' in mode)
     is_url         = is_path_a_url(path)
 
-    if read_or_write == 'read':
+    if read_or_write.startswith('r'):
         if (not is_read_mode) or is_append_mode:
             raise ValueError('invalid read mode: {}'.format(mode))
 
-    elif read_or_write == 'write':
+    elif read_or_write.startswith('w'):
         if (not is_write_mode):
             raise ValueError('invalid write mode: {}'.format(mode))
         if is_url:
@@ -398,7 +400,7 @@ def file_modified_datetime(path):
     return datetime.fromtimestamp(unix_t)
 
 
-# @lru_cache(2**16)
+@lru_cache(8)
 def is_path_a_url(path):
     u = urlparse(path).netloc
     return bool(u)
