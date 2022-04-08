@@ -103,7 +103,8 @@ def get_opened_workbook(path):
 
     if not workbooks:
         return None
-    elif len(workbooks) > 1:
+
+    if len(workbooks) > 1:
         vengeance_warning("multiple workbooks in different Excel instances found: '{}' "
                           .format([wb.FullName for wb in workbooks]))
 
@@ -198,7 +199,8 @@ def __open_workbook_dispatch(path,
 
     excel_app.DisplayAlerts = display_alerts
     excel_app.EnableEvents  = enable_events
-    wb = excel_app.Workbooks.Open(path, **kwargs)
+    wb = excel_app.Workbooks.Open(path,
+                                  **kwargs)
     excel_app.DisplayAlerts = _display_alerts_
     excel_app.EnableEvents  = _enable_events_
 
@@ -367,7 +369,7 @@ def __excel_application_from_window_handle(window_h):
         return None
 
     xl_desk_hwnd = FindWindowExA(window_h,     0, b'XLDESK', 0)
-    excel7_hwnd  = FindWindowExA(xl_desk_hwnd, 0, b'EXCEL7',  0)
+    excel7_hwnd  = FindWindowExA(xl_desk_hwnd, 0, b'EXCEL7', 0)
 
     if excel7_hwnd == 0:
         corrupt_hwnds.add(window_h)

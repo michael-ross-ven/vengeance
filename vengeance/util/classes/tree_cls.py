@@ -31,13 +31,13 @@ class tree_cls:
             raise TypeError('flat_dict must be a dictionary')
 
         self.children = ordereddict()
-        for flat_edges, value in flat_dict.items():
-            self.add(flat_edges, value)
+        for flat_keys, value in flat_dict.items():
+            self.add(flat_keys, value)
 
-    def add(self, flat_edges, value):
+    def add(self, flat_keys, value):
         node = self
 
-        for e_key in flat_edges:
+        for e_key in flat_keys:
             if e_key not in node.children:
                 child = node_cls(value)
 

@@ -7,10 +7,9 @@ from setuptools import setup
 Publishing (Perfect) Python Packages on PyPi
 https://youtu.be/GIF3LaRqgXo
 
-https://pandao.github.io/editor.md/en.html
-
-?
+https://markdownlivepreview.com/
 https://hynek.me/articles/conditional-python-dependencies/
+https://betterprogramming.pub/a-python-package-developers-cheat-sheet-3efb9e9454c7
 
 pip install vengeance[comtypes]
 pip install vengeance[pypiwin32]
@@ -19,17 +18,20 @@ pip install vengeance[numpy]
 pip install vengeance[comtypes,pypiwin32,python-dateutil,numpy]
 """
 
-
-__version__ = '1.1.22'
-__release__ = '$release 59'
-long_description = ('https://github.com/michael-ross-ven/vengeance/blob/master/README.md'
-                    '\n\n(specialize this for pypi.org later)')
-
-# NOT tested!
-# with open('README.md', 'r') as f:
-#     long_description = f.read()
-
 is_windows_os = (os.name == 'nt')
+
+__version__ = '1.1.23'
+__release__ = '$release 60'
+
+description      = 'Library focusing on row-major organization of tabular data and control over the Excel application'
+long_description = 'https://github.com/michael-ross-ven/vengeance/blob/master/README.md'
+
+try:
+    with open('README.md', 'r') as f:
+        long_description = f.read()
+except:
+    pass
+
 
 if is_windows_os:
     install_requires = ['comtypes',
@@ -39,7 +41,6 @@ else:
 
 extras_require = {":python_version>='3.0'": ['python-dateutil',
                                              'numpy']}
-
 
 
 def __move_win32com_gencache_folder():
@@ -73,8 +74,7 @@ def __move_win32com_gencache_folder():
 if __name__ == '__main__':
     setup(name='vengeance',
           version=__version__,
-          description='Library focusing on row-major organization of tabular data and control over '
-                      'the Excel application',
+          description=description,
           long_description=long_description,
           url='https://github.com/michael-ross-ven/vengeance',
           author='Michael Ross',

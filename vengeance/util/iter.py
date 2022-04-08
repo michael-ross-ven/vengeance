@@ -1,7 +1,6 @@
 
+import re
 from collections import namedtuple
-# from collections import Iterable, ItemsView
-
 from typing import Generator
 from typing import Union
 from typing import Any
@@ -26,6 +25,33 @@ class ColumnNameError(ValueError):
     pass
 
 
+def standardize_variable_arity_values(values,
+                                      depth=None,
+                                      depth_offset=None):
+    """
+    this function is heavily utilized to correctly un-nest function arguments
+    in flux_cls methods
+
+    eg flux_cls:
+        def append_columns(self, *names):
+            names = standardize_variable_arity_values(names, depth=1)
+
+    # while is_descendable(values):
+    #     values = values[0]
+    """
+
+    # convert iterators, even if they are nested
+    if is_descendable(values) and is_exhaustable(values[0]):
+        values = iterator_to_collection(values[0])
+    else:
+        values = iterator_to_collection(values)
+
+    values = modify_iteration_depth(values, depth, depth_offset,
+                                    first_element_only=True)
+
+    return values
+
+
 def iteration_depth(values, first_element_only=False):
     """
     this function is heavily utilized to correctly un-nest function arguments
@@ -48,8 +74,10 @@ def iteration_depth(values, first_element_only=False):
 
     if not is_collection(values):
         return 0
+
     if len(values) == 0:
         return 1
+
     if first_element_only:
         return 1 + iteration_depth(values[0], first_element_only)
     else:
@@ -81,7 +109,6 @@ def modify_iteration_depth(values,
 
             # has_multiple_depths = set(iteration_depth(_v_, first_element_only=False) for _v_ in v)
 
-
             if is_descendable(values):
                 values = values[0]
             else:
@@ -105,7 +132,6 @@ def modify_iteration_depth(values,
 
     if depth_offset < 0:
         for _ in range(abs(depth_offset)):
-
             if is_descendable(values):
                 values = values[0]
             else:
@@ -118,38 +144,11 @@ def modify_iteration_depth(values,
     return values
 
 
-def standardize_variable_arity_values(values,
-                                      depth=None,
-                                      depth_offset=None):
-    """
-    this function is heavily utilized to correctly un-nest function arguments
-    in flux_cls methods
-
-    eg flux_cls:
-        def append_columns(self, *names):
-            names = standardize_variable_arity_values(names, depth=1)
-
-    # while is_descendable(values):
-    #     values = values[0]
-    """
-
-    # convert iterators, even if they are nested
-    if is_descendable(values) and is_exhaustable(values[0]):
-        values = iterator_to_collection(values[0])
-    else:
-        values = iterator_to_collection(values)
-
-    values = modify_iteration_depth(values, depth, depth_offset,
-                                    first_element_only=True)
-
-    return values
-
-
 def are_indices_contiguous(indices):
     if len(indices) == 1:
         return False
 
-    for i_2, i_1 in zip(indices[1:], indices):
+    for i_1, i_2 in zip(indices, indices[1:]):
         if i_2 - i_1 != 1:
             return False
 
@@ -158,7 +157,7 @@ def are_indices_contiguous(indices):
 
 def is_collection(o):
     """ determine if value is an iterable object or data structure
-    function used mainly to distinguish data structures from other 
+    function used mainly to distinguish data structures from other
     iterables
 
     eg:
@@ -206,11 +205,6 @@ def is_vengeance_class(o):
     return bool(base_cls_names & vengeance_cls_names)
 
 
-# def is_namedtuple_class(o):
-#     return (isinstance(o, tuple) and
-#             type(o) is not tuple)
-
-
 def is_descendable(o):
     return (is_collection(o) and
             is_subscriptable(o) and
@@ -255,66 +249,8 @@ def transpose(m, astype=None) -> Generator[Union[List, Tuple], None, None]:
     return t
 
 
-# noinspection PyProtectedMember
-def to_namespaces(o):
-    """ recursively convert values to namespace """
-
-    # region {closure functions}
-    # noinspection PyProtectedMember
-    def traverse(k, v):
-        if isinstance(v, dict):
-            return to_namespaces(v)
-        elif hasattr(v, '_asdict'):
-            return to_namespaces(v._asdict())
-        elif is_collection(v):
-            return [traverse(k, _) for _ in v]
-        else:
-            return v
-    # endregion
-
-    if hasattr(o, '_asdict'):
-        o = o._asdict()
-
-    if isinstance(o, dict):
-        d = {k: traverse(k, v) for k, v in o.items()}
-        return namespace_cls(d)
-    elif is_collection(o):
-        return [traverse(None, v) for v in o]
-    else:
-        return o
-
-
-# noinspection PyArgumentList,PyProtectedMember
-def to_namedtuples(o):
-    """ recursively convert values to namedtuples """
-
-    # region {closure functions}
-    # noinspection PyProtectedMember
-    def traverse(v):
-        if isinstance(v, dict):
-            return to_namedtuples(v)
-        elif hasattr(v, '_asdict'):
-            return to_namedtuples(v._asdict())
-        elif is_collection(v):
-            return [traverse(_) for _ in v]
-        else:
-            return v
-    # endregion
-
-    if hasattr(o, '_asdict'):
-        o = o._asdict()
-
-    if isinstance(o, dict):
-        nt = namedtuple('nt', o.keys())
-        return nt(*[traverse(v) for v in o.values()])
-    elif is_collection(o):
-        return [traverse(v) for v in o]
-    else:
-        return o
-
-
 def to_grouped_dict(flat_dict: Dict) -> Dict[Any, Dict]:
-    """ re-map keys as tuples to a nested structure
+    """ re-map keys (tuples) to a nested structure
 
     eg:
         # "flat" keys
@@ -328,9 +264,32 @@ def to_grouped_dict(flat_dict: Dict) -> Dict[Any, Dict]:
          'a₂': {'b₁': {'c₁': {'d₁': 'v_4',
                               'd₂': 'v_3'}}}} = to_grouped_dict(d)
     """
-    groups = tree_cls(flat_dict).traverse()
+    nested_dict = tree_cls(flat_dict).traverse()
 
-    return groups
+    return nested_dict
+
+
+def is_header_row(values, headers):
+    """ determine if underlying values match headers.keys
+
+    checking headers.keys() == values will not always work, since map_values_to_enum()
+    was used to modify names into more suitable header keys,
+    like modifying duplicate values to ensure they are unique
+
+    eg:
+        True = is_header_row(['a', 'b', 'c'],
+                             {'a': 0, 'b': 1, 'c': 2})
+        True = is_header_row(['a', 'b', 'b'],
+                             {'a': 0, 'b': 1, 'b__dup_2': 2})
+
+    """
+    if not headers:
+        return False
+
+    value_names  = map_values_to_enum(values).keys()
+    header_names = set(headers)
+
+    return value_names == header_names
 
 
 def map_values_to_enum(sequence, start=0) -> Dict[Union[str, bytes], int]:
@@ -338,14 +297,14 @@ def map_values_to_enum(sequence, start=0) -> Dict[Union[str, bytes], int]:
 
     values are modified before they are added as keys:
         * values coerced to string (if not bytes)
-        * non-unique keys are appended with '_dup_{num}' suffix
+        * non-unique keys are appended with '__dup_{num}' suffix
 
     eg
-        {'a':       0,
-         'b':       1,
-         'c':       2,
-         'b_dup_2': 3,
-         'b_dup_3': 4} = map_values_to_enum(['a', 'b', 'c', 'b', 'b'])
+        {'a':        0,
+         'b':        1,
+         'c':        2,
+         'b__dup_2': 3,
+         'b__dup_3': 4} = map_values_to_enum(['a', 'b', 'c', 'b', 'b'])
     """
     duplicates = {}
     values_to_indices = ordereddict()
@@ -364,9 +323,7 @@ def map_values_to_enum(sequence, start=0) -> Dict[Union[str, bytes], int]:
             duplicates[v_str] = 1
         else:
             duplicates[v_str] += 1
-
-        if is_duplicate:
-            v_str = '{}_dup_{}'.format(v_str, duplicates[v_str])
+            v_str = '{}__dup_{}'.format(v_str, duplicates[v_str])
 
         if is_bytes:
             v_str = v_str.encode()
@@ -376,17 +333,82 @@ def map_values_to_enum(sequence, start=0) -> Dict[Union[str, bytes], int]:
     return values_to_indices
 
 
-def is_header_row(values, headers):
-    """ determine if underlying values match headers.keys
+# noinspection PyProtectedMember
+def to_namespaces(o, to_snake_case=False):
+    """ recursively convert values to namespaces """
 
-    checking headers.keys() == values will not always work, since map_values_to_enum()
-    was used to modify names into more suitable header keys
+    if hasattr(o, '_fields'):
+        if to_snake_case:
+            fields = [snake_case(k) for k in o._fields]
+        else:
+            fields = o._fields
+
+        d = [(k, to_namespaces(v)) for k, v in zip(fields, o)]
+        return namespace_cls(d)
+
+    elif isinstance(o, dict):
+        if to_snake_case:
+            d = [(snake_case(k), to_namespaces(v)) for k, v in o.items()]
+        else:
+            d = [(k, to_namespaces(v)) for k, v in o.items()]
+
+        return namespace_cls(d)
+
+    elif is_collection(o):
+        return [to_namespaces(v) for v in o]
+    else:
+        return o
+
+
+# noinspection PyArgumentList, PyProtectedMember
+def to_namedtuples(o, to_snake_case=False):
+    is_namedtuple = (isinstance(o, tuple) and
+                     type(o) is not tuple)
+
+    if is_namedtuple:
+        if to_snake_case:
+            fields = [snake_case(k) for k in o._fields]
+        else:
+            fields = o._fields
+
+        nt = namedtuple(type(o).__name__, fields)
+        return nt(*[to_namedtuples(v) for v in o])
+
+    if isinstance(o, dict):
+        if to_snake_case:
+            fields = [snake_case(n) for n in o.keys()]
+        else:
+            fields = o.keys()
+
+        nt = namedtuple('NT', fields)
+        return nt(*[to_namedtuples(v) for v in o.values()])
+
+    elif is_collection(o):
+        return [to_namedtuples(v) for v in o]
+    else:
+        return o
+
+
+# noinspection DuplicatedCode
+def snake_case(s):
+    """ eg:
+        'some_value' = snake_case('someValue')
+
+    circular dependencies?
+        from .text import snake_case as _snake_case_
+        return _snake_case_(s)
     """
-    if not headers:
-        return False
+    camel_re = re.compile('''
+        (?<=[a-z])[A-Z](?=[a-z])
+    ''', re.VERBOSE)
 
-    value_names  = map_values_to_enum(values).keys()
-    header_names = set(headers)
+    if s[0] == s[0].upper():
+        s = ''.join((s[0].lower(), s[1:]))
 
-    return value_names == header_names
+    for i, match in enumerate(camel_re.finditer(s)):
+        c = match.span()[0] + i
+        p = '_' + s[c].lower()
+        s = s[:c] + p + s[c + 1:]
+
+    return s.lower().strip()
 

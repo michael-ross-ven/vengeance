@@ -32,7 +32,7 @@ config_file_loaded = False
 python_version      = sys.version_info
 is_windows_os       = (os.name == 'nt' or sys.platform == 'win32')
 is_utf_console      = ('utf' in sys.stdout.encoding.lower())
-is_pypy_interpreter = ('__pypy__' in sys.builtin_module_names)
+is_pypy_interpreter = ('__pypy__' in set(sys.builtin_module_names))
 loads_excel_module  = (not is_pypy_interpreter and is_windows_os)
 
 ordereddict             = dict
@@ -160,10 +160,12 @@ def __enable_ansi_escape_in_windows_console():
         is_utf_console = False
 
 
+# config_file_loaded      = True
 if config_file_loaded is False:
     load_vengeance_configuration_file()
 
 
+# ordereddict             = dict
 # is_pypy_interpreter     = True
 # is_windows_os           = True
 # dateutil_installed      = False
@@ -171,5 +173,5 @@ if config_file_loaded is False:
 # numpy_installed         = False
 # line_profiler_installed = False
 # loads_excel_module      = False
-
-
+# config_file_loaded      = True
+# config_values_loaded      = True

@@ -23,6 +23,46 @@ from ... conditional import ordereddict
 
 
 class lev_cls:
+    """ data management class for worksheets
+    https://github.com/michael-ross-ven/vengeance_example/blob/main/excel_example.py
+
+    ★ automatic range boundary detection
+
+    lev_cls range reference:
+        lev['{col}{row}:{col}{row}']
+        :returns a win32com reference to Excel range
+
+        anchor reference mnemonics:
+            '*h': header
+            '*o': first
+            '*l': last
+            '*a': append
+
+        a = lev['*f *h:*l *l'].Address
+
+    eg:
+        wb = vengeance.open_workbook('example.xlsm',
+                                     excel_app='new',
+                                     **kwargs)
+        ws   = wb.Sheets[ws_name]
+        lev = lev_cls(ws,
+                      meta_r=1,
+                      header_r=2,
+                      first_c='A')
+
+        for row in lev:
+            a = row.col_a
+            a = row['col_a']
+            a = row[0]
+
+        matrix = [['attribute_a', 'attribute_b', 'attribute_c'],
+                  ['a',           'b',           'c'],
+                  ['a',           'b',           'c'],
+                  ['a',           'b',           'c']]
+
+        lev.clear('*f *f:*l *l')
+        lev['*f *h'] = matrix
+    """
     allow_focus = False
 
     def __init__(self, ws, *,

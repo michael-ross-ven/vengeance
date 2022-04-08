@@ -1,5 +1,4 @@
-build/
-dist/
-vengeance.egg-info/
-vengeance/config.ini
-.gitignore
+*.pyc
+dist/*
+build/*
+vengeance.egg-info/*

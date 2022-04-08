@@ -23,7 +23,7 @@ class flux_row_cls:
 
     @classmethod
     def reserved_names(cls):
-        return ['_headers', 'values', 'row_label'] + dir(cls)
+        return sorted(['_headers', 'values', 'row_label'] + dir(cls), reverse=True)
 
     def __init__(self, headers, values, row_label=None):
         """
@@ -107,7 +107,6 @@ class flux_row_cls:
     def namedrow(self):
         return namespace_cls(zip(self.header_names(), self.__dict__['values']))
 
-    # noinspection PyArgumentList
     def namedtuple(self):
         row_nt = namedtuple('Row', self.header_names())
         return row_nt(*self.__dict__['values'])
@@ -206,17 +205,13 @@ class flux_row_cls:
         return iter(self.__dict__['values'])
 
     def __eq__(self, other):
-        a = id(self.__dict__['_headers']) + hash(tuple(self.__dict__['values']))
+        a = id(self.__dict__['_headers'])  + hash(tuple(self.__dict__['values']))
         b = id(other.__dict__['_headers']) + hash(tuple(other.__dict__['values']))
 
         return a == b
 
     def __ne__(self, other):
         return not self.__eq__(other)
-
-    # def __hash__(self):
-    #     """ should you be able to hash a list? """
-    #     return id(self.__dict__['_headers']) + hash(tuple(self.__dict__['values']))
 
     def __repr__(self):
         label = self.__dict__['row_label']
@@ -240,6 +235,9 @@ class flux_row_cls:
         if self.is_header_row():
             values = ', '.join(str(n) for n in self.header_names())
             values = surround_double_brackets(values)
+
+            # row_label = surround_single_brackets('h')
+            # row_label = '{} '.format(row_label)
         else:
             values = (repr(self.__dict__['values']).replace('"', '')
                                                    .replace("'", ''))

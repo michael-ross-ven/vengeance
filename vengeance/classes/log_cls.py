@@ -55,6 +55,8 @@ class log_cls(Logger):
     def __init__(self, name_or_path='',
                        level='NOTSET',
                        *,
+                       write_to_stream=True,
+                       write_to_file=True,
                        log_format='[{asctime}] [{levelname}] {message}',
                        date_format=None,
                        file_mode='w',
@@ -101,6 +103,9 @@ class log_cls(Logger):
         ''' @types '''
         self.records: deque[LogRecord]
 
+        if not (write_to_stream or write_to_file):
+            raise ValueError('write_to_stream or write_to_file must not both be False')
+
         if (exception_callback is not None) and not callable(exception_callback):
             raise TypeError('exception_callback must be callable')
 
@@ -109,6 +114,8 @@ class log_cls(Logger):
 
         super().__init__(name, level)
 
+        self.write_to_stream    = write_to_stream
+        self.write_to_file      = write_to_file
         self.name_or_path       = name_or_path
         self.mode               = file_mode
         self.encoding           = file_encoding
@@ -117,8 +124,11 @@ class log_cls(Logger):
         self.exception_callback = exception_callback
         self.exception_message  = ''
 
-        self.add_stream_handler(self.level, colored_statements, sys.stdout)
-        self.add_file_handler(name_or_path, self.level, file_mode, file_encoding)
+        if write_to_stream:
+            self.add_stream_handler(self.level, colored_statements, sys.stdout)
+
+        if write_to_file:
+            self.add_file_handler(name_or_path, self.level, file_mode, file_encoding)
 
         if exception_callback:
             sys.excepthook = self.exception_handler
@@ -212,6 +222,7 @@ class log_cls(Logger):
             h.close()
             self.removeHandler(h)
 
+    # noinspection PyProtectedMember
     def clear_files(self, i=None):
         handlers = self.file_handlers
         if isinstance(i, int):
@@ -219,7 +230,6 @@ class log_cls(Logger):
 
         for h in handlers:
             h.close()
-            # noinspection PyProtectedMember
             h._open()
 
     def remove_stream_handlers(self, i=None):
@@ -263,6 +273,7 @@ class log_cls(Logger):
 
         path = self.resolve_log_path(path)
         if not path:
+            self.write_to_file = False
             return
 
         level = self.levelname(level)

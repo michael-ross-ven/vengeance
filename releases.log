@@ -1,4 +1,15 @@
 
+2022-04-08
+$release 60
+    version 1.1.23
+
+    updated README.md
+    
+    flux_cls:
+        .values() returns row.values as copy, not as byref
+
+
+
 2022-04-02
 $release 59
     version 1.1.22

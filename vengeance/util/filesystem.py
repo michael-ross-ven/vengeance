@@ -36,16 +36,20 @@ def read_file(path,
               filetype=None,
               **kwargs):
 
-    was_gc_enabled   = gc.isenabled()
-    if was_gc_enabled: gc.disable()
-
-    path, encoding, filetype, mode, kwargs = __validate_io_arguments(path,
-                                                                     encoding,
-                                                                     mode,
-                                                                     filetype,
-                                                                     kwargs,
-                                                                     'read')
+    (path,
+     encoding,
+     filetype,
+     mode,
+     kwargs) = __validate_io_arguments(path,
+                                       encoding,
+                                       mode,
+                                       filetype,
+                                       kwargs,
+                                       'read')
     is_url = is_path_a_url(path)
+
+    gc_enabled   = gc.isenabled()
+    if gc_enabled: gc.disable()
 
     if filetype == '.csv':
         data = __read_csv(path, mode, encoding, kwargs)
@@ -64,7 +68,7 @@ def read_file(path,
         with open(path, mode, encoding=encoding) as f:
             data = f.read()
 
-    if was_gc_enabled: gc.enable()
+    if gc_enabled: gc.enable()
 
     return data
 
@@ -76,18 +80,20 @@ def write_file(path,
                filetype=None,
                **kwargs):
 
-    was_gc_enabled   = gc.isenabled()
-    if was_gc_enabled: gc.disable()
+    (path,
+     encoding,
+     filetype,
+     mode,
+     kwargs) = __validate_io_arguments(path,
+                                       encoding,
+                                       mode,
+                                       filetype,
+                                       kwargs,
+                                       'write',
+                                       is_data_bytes=isinstance(data, bytes))
 
-    is_data_bytes = isinstance(data, bytes)
-
-    path, encoding, filetype, mode, kwargs = __validate_io_arguments(path,
-                                                                     encoding,
-                                                                     mode,
-                                                                     filetype,
-                                                                     kwargs,
-                                                                     'write',
-                                                                     is_data_bytes)
+    gc_enabled   = gc.isenabled()
+    if gc_enabled: gc.disable()
 
     if filetype == '.csv':
         newline = kwargs.pop('newline')
@@ -106,7 +112,7 @@ def write_file(path,
         with open(path, mode, encoding=encoding) as f:
             f.write(data)
 
-    if was_gc_enabled: gc.enable()
+    if gc_enabled: gc.enable()
 
 
 def __validate_io_arguments(path,
@@ -126,7 +132,6 @@ def __validate_io_arguments(path,
                                                  filetype,
                                                  kwargs,
                                                  read_or_write)
-
     return (path,
             encoding,
             filetype,
@@ -152,9 +157,9 @@ def __validate_filetype(path, filetype):
                                  '.pdf'}
 
     filetype = filetype or parse_file_extension(path, include_dot=True)
-    filetype = filetype.lower().strip()
+    filetype = filetype.lower()
 
-    if filetype and not filetype.startswith('.'):
+    if not filetype.startswith('.'):
         filetype = '.' + filetype
 
     if filetype.startswith('.xl') or filetype in notimplemented_extensions:
@@ -171,6 +176,7 @@ def __validate_mode(mode, filetype, is_data_bytes):
 
     if is_rw_mode:
         raise ValueError('read-write mode not supported')
+
     if is_csv_extension and is_bytes_mode:
         raise ValueError('csv filetype does not accept bytes mode')
 
@@ -197,24 +203,22 @@ def __validate_file_keyword_args(encoding, filetype, kwargs, read_or_write):
     if 'kwargs' in kwargs:
         kwargs.update(kwargs.pop('kwargs'))
 
-    if read_or_write == 'read':
-        if filetype == '.csv':
-            kwargs['newline'] = kwargs.get('newline', '')
-            kwargs['nrows']   = kwargs.get('nrows',   None)
+    if filetype == '.csv' and read_or_write == 'read':
+        kwargs['newline'] = kwargs.get('newline', '')
+        kwargs['nrows']   = kwargs.get('nrows',   None)
 
-    if read_or_write == 'write':
-        if filetype == '.csv':
-            kwargs['newline'] = kwargs.get('newline', '')
+    elif filetype == '.csv' and read_or_write == 'write':
+        kwargs['newline'] = kwargs.get('newline', '')
 
-        if filetype == '.json':
-            kwargs['indent']       = kwargs.get('indent',       4)
-            kwargs['ensure_ascii'] = kwargs.get('ensure_ascii', encoding in (None, 'ascii'))
-            kwargs['default']      = kwargs.get('default',      json_unhandled_conversion)
+    elif filetype == '.json' and read_or_write == 'write':
+        kwargs['indent']       = kwargs.get('indent',       4)
+        kwargs['ensure_ascii'] = kwargs.get('ensure_ascii', encoding in (None, 'ascii'))
 
-            if ultrajson_installed:
-                for k in ('default', 'separators'):
-                    try:             del kwargs[k]
-                    except KeyError: pass
+        if ultrajson_installed:
+            for k in ('default', 'separators'):
+                if k in kwargs: del kwargs[k]
+        else:
+            kwargs['default'] = kwargs.get('default', json_unhandled_conversion)
 
     return kwargs
 
@@ -281,8 +285,8 @@ def __read_csv(path, mode, encoding, kwargs):
         return m
     # endregion
 
-    newline  = kwargs.pop('newline')
-    nrows    = kwargs.pop('nrows')
+    newline = kwargs.pop('newline')
+    nrows   = kwargs.pop('nrows')
     read_all_rows = (nrows is None)
 
     if is_path_a_url(path):
@@ -324,8 +328,8 @@ def __url_request(url, encoding=None):
 
 def json_dumps_extended(o, **kwargs):
     kwargs['ensure_ascii'] = kwargs.get('ensure_ascii', False)
-    kwargs['indent']       = kwargs.get('indent', 4)
-    kwargs['default']      = kwargs.get('default', json_unhandled_conversion)
+    kwargs['indent']       = kwargs.get('indent',       4)
+    kwargs['default']      = kwargs.get('default',      json_unhandled_conversion)
 
     if ultrajson_installed:
         del kwargs['default']
@@ -400,7 +404,7 @@ def file_modified_datetime(path):
     return datetime.fromtimestamp(unix_t)
 
 
-@lru_cache(8)
+@lru_cache(maxsize=8)
 def is_path_a_url(path):
     u = urlparse(path).netloc
     return bool(u)
@@ -433,8 +437,14 @@ def parse_file_name(path):
 
 def parse_file_extension(filename, include_dot=True):
     _, extension = os.path.splitext(filename)
-    if (include_dot is False) and extension.startswith('.'):
+    extension    = extension.strip()
+
+    has_dot = extension.startswith('.')
+
+    if (include_dot is False) and has_dot:
         extension = extension[1:]
+    elif include_dot and (not has_dot):
+        extension = '.' + extension
 
     return extension
 
@@ -476,7 +486,7 @@ def traverse_dir(rootdir='.',
                  files_only=False):
 
     if not is_windows_os:
-        raise NotImplementedError('only available on windows OS')
+        raise NotImplementedError('only available on Windows OS')
 
     if (subdirs_only is False) and (files_only is False):
         subdirs_only = True
