@@ -1,5 +1,6 @@
 ##### For example usage, see:
 https://github.com/michael-ross-ven/vengeance_example/blob/main/flux_example.py
+<br/>
 https://github.com/michael-ross-ven/vengeance_example/blob/main/excel_example.py
 <br/>
 <br/>
@@ -16,7 +17,7 @@ the indices on each row with named attributes, and have these applied even when 
 pulling data from a sql table or csv file.
 
     for row in matrix:
-        row[17]          # what's in that 18th column again? did any of the columns get reordered since last time?
+        row[17]          # what's in that 18th column again?
 
     for row in matrix:
         row.customer_id  # oh, duh
