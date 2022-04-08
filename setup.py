@@ -26,11 +26,12 @@ __release__ = '$release 60'
 description      = 'Library focusing on row-major organization of tabular data and control over the Excel application'
 long_description = 'https://github.com/michael-ross-ven/vengeance/blob/master/README.md'
 
-try:
-    with open('README.md', 'r') as f:
-        long_description = f.read()
-except:
-    pass
+# seems to cause error with .md to restructured text
+# try:
+#     with open('README.md', 'r') as f:
+#         long_description = f.read()
+# except:
+#     pass
 
 
 if is_windows_os:
