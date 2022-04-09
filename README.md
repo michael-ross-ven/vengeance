@@ -1,7 +1,7 @@
 ##### For example usage, see:
-https://github.com/michael-ross-ven/vengeance_example/blob/main/flux_example.py
+https://github.com/michael-ross-ven/vengeance_example/blob/main/vengeance_example/flux_example.py
 <br/>
-https://github.com/michael-ross-ven/vengeance_example/blob/main/excel_example.py
+https://github.com/michael-ross-ven/vengeance_example/blob/main/vengeance_example/excel_example.py
 <br/>
 <br/>
 <br/>
@@ -60,15 +60,14 @@ less intuitive, and usually involves digging through a lot of documentation.
 
 ###### DataFrame Disadvantages:
 * syntax doesnt always make sense or drive intuition
-* iteration by rows is almost completely out of the question
-* working with json is notoriously difficult
+* iteration by rows is almost completely out of the question (working with json is notoriously difficult)
 * managing datatypes can sometimes be problematic
 * harder to debug / inspect
 
 
 #### I mean, why are we working in Python to begin with?
 ###### The whole purpose of Python is:
-* don't have to worry about datatypes (interpreted,dynamic typing)
+* don't have to worry about datatypes (interpreted, dynamic typing)
 * emphasis on code readability
 * less concerned about program execution times
 
