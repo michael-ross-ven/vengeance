@@ -39,14 +39,14 @@ advantages as well as drawbacks.
          'attribute_c': array([3.,   3.,  3.], dtype=float64)}
 
 
-With column-major order, values in a single column are usually all of the same datatype, so can be packed into continuous 
+In column-major order, values in a single column are usually all of the same datatype, so can be packed into continuous 
 addresses in memory as an actual array. These contiguous elements in memory along a single column can be iterated very quickly, 
-but the ability to organize data where each row is some entity, and each column is a property of that row, is mind-numbingly slow.
-(DataFrame.iterrows() incurs a *huge* performance penalty, and can be 1,000x times slower to iterate than a built-in list)
+but the ability to organize data where each row is some entity, and each column is a property of that row, is mind-numbingly slow 
+in a DataFrame. (DataFrame.iterrows() incurs a *huge* performance penalty, and can be 1,000x times slower to iterate than a built-in list)
 
-DataFrames further take advantage of vectorization, where operations can be applied to an entire set of values at once. 
+DataFrames also take advantage of vectorization, where operations can be applied to an entire set of values at once. 
 But removing explicit loops requires specialized method calls for almost *every* operation and modification (when was 
-the last time you needed to call the .kurtosis() method on a DataFrame?) This also makes the syntax much more convoluted, 
+the last time you needed to call the .kurtosis() method on a Series?) This also makes the syntax much more convoluted, 
 less intuitive, and usually involves digging through a lot of documentation. 
 
     # wait, what exactly does this do again?
@@ -59,17 +59,16 @@ less intuitive, and usually involves digging through a lot of documentation.
 * vectorized operations on contiguous arrays are very fast
 
 ###### DataFrame Disadvantages:
+* syntax doesnt always make sense or drive intuition
 * iteration by rows is almost completely out of the question
 * working with json is notoriously difficult
-* syntax doesnt always make sense or drive intuition
 * managing datatypes can sometimes be problematic
 * harder to debug / inspect
-* harder to subclass
 
 
-#### But why are we working in Python to begin with?
-###### The whole purpose of Python:
-* don't have to worry about datatypes (dynamically typed)
+#### I mean, why are we working in Python to begin with?
+###### The whole purpose of Python is:
+* don't have to worry about datatypes (interpreted,dynamic typing)
 * emphasis on code readability
 * less concerned about program execution times
 
