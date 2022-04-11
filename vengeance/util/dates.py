@@ -133,7 +133,7 @@ def parse_date_numeric_string(v):
     """ eg:
         datetime.datetime(2000, 12, 1, 0, 0) = parse_date_numeric(20001201)
     """
-    s = str(int(v))
+    s = str(v)
     if len(s) != 8:
         return None
 
@@ -152,11 +152,7 @@ def parse_date_string(s, d_format):
     date_time = __parse_date_strptime(s)
 
     if date_time is None:
-        if dateutil_installed:
-            date_time = __parse_date_dateutil(s)
-        else:
-            from .text import vengeance_message
-            print(vengeance_message("('python-dateutil' package not installed)"))
+        date_time = __parse_date_dateutil(s)
 
     return date_time
 
@@ -202,6 +198,14 @@ def __compatible_with_strptime_lengths(s, common_formats):
 
 
 def __parse_date_dateutil(s):
+    """
+    from .text import vengeance_message
+    print(vengeance_message("('python-dateutil' package not installed)"))
+    """
+
+    if not dateutil_installed:
+        raise ImportError("'python-dateutil' package not installed")
+
     try:
         return dateutil_parse(s)
     except ValueError:

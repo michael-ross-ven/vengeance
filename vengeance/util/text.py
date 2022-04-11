@@ -57,7 +57,6 @@ def print_runtime(f=None,
             tic  = default_timer()
             retv = _f_(*args, **kwargs)
             toc  = default_timer()
-
             elapsed = -(tic - toc)
 
             # variables for .format(**locals())
@@ -110,7 +109,6 @@ def print_performance(f=None, repeat=5):
                 tic  = default_timer()
                 retv = _f_(*args, **kwargs)
                 toc  = default_timer()
-
                 elapsed = -(tic - toc)
 
                 if best is None:
@@ -195,7 +193,10 @@ def styled(message,
     # only apply new style to any unstyled parts of message
     _message_ = message.replace(__effect_end__,
                                 __effect_end__ + __effect_start__)
-    _message_ = '{}{}{}'.format(__effect_start__, _message_, __effect_end__)
+
+    _message_ = '{}{}{}'.format(__effect_start__,
+                                _message_,
+                                __effect_end__)
 
     return _message_
 
@@ -363,8 +364,8 @@ def format_seconds(s):
     elif ms >= 1:
         f_ms = '{:.1f} ms'.format(ms)
     elif us >= 1:
-        if is_utf_console: f_ms = '{:.0f} μs'.format(us)
-        else:              f_ms = '{:.0f} us'.format(us)
+        if is_utf_console:  f_ms = '{:.0f} μs'.format(us)
+        else:               f_ms = '{:.0f} us'.format(us)
     else:
         f_ms = '{:.0f} ns'.format(ns)
 
@@ -373,18 +374,21 @@ def format_seconds(s):
 
 def function_parameters(f):
     """
-    def function(something, *, also, also_1=None):
-        pass
+    eg:
+        def function(something, *, also, also_1=None):
+            pass
 
-    Arguments(args=['something', 'also', 'also_1'],
-              varargs=None,
-              varkw=None) = inspect.getargs(function.__code__)
+        Arguments(args=['something', 'also', 'also_1'],
+                  varargs=None,
+                  varkw=None)
+        = inspect.getargs(function.__code__)
 
-    (something, *, also, also_1=None) = inspect.signature(function)
+        (something, *, also, also_1=None) = inspect.signature(function)
 
-    OrderedDict([('something',  <Parameter "something">),
-                 ('also',       <Parameter "also">),
-                 ('also_1',     <Parameter "also_1=None">)]) = list(inspect.signature(function).parameters.items())
+        OrderedDict([('something',  <Parameter "something">),
+                     ('also',       <Parameter "also">),
+                     ('also_1',     <Parameter "also_1=None">)])
+        = list(inspect.signature(function).parameters.items())
     """
     # region {closure param_cls}
     class param_cls:
@@ -414,32 +418,6 @@ def function_parameters(f):
     return n_params
 
 
-# def function_name(f):
-#     try:
-#         fname = f.__qualname__
-#     except AttributeError:
-#         try:
-#             if isinstance(f, property):
-#                 fname = str(f.fget).split(' ')[1]
-#             else:
-#                 fname = str(f)
-#         except:
-#             fname = str(f)
-#
-#     if '.' in fname:         # probably a class method
-#         return fname
-#
-#     try:
-#         modulename = f.__module__
-#     except AttributeError:
-#         modulename = str(f)
-#
-#     if '.' in fname:
-#         modulename = modulename.split('.')[-1]
-#
-#     return '{}.{}'.format(modulename, fname)
-
-
 def function_name(f):
     try:
         name = f.__qualname__
@@ -461,7 +439,6 @@ def function_name(f):
     return '{}.{}'.format(modulename, name)
 
 
-
 def object_name(o):
     try:                   return o.__name__
     except AttributeError: pass
@@ -478,19 +455,22 @@ def snake_case(s):
     """ eg:
         'some_value' = snake_case('someValue')
     """
+    s: str
+
     camel_re = re.compile('''
         (?<=[a-z])[A-Z](?=[a-z])
     ''', re.VERBOSE)
 
-    if s[0] == s[0].upper():
-        s = ''.join((s[0].lower(), s[1:]))
+    s = s.strip()
+    if s[0].isupper():
+        s = s[0].lower() + s[1:]
 
     for i, match in enumerate(camel_re.finditer(s)):
         c = match.span()[0] + i
         p = '_' + s[c].lower()
-        s = s[:c] + p + s[c + 1:]
+        s = '{}{}{}'.format(s[:c], p, s[c + 1:])
 
-    return s.lower().strip()
+    return s.lower()
 
 
 

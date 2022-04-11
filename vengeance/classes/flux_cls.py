@@ -39,7 +39,6 @@ from ..util.iter import is_header_row
 from ..util.iter import is_subscriptable
 
 from ..util.text import print_runtime
-from ..util.text import deprecated
 from ..util.text import object_name
 from ..util.text import surround_double_brackets
 from ..util.text import surround_single_brackets
@@ -47,6 +46,7 @@ from ..util.text import format_integer
 from ..util.text import function_parameters
 from ..util.text import function_name
 from ..util.text import vengeance_message
+# from ..util.text import deprecated
 
 from ..util.classes.namespace_cls import namespace_cls
 
@@ -62,62 +62,91 @@ class flux_cls:
     """ primary data management class
     https://github.com/michael-ross-ven/vengeance_example/blob/main/flux_example.py
 
-    * similar idea behind a pandas DataFrame, but is more closely aligned with Python's design philosophy
-    * when you're willing to trade for a little bit of speed for a lot simplicity
-    * a lightweight, pure-python wrapper class around list of lists
-    * applies named attributes to rows; values are mutable during iteration
-    * provides convenience aggregate operations (sort, filter, groupby, etc)
+* similar idea behind a pandas DataFrame, but is more closely aligned with Python's design philosophy
+* when you're willing to trade for a little bit of speed for a lot simplicity
+* a lightweight, pure-python wrapper class around list of lists
+* applies named attributes to rows; attribute values are mutable during iteration
+* provides convenience aggregate operations (sort, filter, groupby, etc)
+* excellent for prototyping and data-wrangling
 
-    eg:
-        # matrix organized like csv data, attribute names are provided in first row
-        matrix = [['attribute_a', 'attribute_b', 'attribute_c'],
-                  ['a',           'b',           3.0],
-                  ['a',           'b',           3.0],
-                  ['a',           'b',           3.0]]
-        flux = vengeance.flux_cls(matrix)
+###### row-major
 
-        for row in flux:
-            a = row.attribute_a
-            a = row['attribute_a']
-            a = row[-1]
-            a = row.values[:-2]
+    # organized like csv data, attribute names are provided in first row
+    matrix = [['attribute_a', 'attribute_b', 'attribute_c'],
+              ['a',           'b',           3.0],
+              ['a',           'b',           3.0],
+              ['a',           'b',           3.0]]
+    flux = vengeance.flux_cls(matrix)
 
-            row.attribute_a    = None
-            row['attribute_a'] = None
-            row[-1]            = None
-            row.values[:2]     = [None, None]
+    # row attributes can be accessed by name or by index
+    for row in flux:
+        a = row.attribute_a
+        a = row['attribute_a']
+        a = row[-1]
+        a = row.values[:-2]
 
-        row    = flux.matrix[-5]
-        column = flux['attribute_a']
-        matrix = list(flux.values())
+        row.attribute_a    = None
+        row['attribute_a'] = None
+        row[-1]            = None
+        row.values[:2]     = [None, None]
 
-        flux['attribute_a']   = [some_function(v) for v in flux['attribute_a']]
-        flux['attribute_new'] = ['blah'] * flux.num_rows
+    # transformations are compositional and self-documenting
+    for row in flux:
+        row.hypotenuse = math.sqrt(row.side_a**2 +,
+                                   row.side_b**2)
 
-        flux.rename_columns({'attribute_a': 'renamed_a',
-                             'attribute_b': 'renamed_b'})
-        flux.insert_columns((0, 'inserted_a'),
-                            (2, 'inserted_b'))
-        flux.delete_columns('inserted_a',
-                            'inserted_b')
+    matrix = list(flux.values())
 
-        flux.sort('attribute_c')
-        flux.filter(lambda row: row.attribute_b != 'c')
-        u = flux.unique('attribute_a', 'attribute_b')
 
-        flux['attribute_new'] = [random.uniform(0, 9) for _ in range(flux.num_rows)]
-        d_1 = flux.map_rows_append('attribute_a', 'attribute_b')
-        d_2 = flux.map_rows_nested('attribute_a', 'attribute_b')
+###### columns
+    # entire columns can be referenced with __getitem__ / __setitem__ syntax
+    column = flux['attribute_a']
 
-        countifs = {k: len(rows) for k, rows in d_1.items()}
-        sumifs   = {k: sum([row.attribute_new for row in rows])
-                                              for k, rows in d_1.items()}
+    flux.rename_columns({'attribute_a': 'renamed_a',
+                         'attribute_b': 'renamed_b'})
+    flux.insert_columns((0, 'inserted_a'),
+                        (2, 'inserted_b'))
+    flux.delete_columns('inserted_a',
+                        'inserted_b')
 
-        flux.to_csv('file.csv')
-        flux = flux_cls.from_csv('file.csv')
 
-        flux.to_json('file.json')
-        flux = flux_cls.from_json('file.json')
+###### sort / filter / apply
+    flux.sort('attribute_c')
+    flux.filter(lambda row: row.attribute_b != 'c')
+    u = flux.unique('attribute_a', 'attribute_b')
+
+    # apply functions like you'd normally do in Python: with comprehensions
+    flux['attribute_new'] = [some_function(v) for v in flux['attribute_a']]
+
+
+###### groupby
+    matrix = [['year', 'month', 'random_float'],
+              ['2000', '01',     random.uniform(0, 9)],
+              ['2000', '02',     random.uniform(0, 9)],
+              ['2001', '01',     random.uniform(0, 9)],
+              ['2001', '01',     random.uniform(0, 9)],
+              ['2001', '01',     random.uniform(0, 9)],
+              ['2002', '01',     random.uniform(0, 9)]]
+    flux = flux_cls(matrix)
+
+    dict_1 = flux.map_rows_append('year', 'month')
+    countifs = {k: len(rows) for k, rows in dict_1.items()}
+    sumifs   = {k: sum(row.random_float for row in rows)
+                                        for k, rows in dict_1.items()}
+
+    dict_2 = flux.map_rows_nested('year', 'month')
+    rows_1 = dict_1[('2001', '01')]
+    rows_2 = dict_2['2001']['01']
+
+
+###### read / write files
+    flux.to_csv('file.csv')
+    flux = flux_cls.from_csv('file.csv')
+
+    flux.to_json('file.json')
+    flux = flux_cls.from_json('file.json')
+
+
     """
     # indices for ._preview_as properties (may be slice or list of integers)
     preview_indices = slice(1, 5 + 1)
@@ -164,7 +193,7 @@ class flux_cls:
 
     @property
     def num_cols(self):
-        return len(self.headers)
+        return len(self.matrix[0])
 
     @property
     def num_rows(self):
@@ -180,6 +209,7 @@ class flux_cls:
         return list(self.headers.keys())
 
     def is_empty(self) -> bool:
+        """ check if flux has *any* rows, even just a header row """
         for row in self.matrix:
             if row:
                 return False
@@ -188,8 +218,18 @@ class flux_cls:
 
     def has_duplicate_row_pointers(self) -> bool:
         """
-        if row.values share pointers to the same underlying list,
-        this will usually cause unwanted behaviors to any modifications of row.values
+        if multiple row.values share pointers to the same underlying list,
+        any modifications to one row will instantly affect other rows
+
+        usually caused when creating lists with multiplication operator
+            [v] * 100 is about 10x faster than [v for _ in range(100)]
+            but causes duplicate pointer issue if v is a list
+
+            this creates a list of pointers
+            [[None, None, None]] * 100
+
+            this doesn't
+            [[None, None, None] for _ in range(1_000)]
         """
         rids = set()
 
@@ -203,23 +243,41 @@ class flux_cls:
         return False
 
     def duplicate_row_pointers(self) -> Dict:
+        """
+        if multiple row.values share pointers to the same underlying list,
+        any modifications to one row will instantly affect other rows
+
+        usually caused when creating lists with multiplication operator
+            [v] * 100 is about 10x faster than [v for _ in range(100)]
+            but causes duplicate pointer issue if v is a list
+
+            this creates a list of pointers
+            [[None, None, None]] * 100
+
+            this doesn't
+            [[None, None, None] for _ in range(1_000)]
+
+        yield dict of rows with duplicate .values pointers
+        """
         enumrow_nt = namedtuple('EnumRow', ('i', 'row'))
 
         d = ordereddict()
         for i, row in enumerate(self.matrix):
             rid = id(row.values)
+            rid = '\\x{:x}'.format(rid)
+
             row = enumrow_nt(i, row)
 
             if rid in d: d[rid].append(row)
             else:        d[rid] = [row]
 
-        d = ordereddict(('\\x{:x}'.format(rid), rows) for rid, rows in d.items()
-                                                      if len(rows) > 1)
-
+        d = ordereddict((rid, rows) for rid, rows in d.items()
+                                        if len(rows) > 1)
         return d
 
     def is_jagged(self) -> bool:
-        num_cols = self.num_cols
+        """ if there is a mismatch of the length of any row.values """
+        num_cols = len(self.headers)
 
         for row in self.matrix:
             if len(row) != num_cols:
@@ -228,8 +286,11 @@ class flux_cls:
         return False
 
     def jagged_rows(self) -> Generator[namedtuple, None, None]:
+        """ if there is a mismatch of the length of any row.values
+        yield EnumRow of jagged rows
+        """
         enumrow_nt = namedtuple('EnumRow', ('i', 'row'))
-        num_cols   = self.num_cols
+        num_cols   = len(self.headers)
 
         for i, row in enumerate(self.matrix):
             if len(row) != num_cols:
@@ -329,7 +390,7 @@ class flux_cls:
     # region {row methods}
     def values(self, r_1=0, r_2=None) -> Generator[Union[List, Tuple], None, None]:
         """
-        t, n = self.matrix_data_type()
+        t = self.matrix_data_type()
 
         if t is flux_row_cls:
             return (row.values for row in self.matrix[r_1:r_2])
@@ -479,15 +540,16 @@ class flux_cls:
         self.__validate_no_names_intersect_with_headers(names, self.headers)
 
         _values_ = iterator_to_collection(values)
-        _vnd_    = iteration_depth(_values_, first_element_only=True)
+        nd       = iteration_depth(_values_, first_element_only=True)
 
         num_rows = len(self.matrix) - 1
         num_cols = len(names)
 
-        if _vnd_ == 0:
-            _values_ = [[_values_ for _ in range(num_cols)]
-                                  for _ in range(num_rows)]
-        elif _vnd_ == 1:
+        if nd == 0:
+            # _values_ = [[_values_ for _ in range(num_cols)]
+            #                       for _ in range(num_rows)]
+            _values_ = [[_values_] * num_cols  for _ in range(num_rows)]
+        elif nd == 1:
             _values_ = list(transpose([_values_], list))
 
         v_num_rows = len(_values_)
@@ -603,12 +665,12 @@ class flux_cls:
 
     def matrix_data_type(self):
         if self.is_empty():
-            return None, 'NoneType'
+            return 'NoneType'
 
         t = type(self.matrix[0])
-        n = object_name(self.matrix[0])
+        t = object_name(t)
 
-        return t, n
+        return t
 
     def reset_headers(self, names=None):
         """
@@ -932,29 +994,20 @@ class flux_cls:
                           'list',
                           'dict'}
         """
-        d = self.map_rows_append(names, rowtype=rowtype)
+        d = self.map_rows_append(*names, rowtype=rowtype)
         d = to_grouped_dict(d)
 
         return d
 
     def groupby(self, *names, rowtype=flux_row_cls) -> Dict[Any, Dict]:
-        return self.map_rows_nested(names, rowtype)
+        return self.map_rows_nested(*names, rowtype)
 
-    @deprecated('Use flux_cls.map_rows() method instead')
-    def index_row(self, *names, rowtype=flux_row_cls):
-        """ deprecated: Use flux_cls.map_rows() method instead
-        'index' suggests method has something to do with numerical indices,
-        instead of an index, as in a table of contents
-        """
-        return self.map_rows(names, rowtype=rowtype)
-
-    @deprecated('Use flux_cls.map_rows_append() method instead')
-    def index_rows(self, *names, rowtype=flux_row_cls):
-        """ deprecated: Use flux_cls.map_rows_append() method instead
-        'index' suggests method has something to do with numerical indices,
-        instead of an index, as in a table of contents
-        """
-        return self.map_rows_append(names, rowtype=rowtype)
+    # @deprecated('Use flux_cls.map_rows() method instead')
+    # def index_row(self, *names, rowtype=flux_row_cls):
+    #     """ deprecated: Use flux_cls.map_rows() method instead
+    #     'index' suggests method has something to do with numerical indices,
+    #     instead of an index, as in a table of contents
+    #     """
 
     def __zip_row_items(self, names, rowtype):
         rowtype = self.__validate_mapped_rowtype(rowtype)
@@ -1234,10 +1287,12 @@ class flux_cls:
     # noinspection PyProtectedMember
     @staticmethod
     def __validate_matrix_primitives(m):
+        """ """
+        ''' @types '''
         row_first: Union[flux_row_cls, namedtuple, dict, object]
         row:       Union[flux_row_cls, namedtuple, dict, object]
 
-        if (m is None) or (m == []):
+        if (m is None) or (m == []) or (m == [[]]):
             return [[]]
 
         base_cls_names = set(base_class_names(m))
@@ -1255,8 +1310,7 @@ class flux_cls:
 
         if is_exhaustable(m):
             m = list(m)
-
-        if isinstance(m, array):
+        elif isinstance(m, array):
             m = list(m)
         elif isinstance(m, ItemsView):
             m = list(m)

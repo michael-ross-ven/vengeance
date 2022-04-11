@@ -414,12 +414,12 @@ class lev_cls:
     def excel_address(self, reference):
         if ':' in reference:
             a_1, a_2 = reference.split(':')
-            c_1, r_1 = _reference_to_col_row(self, a_1)
-            c_2, r_2 = _reference_to_col_row(self, a_2)
+            c_1, r_1 = self.__reference_to_col_row(a_1)
+            c_2, r_2 = self.__reference_to_col_row(a_2)
 
             a = '${}${}:${}${}'.format(c_1, r_1, c_2, r_2)
         else:
-            c_1, r_1 = _reference_to_col_row(self, reference)
+            c_1, r_1 = self.__reference_to_col_row(reference)
             a = '${}${}'.format(c_1, r_1)
 
         return a
@@ -499,6 +499,106 @@ class lev_cls:
 
         return m
 
+    def __reference_to_col_row(self, reference):
+        reference = self.__reference_to_property_names(reference)
+        col, row  = self.__property_names_to_value(reference)
+
+        if col is None or row is None:
+            col, row = lev_cls.__parse_characters_from_digits(reference, col, row)
+
+        return col, row
+
+    def __col_row_to_value(self, reference):
+        if reference in self.headers:
+            literal = self.headers[reference]
+        elif reference in self.m_headers:
+            literal = self.m_headers[reference]
+        elif reference in self.__dict__:
+            literal = self.__dict__[reference]
+        elif reference in self.__class__.__dict__:
+            literal = getattr(self, reference)
+        else:
+            literal = None
+
+        return literal
+
+    def __property_names_to_value(self, reference):
+        if ' ' not in reference:
+            return None, None
+
+        # replace multiple spaces with single space
+        reference = ' '.join(reference.split())
+
+        splits = reference.split(' ')
+        col = self.__col_row_to_value(splits[0])
+        row = self.__col_row_to_value(splits[1])
+
+        return col, row
+
+    @staticmethod
+    def __reference_to_property_names(reference):
+        """
+        eg:
+            'header_c first_r' = __reference_to_property_names('*h *f')
+        """
+        anchor_names = {'*m': 'meta',
+                        '*h': 'header',
+                        '*f': 'first',
+                        '*l': 'last'}
+
+        anchor_re = re.compile('''
+             (?P<col>^[*][fla])
+            |(?P<row>[*][mhfla]$)
+        ''', re.X | re.I)
+
+        reference = reference.strip()
+
+        for match in anchor_re.finditer(reference):
+            name  = match.lastgroup
+            value = match.group(0)
+
+            if name == 'col':
+                if value == '*a':
+                    col = 'first_empty_column '
+                else:
+                    col = anchor_names[value] + '_c '
+
+                reference = reference.replace(value, col, 1)
+
+            elif name == 'row':
+                if value == '*a':
+                    row = 'first_empty_row '
+                else:
+                    row = ' ' + anchor_names[value] + '_r'
+
+                reference = reference.replace(value, row, 1)
+
+        # replace multiple spaces with single space
+        reference = ' '.join(reference.split())
+
+        return reference
+
+    @staticmethod
+    def __parse_characters_from_digits(reference, col, row):
+
+        address_re = re.compile(r'''
+             (?P<col>^[$]?[a-z]{1,2})(?=[\d* ])
+            |(?P<row>[$]?[\d]+$)
+        ''', re.X | re.I)
+
+        reference = reference.replace('$', '')
+
+        for match in address_re.finditer(reference):
+            name  = match.lastgroup
+            value = match.group(0)
+
+            if (name == 'col') and (col is None):
+                col = value
+            elif (name == 'row') and (row is None):
+                row = value
+
+        return col, row
+
 
 def _named_ranges_in_workbook(wb):
     named_ranges = {}
@@ -511,107 +611,3 @@ def _named_ranges_in_workbook(wb):
                 continue
 
     return named_ranges
-
-
-def _reference_to_col_row(lev, reference):
-    reference = __reference_to_property_names(reference)
-    col, row  = __property_names_to_value(lev, reference)
-
-    if col is None or row is None:
-        col, row = __parse_characters_from_digits(reference, col, row)
-
-    return col, row
-
-
-def __reference_to_property_names(reference):
-    """
-    eg:
-        'header_c first_r' = __reference_to_property_names('*h *f')
-    """
-    anchor_names = {'*m': 'meta',
-                    '*h': 'header',
-                    '*f': 'first',
-                    '*l': 'last'}
-
-    anchor_re = re.compile('''
-         (?P<col>^[*][fla])
-        |(?P<row>[*][mhfla]$)
-    ''', re.X | re.I)
-
-    reference = reference.strip()
-
-    for match in anchor_re.finditer(reference):
-        name  = match.lastgroup
-        value = match.group(0)
-
-        if name == 'col':
-            if value == '*a':
-                col = 'first_empty_column '
-            else:
-                col = anchor_names[value] + '_c '
-
-            reference = reference.replace(value, col, 1)
-
-        elif name == 'row':
-            if value == '*a':
-                row = 'first_empty_row '
-            else:
-                row = ' ' + anchor_names[value] + '_r'
-
-            reference = reference.replace(value, row, 1)
-
-    # replace multiple spaces with single space
-    reference = ' '.join(reference.split())
-
-    return reference
-
-
-def __property_names_to_value(lev, reference):
-    if ' ' not in reference:
-        return None, None
-
-    # replace multiple spaces with single space
-    reference = ' '.join(reference.split())
-
-    splits = reference.split(' ')
-    col = __col_row_to_value(lev, splits[0])
-    row = __col_row_to_value(lev, splits[1])
-
-    return col, row
-
-
-def __col_row_to_value(lev, reference):
-    if reference in lev.headers:
-        literal = lev.headers[reference]
-    elif reference in lev.m_headers:
-        literal = lev.m_headers[reference]
-    elif reference in lev.__dict__:
-        literal = lev.__dict__[reference]
-    elif reference in lev.__class__.__dict__:
-        literal = getattr(lev, reference)
-    else:
-        literal = None
-
-    return literal
-
-
-def __parse_characters_from_digits(reference, col, row):
-
-    address_re = re.compile(r'''
-         (?P<col>^[$]?[a-z]{1,2})(?=[\d* ])
-        |(?P<row>[$]?[\d]+$)
-    ''', re.X | re.I)
-
-    reference = reference.replace('$', '')
-
-    for match in address_re.finditer(reference):
-        name  = match.lastgroup
-        value = match.group(0)
-
-        if (name == 'col') and (col is None):
-            col = value
-        elif (name == 'row') and (row is None):
-            row = value
-
-    return col, row
-

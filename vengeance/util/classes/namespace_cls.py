@@ -7,17 +7,12 @@ class namespace_cls:
     similar to types.SimpleNamespace
     """
     def __init__(self, kwargs):
-        if not isinstance(kwargs, dict):
+        if not isinstance(kwargs, ordereddict):
             kwargs = ordereddict(kwargs)
 
         self.__dict__ = kwargs
 
-    # @property
-    # def values(self):
-    #     return list(self.__dict__.values())
-
     def __iter__(self):
-        """ return (k for k in self.__dict__.keys()) """
         return (v for v in self.__dict__.values())
 
     def __eq__(self, other):

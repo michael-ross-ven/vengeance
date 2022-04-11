@@ -2,3 +2,4 @@
 dist/*
 build/*
 vengeance.egg-info/*
+vengeance/config.ini

@@ -1,4 +1,19 @@
 
+2022-04-11
+$release 61
+    version 1.1.24
+
+    updated README.md
+    
+    flux_cls:
+        .values() returns row.values as copy, not as byref
+
+    iter.map_values_to_enum:
+        to_snake_case=False param added
+        duplicate names suffix changed from '__dup_{num}', to '__{num}'
+
+
+
 2022-04-08
 $release 60
     version 1.1.23

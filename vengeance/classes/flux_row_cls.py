@@ -23,7 +23,8 @@ class flux_row_cls:
 
     @classmethod
     def reserved_names(cls):
-        return sorted(['_headers', 'values', 'row_label'] + dir(cls), reverse=True)
+        return sorted(['headers', 'values', 'row_label'] + dir(cls),
+                      reverse=True)
 
     def __init__(self, headers, values, row_label=None):
         """
@@ -36,10 +37,12 @@ class flux_row_cls:
         properties must be set on self.__dict__ instead of directly on self to prevent
         premature __setattr__ lookups
         """
-        self._headers: Dict[Union[str, bytes], int]
-        self.values:   List
+        ''' @types '''
+        self.headers:   Dict[Union[str, bytes], int]
+        self.values:    List
+        self.row_label: Union[int, str]
 
-        self.__dict__['_headers']  = headers
+        self.__dict__['headers']   = headers
         self.__dict__['values']    = values
         self.__dict__['row_label'] = row_label
 
@@ -78,28 +81,24 @@ class flux_row_cls:
 
         return m
 
-    @property
-    def headers(self):
-        return ordereddict(self.__dict__['_headers'].items())
-
     def header_names(self):
-        return list(self.__dict__['_headers'].keys())
+        return list(self.__dict__['headers'].keys())
 
     def is_jagged(self):
-        return len(self.__dict__['_headers']) != len(self.__dict__['values'])
+        return len(self.__dict__['headers']) != len(self.__dict__['values'])
 
     def is_empty(self):
-        return (len(self.__dict__['_headers']) == 0) and (len(self.__dict__['values']) == 0)
+        return (len(self.__dict__['headers']) == 0) and (len(self.__dict__['values']) == 0)
 
     def is_header_row(self):
-        """ determine if underlying values match self._headers.keys
+        """ determine if underlying values match self.headers.keys
 
         self.names == self.values will not always work, since map_values_to_enum()
-        was used to modify self._headers values into more suitable dictionary keys,
+        was used to modify self.headers values into more suitable dictionary keys,
         like modifying duplicate values to ensure they are unique, etc
         """
         return is_header_row(self.__dict__['values'],
-                             self.__dict__['_headers'])
+                             self.__dict__['headers'])
 
     def dict(self):
         return ordereddict(zip(self.header_names(), self.__dict__['values']))
@@ -116,13 +115,17 @@ class flux_row_cls:
         :type other: flux_row_cls
         :type names: list[str]
         """
+        ''' @types '''
+        other: flux_row_cls
+        names: Union[str, List]
+
         if not isinstance(other, flux_row_cls):
             raise TypeError('row expected to be flux_row_cls')
 
-        headers_a = self.__dict__['_headers']
+        headers_a = self.__dict__['headers']
         values_a  = self.__dict__['values']
 
-        headers_b = other.__dict__['_headers']
+        headers_b = other.__dict__['headers']
         values_b  = other.__dict__['values']
 
         _names_ = names or (headers_a.keys() & headers_b.keys())
@@ -143,7 +146,7 @@ class flux_row_cls:
              o = row.column
         """
         try:
-            i = self.__dict__['_headers'].get(name, name)
+            i = self.__dict__['headers'].get(name, name)
             return self.__dict__['values'][i]
         except (TypeError, IndexError):
             self.__raise_attribute_error(name, self.headers)
@@ -153,7 +156,7 @@ class flux_row_cls:
             row.column = o
         """
         try:
-            i = self.__dict__['_headers'].get(name, name)
+            i = self.__dict__['headers'].get(name, name)
             self.__dict__['values'][i] = value
         except (TypeError, IndexError) as e:
 
@@ -169,7 +172,7 @@ class flux_row_cls:
             o = row['column']
         """
         try:
-            i = self.__dict__['_headers'].get(name, name)
+            i = self.__dict__['headers'].get(name, name)
             return self.__dict__['values'][i]
         except (TypeError, IndexError):
             if isinstance(name, slice):
@@ -182,7 +185,7 @@ class flux_row_cls:
             row['column'] = o
         """
         try:
-            i = self.__dict__['_headers'].get(name, name)
+            i = self.__dict__['headers'].get(name, name)
             self.__dict__['values'][i] = value
         except (TypeError, IndexError) as e:
 
@@ -205,8 +208,8 @@ class flux_row_cls:
         return iter(self.__dict__['values'])
 
     def __eq__(self, other):
-        a = id(self.__dict__['_headers'])  + hash(tuple(self.__dict__['values']))
-        b = id(other.__dict__['_headers']) + hash(tuple(other.__dict__['values']))
+        a = id(self.__dict__['headers'])  + hash(tuple(self.__dict__['values']))
+        b = id(other.__dict__['headers']) + hash(tuple(other.__dict__['values']))
 
         return a == b
 
@@ -226,18 +229,15 @@ class flux_row_cls:
             row_label = ''
 
         if self.is_jagged():
-            jagged_label = len(self.__dict__['values']) - len(self.__dict__['_headers'])
+            jagged_label = len(self.__dict__['values']) - len(self.__dict__['headers'])
             jagged_label = surround_single_brackets('{:+}'.format(jagged_label))
             jagged_label = '🗲jagged {}🗲  '.format(jagged_label)
         else:
             jagged_label = ''
 
         if self.is_header_row():
-            values = ', '.join(str(n) for n in self.header_names())
+            values = ', '.join([str(n) for n in self.header_names()])
             values = surround_double_brackets(values)
-
-            # row_label = surround_single_brackets('h')
-            # row_label = '{} '.format(row_label)
         else:
             values = (repr(self.__dict__['values']).replace('"', '')
                                                    .replace("'", ''))

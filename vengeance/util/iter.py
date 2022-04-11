@@ -280,7 +280,7 @@ def is_header_row(values, headers):
         True = is_header_row(['a', 'b', 'c'],
                              {'a': 0, 'b': 1, 'c': 2})
         True = is_header_row(['a', 'b', 'b'],
-                             {'a': 0, 'b': 1, 'b__dup_2': 2})
+                             {'a': 0, 'b': 1, 'b__2': 2})
 
     """
     if not headers:
@@ -292,30 +292,33 @@ def is_header_row(values, headers):
     return value_names == header_names
 
 
-def map_values_to_enum(sequence, start=0) -> Dict[Union[str, bytes], int]:
+def map_values_to_enum(sequence, start=0, to_snake_case=False) -> Dict[Union[str, bytes], int]:
     """ :return {unique_key: i: int} for all items in sequence
 
     values are modified before they are added as keys:
         * values coerced to string (if not bytes)
-        * non-unique keys are appended with '__dup_{num}' suffix
+        * non-unique keys are appended with '__{num}' suffix
 
     eg
-        {'a':        0,
-         'b':        1,
-         'c':        2,
-         'b__dup_2': 3,
-         'b__dup_3': 4} = map_values_to_enum(['a', 'b', 'c', 'b', 'b'])
+        {'a':    0,
+         'b':    1,
+         'c':    2,
+         'b__2': 3,
+         'b__3': 4} = map_values_to_enum(['a', 'b', 'c', 'b', 'b'])
     """
     duplicates = {}
     values_to_indices = ordereddict()
 
     for i, v in enumerate(sequence, start):
-
         is_bytes = isinstance(v, bytes)
+
         if is_bytes:
             v_str = v.decode()
         else:
             v_str = str(v)
+
+        if to_snake_case:
+            v_str = snake_case(v_str)
 
         is_duplicate = (v_str in duplicates)
 
@@ -323,7 +326,7 @@ def map_values_to_enum(sequence, start=0) -> Dict[Union[str, bytes], int]:
             duplicates[v_str] = 1
         else:
             duplicates[v_str] += 1
-            v_str = '{}__dup_{}'.format(v_str, duplicates[v_str])
+            v_str = '{}__{}'.format(v_str, duplicates[v_str])
 
         if is_bytes:
             v_str = v_str.encode()
@@ -398,17 +401,20 @@ def snake_case(s):
         from .text import snake_case as _snake_case_
         return _snake_case_(s)
     """
+    s: str
+
     camel_re = re.compile('''
         (?<=[a-z])[A-Z](?=[a-z])
     ''', re.VERBOSE)
 
-    if s[0] == s[0].upper():
-        s = ''.join((s[0].lower(), s[1:]))
+    s = s.strip()
+    if s[0].isupper():
+        s = s[0].lower() + s[1:]
 
     for i, match in enumerate(camel_re.finditer(s)):
         c = match.span()[0] + i
         p = '_' + s[c].lower()
-        s = s[:c] + p + s[c + 1:]
+        s = '{}{}{}'.format(s[:c], p, s[c + 1:])
 
-    return s.lower().strip()
+    return s.lower()
 

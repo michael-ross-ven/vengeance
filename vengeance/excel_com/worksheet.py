@@ -170,10 +170,9 @@ def is_filtered(ws):
         return False
 
 
-# noinspection PyProtectedMember
 def clear_worksheet_filter(ws):
     if is_filtered(ws) and is_win32_worksheet_instance(ws):
-        ws._AutoFilter.ShowAllData()
+        ws.ShowAllData()
 
 
 def is_range_empty(excel_range):
@@ -215,7 +214,7 @@ def escape_excel_range_errors(excel_range):
         for cell_error in range_errors:
             r = cell_error.Row    - r_0
             c = cell_error.Column - c_0
-            m[r][c] = excel_errors.get(m[r][c], 'unknown error')
+            m[r][c] = excel_errors.get(m[r][c], '#excel_error: unknown error#')
 
     except pythoncom_error:
         pass

@@ -16,12 +16,15 @@ pip install vengeance[pypiwin32]
 pip install vengeance[python-dateutil]
 pip install vengeance[numpy]
 pip install vengeance[comtypes,pypiwin32,python-dateutil,numpy]
+
+todo:
+    publish to conda
 """
 
 is_windows_os = (os.name == 'nt')
 
-__version__ = '1.1.23'
-__release__ = '$release 60'
+__version__ = '1.1.24'
+__release__ = '$release 61'
 
 description      = 'Library focusing on row-major organization of tabular data and control over the Excel application'
 long_description = 'https://github.com/michael-ross-ven/vengeance/blob/master/README.md'
