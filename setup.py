@@ -23,19 +23,18 @@ todo:
 
 is_windows_os = (os.name == 'nt')
 
-__version__ = '1.1.24'
-__release__ = '$release 61'
+__version__ = '1.1.25'
+__release__ = '$release 62'
+description = 'Library focusing on row-major organization of tabular data and control over the Excel application'
 
-description      = 'Library focusing on row-major organization of tabular data and control over the Excel application'
-long_description = 'https://github.com/michael-ross-ven/vengeance/blob/master/README.md'
+try:
+    with open('README.md', 'r') as f:
+        long_description = f.read()
 
-# seems to cause error with .md to restructured text
-# try:
-#     with open('README.md', 'r') as f:
-#         long_description = f.read()
-# except:
-#     pass
-
+    long_description_content_type = 'text/markdown'
+except:
+    long_description = 'https://github.com/michael-ross-ven/vengeance/blob/master/README.md'
+    long_description_content_type = 'text'
 
 if is_windows_os:
     install_requires = ['comtypes',
@@ -49,27 +48,43 @@ extras_require = {":python_version>='3.0'": ['python-dateutil',
 
 def __move_win32com_gencache_folder():
     """
-    move win32com gen_py cache files from temp to site-packages folder
+    move win32com gen_py cache files to site-packages folder
+    from
+        %userprofile%/Local/Temp/gen_py/
+    to
+        %python_folder%/Lib/site-packages/win32com/gen_py/
+    
     helps prevent win32com EnsureDispatch() call rejection due to corrupted COM files
     """
     if not is_windows_os:
         return
-        
+    
+    # win32com site-package installed?
+    try:
+        import win32com
+    except (ModuleNotFoundError, ImportError):
+        return
+
     try:
         import shutil
         import site
-
-        # win32com site-package installed?
+        
+        # win32com site-package where its supposed to be?
         if not os.path.exists(site.getsitepackages()[1] + '\\win32com\\'):
             return
 
-        new_gencache_folder = site.getsitepackages()[1] + '\\win32com\\gen_py\\'
-        old_gencache_folder = os.environ['userprofile'] + '\\AppData\\Local\\Temp\\gen_py\\'
+        appdata_gcf = os.environ['userprofile'] + '\\AppData\\Local\\Temp\\gen_py'
+        site_gcf    = site.getsitepackages()[1] + '\\win32com\\gen_py'
 
-        if not os.path.exists(new_gencache_folder):
-            os.makedirs(new_gencache_folder)
-            if os.path.exists(old_gencache_folder):
-                shutil.rmtree(old_gencache_folder)
+        if not os.path.exists(appdata_gcf):
+            appdata_gcf = win32com.__gen_path__
+            if appdata_gcf.lower() == site_gcf.lower():
+                return
+        
+        if not os.path.exists(site_gcf):
+            os.makedirs(site_gcf)
+            if os.path.exists(appdata_gcf):
+                shutil.rmtree(appdata_gcf)
 
     except Exception:
         pass
@@ -80,6 +95,7 @@ if __name__ == '__main__':
           version=__version__,
           description=description,
           long_description=long_description,
+          long_description_content_type=long_description_content_type,
           url='https://github.com/michael-ross-ven/vengeance',
           author='Michael Ross',
           author_email='',

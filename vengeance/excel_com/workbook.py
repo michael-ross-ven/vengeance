@@ -421,7 +421,15 @@ def __iunknown_pointer_to_python_object(com_ptr, interface):
 
 # noinspection PyBroadException
 def __move_win32com_gencache_folder():
-    """ move win32com gen_py cache files from temp to site-packages folder """
+    """
+    move win32com gen_py cache files to site-packages folder
+    from
+        %userprofile%/Local/Temp/gen_py/
+    to
+        %python_folder%/Lib/site-packages/win32com/gen_py/
+
+    helps prevent win32com EnsureDispatch() call rejection due to corrupted COM files
+    """
     try:
         import shutil
         import site
@@ -429,25 +437,25 @@ def __move_win32com_gencache_folder():
         import win32com
         from pathlib import Path
 
-        old_gcf = os.environ['userprofile'] + '\\AppData\\Local\\Temp\\gen_py\\'
-        new_gcf = site.getsitepackages()[1] + '\\win32com\\gen_py\\'
+        appdata_gcf = os.environ['userprofile'] + '\\AppData\\Local\\Temp\\gen_py\\'
+        site_gcf    = site.getsitepackages()[1] + '\\win32com\\gen_py\\'
 
-        if not os.path.exists(old_gcf):
-            old_gcf = win32com.__gen_path__
-            if standardize_path(old_gcf) == standardize_path(new_gcf):
+        if not os.path.exists(appdata_gcf):
+            appdata_gcf = win32com.__gen_path__
+            if standardize_path(appdata_gcf).lower() == standardize_path(site_gcf).lower():
                 return
 
         s = vengeance_message('Attempting to reset win32com gencache folder ...\n')
         s = styled(s, 'yellow', 'bold')
         print(s)
 
-        if os.path.exists(old_gcf):
-            subprocess.call('explorer.exe "{}"'.format(Path(old_gcf).parent))
-            shutil.rmtree(old_gcf)
+        if os.path.exists(appdata_gcf):
+            subprocess.call('explorer.exe "{}"'.format(Path(appdata_gcf).parent))
+            shutil.rmtree(appdata_gcf)
 
-        if not os.path.exists(new_gcf):
-            subprocess.call('explorer.exe "{}"'.format(Path(new_gcf).parent))
-            os.makedirs(new_gcf)
+        if not os.path.exists(site_gcf):
+            subprocess.call('explorer.exe "{}"'.format(Path(site_gcf).parent))
+            os.makedirs(site_gcf)
 
     except Exception:
         pass

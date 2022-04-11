@@ -17,6 +17,11 @@ from .classes.tree_cls import tree_cls
 from .classes.namespace_cls import namespace_cls
 
 
+vengeance_cls_names = {'flux_cls',
+                       'lev_cls',
+                       'excel_levity_cls'}
+
+
 class IterationDepthError(TypeError):
     pass
 
@@ -197,10 +202,7 @@ def is_dictview(o):
 
 
 def is_vengeance_class(o):
-    base_cls_names      = set(base_class_names(o))
-    vengeance_cls_names = {'flux_cls',
-                           'lev_cls',
-                           'excel_levity_cls'}
+    base_cls_names = set(base_class_names(o))
 
     return bool(base_cls_names & vengeance_cls_names)
 

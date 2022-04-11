@@ -22,6 +22,7 @@ from ..util.filesystem import write_file
 from ..util.filesystem import pickle_extensions
 from ..util.filesystem import json_dumps_extended
 
+from ..util import iter as util_iter
 from ..util.iter import IterationDepthError
 from ..util.iter import ColumnNameError
 from ..util.iter import base_class_names
@@ -1287,7 +1288,14 @@ class flux_cls:
     # noinspection PyProtectedMember
     @staticmethod
     def __validate_matrix_primitives(m):
-        """ """
+        """
+        if 'flux_cls' in base_cls_names:
+            return [[*row.values] for row in m.matrix]
+
+        _m_ = [m.columns.values.tolist()]
+        _m_.extend(m.values.tolist())
+        return _m_
+        """
         ''' @types '''
         row_first: Union[flux_row_cls, namedtuple, dict, object]
         row:       Union[flux_row_cls, namedtuple, dict, object]
@@ -1296,15 +1304,13 @@ class flux_cls:
             return [[]]
 
         base_cls_names = set(base_class_names(m))
+        is_vengeance_class = base_cls_names & util_iter.vengeance_cls_names
 
-        if 'flux_cls' in base_cls_names:
-            return [[*row.values] for row in m.matrix]
-        elif base_cls_names & {'lev_cls', 'excel_levity_cls'}:
+        if is_vengeance_class:
             return list(m.values())
         elif 'DataFrame' in base_cls_names:
-            _m_ = [m.columns.values.tolist()]
-            _m_.extend(m.values.tolist())
-            return _m_
+            return [m.columns.values.tolist()] + \
+                   [m.values.tolist()]
         elif 'ndarray' in base_cls_names:
             return m.tolist()
 
@@ -1313,11 +1319,9 @@ class flux_cls:
         elif isinstance(m, array):
             m = list(m)
         elif isinstance(m, ItemsView):
-            m = list(m)
             m = list(transpose(m, astype=list))
         elif isinstance(m, dict):
-            m = list(m.items())
-            m = list(transpose(m, astype=list))
+            m = list(transpose(m.items(), astype=list))
 
         if not is_subscriptable(m):
             raise IndexError('matrix must be subscriptable')

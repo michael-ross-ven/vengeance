@@ -69,7 +69,7 @@ especially when method-chaining is overused.
 * managing datatypes can sometimes be problematic
 * harder to debug / inspect when vectorized operations return an error
 
-##### But why are we working in Python to begin with?
+##### I mean, but why are we working in Python to begin with?
 * emphasis on code readability
 * less concerned about hyper-optimized execution times
 * datatypes and array allocation are abstracted away
