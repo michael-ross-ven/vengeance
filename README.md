@@ -1,8 +1,8 @@
 ##### For example usage, see:
 https://github.com/michael-ross-ven/vengeance_example/blob/main/vengeance_example/flux_example.py
 <br/>
-https://github.com/michael-ross-ven/vengeance_example/blob/main/vengeance_example/excel_example.py
 <br/>
+https://github.com/michael-ross-ven/vengeance_example/blob/main/vengeance_example/excel_example.py
 <br/>
 <br/>
 
@@ -48,9 +48,9 @@ is mind-numbingly slow. (DataFrame.iterrows() incurs a *huge* performance penalt
 than a built-in list)
 
 DataFrames also take advantage of vectorization, where operations can be applied to an entire set of values at once. 
-But removal of explicit loops requires specialized methods for almost every operation and modification, which makes 
-the syntax more challenging. DataFrame transformations can be counter-inituitive to write and effortful to read, 
-especially when method-chaining is overused.
+But removal of explicit loops requires specialized methods for almost every operation and modification, which often makes 
+the syntax convoluted. The restricted ability to iterate a DataFrame makes its transformations counter-inituitive to write and 
+effortful to read, especially when method-chaining is overused.
 
     # wait, what exactly does this do again?
     df['column'] = np.sign(df.column.diff().fillna(0)).shift(-1).fillna(0) \
@@ -69,18 +69,17 @@ especially when method-chaining is overused.
 * managing datatypes can sometimes be problematic
 * harder to debug / inspect when vectorized operations return an error
 
-##### I mean, but why are we working in Python to begin with?
-* emphasis on code readability
-* less concerned about hyper-optimized execution times
-* datatypes and array allocation are abstracted away
-* [so does the DataFrame really reinforce what makes Python so great?](https://en.wikipedia.org/wiki/Zen_of_Python)
+##### [So does the DataFrame really reinforce what makes Python so great?](https://en.wikipedia.org/wiki/Zen_of_Python)
 >"Explicit is better than implicit" \
-"Simple is better than complex" \
 "Sparse is better than dense" \
 "Readability counts" \
 "There should be one– and preferably only one –obvious way to do it"
 >
 
+##### I mean, why are we working in Python to begin with?
+* emphasis on code readability
+* less concerned about hyper-optimized execution times
+* datatypes and array allocations are abstracted away
 <br/>
 
 ### vengeance.flux_cls
@@ -91,7 +90,7 @@ especially when method-chaining is overused.
 * provides convenience aggregate operations (sort, filter, groupby, etc)
 * excellent for prototyping and data-wrangling
 
-###### row-major
+###### row-major iteration
     
     # organized like csv data, attribute names are provided in first row
     matrix = [['attribute_a', 'attribute_b', 'attribute_c'],
@@ -100,7 +99,7 @@ especially when method-chaining is overused.
               ['a',           'b',           3.0]]
     flux = vengeance.flux_cls(matrix)
 
-    # row attributes can be accessed by name or by index
+    # row attributes can be accessed by name or by sequential index
     for row in flux:
         a = row.attribute_a
         a = row['attribute_a']
@@ -121,7 +120,6 @@ especially when method-chaining is overused.
 
 
 ###### columns
-    # entire columns can be referenced with __getitem__ / __setitem__ syntax
     column = flux['attribute_a']
 
     flux.rename_columns({'attribute_a': 'renamed_a',
@@ -130,6 +128,17 @@ especially when method-chaining is overused.
                         (2, 'inserted_b'))
     flux.delete_columns('inserted_a',
                         'inserted_b')
+
+
+###### rows
+    rows = [['c', 'd', 4.0],
+            ['c', 'd', 4.0],
+            ['c', 'd', 4.0]]
+
+    flux.append_rows(rows)
+    flux.insert_rows(5, rows)
+
+    flux_c = flux_a + flux_b
 
 
 ###### sort / filter / apply

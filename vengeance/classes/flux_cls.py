@@ -61,16 +61,14 @@ if numpy_installed:
 
 class flux_cls:
     """ primary data management class
-    https://github.com/michael-ross-ven/vengeance_example/blob/main/flux_example.py
+    https://github.com/michael-ross-ven/vengeance_example/blob/main/vengeance_example/flux_example.py
 
-* similar idea behind a pandas DataFrame, but is more closely aligned with Python's design philosophy
-* when you're willing to trade for a little bit of speed for a lot simplicity
-* a lightweight, pure-python wrapper class around list of lists
-* applies named attributes to rows; attribute values are mutable during iteration
-* provides convenience aggregate operations (sort, filter, groupby, etc)
-* excellent for prototyping and data-wrangling
-
-###### row-major
+    * similar idea behind a pandas DataFrame, but is more closely aligned with Python's design philosophy
+    * when you're willing to trade for a little bit of speed for a lot simplicity
+    * a lightweight, pure-python wrapper class around list of lists
+    * applies named attributes to rows; attribute values are mutable during iteration
+    * provides convenience aggregate operations (sort, filter, groupby, etc)
+    * excellent for prototyping and data-wrangling
 
     # organized like csv data, attribute names are provided in first row
     matrix = [['attribute_a', 'attribute_b', 'attribute_c'],
@@ -78,75 +76,6 @@ class flux_cls:
               ['a',           'b',           3.0],
               ['a',           'b',           3.0]]
     flux = vengeance.flux_cls(matrix)
-
-    # row attributes can be accessed by name or by index
-    for row in flux:
-        a = row.attribute_a
-        a = row['attribute_a']
-        a = row[-1]
-        a = row.values[:-2]
-
-        row.attribute_a    = None
-        row['attribute_a'] = None
-        row[-1]            = None
-        row.values[:2]     = [None, None]
-
-    # transformations are compositional and self-documenting
-    for row in flux:
-        row.hypotenuse = math.sqrt(row.side_a**2 +,
-                                   row.side_b**2)
-
-    matrix = list(flux.values())
-
-
-###### columns
-    # entire columns can be referenced with __getitem__ / __setitem__ syntax
-    column = flux['attribute_a']
-
-    flux.rename_columns({'attribute_a': 'renamed_a',
-                         'attribute_b': 'renamed_b'})
-    flux.insert_columns((0, 'inserted_a'),
-                        (2, 'inserted_b'))
-    flux.delete_columns('inserted_a',
-                        'inserted_b')
-
-
-###### sort / filter / apply
-    flux.sort('attribute_c')
-    flux.filter(lambda row: row.attribute_b != 'c')
-    u = flux.unique('attribute_a', 'attribute_b')
-
-    # apply functions like you'd normally do in Python: with comprehensions
-    flux['attribute_new'] = [some_function(v) for v in flux['attribute_a']]
-
-
-###### groupby
-    matrix = [['year', 'month', 'random_float'],
-              ['2000', '01',     random.uniform(0, 9)],
-              ['2000', '02',     random.uniform(0, 9)],
-              ['2001', '01',     random.uniform(0, 9)],
-              ['2001', '01',     random.uniform(0, 9)],
-              ['2001', '01',     random.uniform(0, 9)],
-              ['2002', '01',     random.uniform(0, 9)]]
-    flux = flux_cls(matrix)
-
-    dict_1 = flux.map_rows_append('year', 'month')
-    countifs = {k: len(rows) for k, rows in dict_1.items()}
-    sumifs   = {k: sum(row.random_float for row in rows)
-                                        for k, rows in dict_1.items()}
-
-    dict_2 = flux.map_rows_nested('year', 'month')
-    rows_1 = dict_1[('2001', '01')]
-    rows_2 = dict_2['2001']['01']
-
-
-###### read / write files
-    flux.to_csv('file.csv')
-    flux = flux_cls.from_csv('file.csv')
-
-    flux.to_json('file.json')
-    flux = flux_cls.from_json('file.json')
-
 
     """
     # indices for ._preview_as properties (may be slice or list of integers)
@@ -171,9 +100,9 @@ class flux_cls:
         self.matrix  = matrix
 
     @property
-    def _preview_as_tuples(self) -> List:
+    def _preview_as_tuples(self, preview_indices=None) -> List:
         """ to help with debugging """
-        m = self.__validate_preview_matrix()
+        m = self.__validate_preview_matrix(preview_indices)
         h = m.pop(0)
         m = [list(zip(h, row)) for row in m]
 
@@ -297,6 +226,10 @@ class flux_cls:
             if len(row) != num_cols:
                 yield enumrow_nt(i, row)
 
+    def to_string(self, encoding=None, **kwargs):
+        """ alias for .to_json """
+        return self.to_json(None, encoding, **kwargs)
+
     # region {filesystem methods}
     def to_file(self, path,
                       encoding=None,
@@ -354,9 +287,7 @@ class flux_cls:
                       encoding=None,
                       **kwargs):
 
-        h = tuple(self.header_names())
-        o = [ordereddict(zip(h, row.values)) for row in self.matrix[1:]]
-
+        o = list(self.dicts())
         if path is None:
             return json_dumps_extended(o, **kwargs)
 
@@ -967,7 +898,7 @@ class flux_cls:
         return d
 
     def map_rows_append(self, *names, rowtype=flux_row_cls) -> Dict[Any, List]:
-        """ return dictionary of {column_value: [rows]}
+        """ return dictionary of {column_value: [row, row, row, ...]}
 
         valid rowtypes = {'flux_row_cls',
                           'namedrow',
@@ -986,7 +917,7 @@ class flux_cls:
         return d
 
     def map_rows_nested(self, *names, rowtype=flux_row_cls) -> Dict[Any, Dict]:
-        """ return nested dictionary of dictionaries {column_value_a: {column_value_b: [rows]}}
+        """ return nested dictionary of dictionaries {column_value_a: {column_value_b: [row, row, row, ...]}}
 
         valid rowtypes = {'flux_row_cls',
                           'namedrow',
@@ -1002,13 +933,6 @@ class flux_cls:
 
     def groupby(self, *names, rowtype=flux_row_cls) -> Dict[Any, Dict]:
         return self.map_rows_nested(*names, rowtype)
-
-    # @deprecated('Use flux_cls.map_rows() method instead')
-    # def index_row(self, *names, rowtype=flux_row_cls):
-    #     """ deprecated: Use flux_cls.map_rows() method instead
-    #     'index' suggests method has something to do with numerical indices,
-    #     instead of an index, as in a table of contents
-    #     """
 
     def __zip_row_items(self, names, rowtype):
         rowtype = self.__validate_mapped_rowtype(rowtype)
@@ -1619,7 +1543,7 @@ class flux_cls:
         raise ValueError("invalid profiler: '{}', profiler should be in "
                          "\n(None, False, True, 'print_runtime', 'line_profiler')".format(profiler))
 
-    def __validate_preview_matrix(self):
+    def __validate_preview_matrix(self, preview_indices=None):
         """
         to help with debugging: meant to trigger a debugging feature in PyCharm.
         PyCharm will recognize the numpy array and enable the "...view as array"
@@ -1635,7 +1559,11 @@ class flux_cls:
             return i
         # endregion
 
-        pvi = self.preview_indices
+        if preview_indices is not None:
+            pvi = preview_indices
+        else:
+            pvi = self.preview_indices
+
         r_m = len(self.matrix) - 1
 
         if isinstance(pvi, slice):

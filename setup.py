@@ -23,8 +23,8 @@ todo:
 
 is_windows_os = (os.name == 'nt')
 
-__version__ = '1.1.25'
-__release__ = '$release 62'
+__version__ = '1.1.26'
+__release__ = '$release 63'
 description = 'Library focusing on row-major organization of tabular data and control over the Excel application'
 
 try:
@@ -46,50 +46,6 @@ extras_require = {":python_version>='3.0'": ['python-dateutil',
                                              'numpy']}
 
 
-def __move_win32com_gencache_folder():
-    """
-    move win32com gen_py cache files to site-packages folder
-    from
-        %userprofile%/Local/Temp/gen_py/
-    to
-        %python_folder%/Lib/site-packages/win32com/gen_py/
-    
-    helps prevent win32com EnsureDispatch() call rejection due to corrupted COM files
-    """
-    if not is_windows_os:
-        return
-    
-    # win32com site-package installed?
-    try:
-        import win32com
-    except (ModuleNotFoundError, ImportError):
-        return
-
-    try:
-        import shutil
-        import site
-        
-        # win32com site-package where its supposed to be?
-        if not os.path.exists(site.getsitepackages()[1] + '\\win32com\\'):
-            return
-
-        appdata_gcf = os.environ['userprofile'] + '\\AppData\\Local\\Temp\\gen_py'
-        site_gcf    = site.getsitepackages()[1] + '\\win32com\\gen_py'
-
-        if not os.path.exists(appdata_gcf):
-            appdata_gcf = win32com.__gen_path__
-            if appdata_gcf.lower() == site_gcf.lower():
-                return
-        
-        if not os.path.exists(site_gcf):
-            os.makedirs(site_gcf)
-            if os.path.exists(appdata_gcf):
-                shutil.rmtree(appdata_gcf)
-
-    except Exception:
-        pass
-
-
 if __name__ == '__main__':
     setup(name='vengeance',
           version=__version__,
@@ -109,7 +65,3 @@ if __name__ == '__main__':
             ]
 
           )
-
-    if is_windows_os:
-        __move_win32com_gencache_folder()
-
