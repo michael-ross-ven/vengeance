@@ -960,7 +960,7 @@ class flux_cls:
         return d
 
     def groupby(self, *names, rowtype=flux_row_cls) -> Dict[Any, Dict]:
-        return self.map_rows_nested(*names, rowtype)
+        return self.map_rows_nested(*names, rowtype=rowtype)
 
     def __zip_row_items(self, names, rowtype):
         rowtype = self.__validate_mapped_rowtype(rowtype)

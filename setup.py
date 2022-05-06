@@ -31,8 +31,8 @@ todo:
 
 is_windows_os = (os.name == 'nt')
 
-__version__ = '1.1.27'
-__release__ = '$release 64'
+__version__ = '1.1.28'
+__release__ = '$release 65'
 description = 'Library focusing on row-major organization of tabular data and control over the Excel application'
 
 try:
