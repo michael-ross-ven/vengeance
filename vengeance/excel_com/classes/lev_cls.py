@@ -584,7 +584,7 @@ class lev_cls:
 
         address_re = re.compile(r'''
              (?P<col>^[$]?[a-z]{1,2})(?=[\d* ])
-            |(?P<row>[$]?[\d]+$)
+            |(?P<row>[$]?\d+$)
         ''', re.X | re.I)
 
         reference = reference.replace('$', '')

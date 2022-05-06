@@ -266,7 +266,7 @@ def to_grouped_dict(flat_dict: Dict) -> Dict[Any, Dict]:
          'a₂': {'b₁': {'c₁': {'d₁': 'v_4',
                               'd₂': 'v_3'}}}} = to_grouped_dict(d)
     """
-    nested_dict = tree_cls(flat_dict).traverse()
+    nested_dict = tree_cls(flat_dict).traverse_nested()
 
     return nested_dict
 
@@ -294,7 +294,7 @@ def is_header_row(values, headers):
     return value_names == header_names
 
 
-def map_values_to_enum(sequence, start=0, to_snake_case=False) -> Dict[Union[str, bytes], int]:
+def map_values_to_enum(sequence, start=0, as_snake_case=False) -> Dict[Union[str, bytes], int]:
     """ :return {unique_key: i: int} for all items in sequence
 
     values are modified before they are added as keys:
@@ -319,7 +319,7 @@ def map_values_to_enum(sequence, start=0, to_snake_case=False) -> Dict[Union[str
         else:
             v_str = str(v)
 
-        if to_snake_case:
+        if as_snake_case:
             v_str = snake_case(v_str)
 
         is_duplicate = (v_str in duplicates)
@@ -339,11 +339,11 @@ def map_values_to_enum(sequence, start=0, to_snake_case=False) -> Dict[Union[str
 
 
 # noinspection PyProtectedMember
-def to_namespaces(o, to_snake_case=False):
+def to_namespaces(o, as_snake_case=False):
     """ recursively convert values to namespaces """
 
     if hasattr(o, '_fields'):
-        if to_snake_case:
+        if as_snake_case:
             fields = [snake_case(k) for k in o._fields]
         else:
             fields = o._fields
@@ -352,7 +352,7 @@ def to_namespaces(o, to_snake_case=False):
         return namespace_cls(d)
 
     elif isinstance(o, dict):
-        if to_snake_case:
+        if as_snake_case:
             d = [(snake_case(k), to_namespaces(v)) for k, v in o.items()]
         else:
             d = [(k, to_namespaces(v)) for k, v in o.items()]
@@ -366,12 +366,12 @@ def to_namespaces(o, to_snake_case=False):
 
 
 # noinspection PyArgumentList, PyProtectedMember
-def to_namedtuples(o, to_snake_case=False):
+def to_namedtuples(o, as_snake_case=False):
     is_namedtuple = (isinstance(o, tuple) and
                      type(o) is not tuple)
 
     if is_namedtuple:
-        if to_snake_case:
+        if as_snake_case:
             fields = [snake_case(k) for k in o._fields]
         else:
             fields = o._fields
@@ -380,7 +380,7 @@ def to_namedtuples(o, to_snake_case=False):
         return nt(*[to_namedtuples(v) for v in o])
 
     if isinstance(o, dict):
-        if to_snake_case:
+        if as_snake_case:
             fields = [snake_case(n) for n in o.keys()]
         else:
             fields = o.keys()
@@ -403,20 +403,23 @@ def snake_case(s):
         from .text import snake_case as _snake_case_
         return _snake_case_(s)
     """
-    s: str
-
     camel_re = re.compile('''
         (?<=[a-z])[A-Z](?=[a-z])
     ''', re.VERBOSE)
 
     s = s.strip()
-    if s[0].isupper():
-        s = s[0].lower() + s[1:]
 
-    for i, match in enumerate(camel_re.finditer(s)):
-        c = match.span()[0] + i
-        p = '_' + s[c].lower()
-        s = '{}{}{}'.format(s[:c], p, s[c + 1:])
+    matches = camel_re.finditer(s)
+    matches = list(matches)
 
-    return s.lower()
+    _s_ = list(s)
+
+    for match in reversed(matches):
+        i_1 = match.span()[0]
+        i_2 = i_1 + 1
+        c = match.group().lower()
+
+        _s_[i_1:i_2] = ['_', c]
+
+    return ''.join(_s_).lower()
 

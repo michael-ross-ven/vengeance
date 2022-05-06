@@ -1,4 +1,12 @@
 
+2022-05-06
+$release 64
+    version 1.1.27
+
+    updated README.md
+
+
+
 2022-04-13
 $release 63
     version 1.1.26
@@ -6,10 +14,6 @@ $release 63
     flux_cls:
         .index_row() and .index_rows() methods removed
         added .to_string() method
-        aliased as Flux on import
-
-    lev_cls:
-        aliased as Lev in import
 
 
 

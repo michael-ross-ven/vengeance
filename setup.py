@@ -11,6 +11,14 @@ https://markdownlivepreview.com/
 https://hynek.me/articles/conditional-python-dependencies/
 https://betterprogramming.pub/a-python-package-developers-cheat-sheet-3efb9e9454c7
 
+
+install_requires=[
+        'enum34 ; python_version<"3.4"',
+        'pywin32 >= 1.0 ; platform_system=="Windows"'
+    ]
+reapply _move_gencache folder to setup?
+
+
 pip install vengeance[comtypes]
 pip install vengeance[pypiwin32]
 pip install vengeance[python-dateutil]
@@ -23,8 +31,8 @@ todo:
 
 is_windows_os = (os.name == 'nt')
 
-__version__ = '1.1.26'
-__release__ = '$release 63'
+__version__ = '1.1.27'
+__release__ = '$release 64'
 description = 'Library focusing on row-major organization of tabular data and control over the Excel application'
 
 try:

@@ -6,6 +6,7 @@ import functools
 import re
 import sys
 
+# from functools import wraps as
 from timeit import default_timer
 from time import sleep
 
@@ -16,33 +17,6 @@ if is_utf_console:
     __vengeance_prefix__ = '    ν: '    # 'ν': chr(957), nu
 else:
     __vengeance_prefix__ = '    v: '    # 'v': chr(118)
-
-# region {ansi effect escape codes}
-__effect_end__   = '\x1b[0m'
-__effect_codes__ = {'bold':      '\x1b[1m',
-                    'italic':    '\x1b[3m',
-                    'underline': '\x1b[4m',
-                    '':          ''}
-__color_codes__ = {'grey':           '\x1b[29m',
-                   'gray':           '\x1b[29m',
-                   'white':          '\x1b[38;2;255;255;255m',
-                   'red':            '\x1b[31m',
-                   'green':          '\x1b[32m',
-                   'yellow':         '\x1b[33m',
-                   'blue':           '\x1b[34m',
-                   'magenta':        '\x1b[35m',
-                   'cyan':           '\x1b[36m',
-                   'bronze':         '\x1b[37m',
-                   'bright red':     '\x1b[91m',
-                   'bright green':   '\x1b[92m',
-                   'bright yellow':  '\x1b[93m',
-                   # 'bright yellow':  '\x1b[33;1m',
-                   'bright blue':    '\x1b[94m',
-                   'bright magenta': '\x1b[95m',
-                   'bright cyan':    '\x1b[96m',
-                   'black':          '\x1b[97m',
-                   '':               ''}
-# endregion
 
 
 def print_runtime(f=None,
@@ -59,14 +33,14 @@ def print_runtime(f=None,
             toc  = default_timer()
             elapsed = -(tic - toc)
 
-            # variables for .format(**locals())
-            vengeance_prefix   = __vengeance_prefix__
+            # named variables for .format(**locals())
+            formatted_prefix   = __vengeance_prefix__
             formatted_function = function_name(_f_)
             formatted_elapsed  = format_seconds(elapsed)
             formatted_runtime  = '@{}: {}'.format(formatted_function, formatted_elapsed)
 
             if formatter is None:
-                s = '{}{}'.format(vengeance_prefix, formatted_runtime)
+                s = '{}{}'.format(formatted_prefix, formatted_runtime)
             else:
                 s = formatter.format(**locals())
 
@@ -127,7 +101,7 @@ def print_performance(f=None, repeat=5):
             if repeat == 1:
                 num_trials = num_trials[:-1]
 
-            s = ('@{} over {}:'
+            s = ('@{}() over {}:'
                  '\n        ★ best:     {}'
                  '\n        ☆ average:  {}'
                  '\n        ☆ worst:    {}'
@@ -162,20 +136,47 @@ def styled(message,
            color=None,
            effect=None):
 
+    # region {ansi effect escape codes}
+    __effect_end__   = '\x1b[0m'
+    __effect_codes__ = {'bold':      '\x1b[1m',
+                        'italic':    '\x1b[3m',
+                        'underline': '\x1b[4m',
+                        '':          ''}
+    __color_codes__ = {'grey':           '\x1b[29m',
+                       'gray':           '\x1b[29m',
+                       'white':          '\x1b[38;2;255;255;255m',
+                       'red':            '\x1b[31m',
+                       'green':          '\x1b[32m',
+                       'yellow':         '\x1b[33m',
+                       'blue':           '\x1b[34m',
+                       'magenta':        '\x1b[35m',
+                       'cyan':           '\x1b[36m',
+                       'bronze':         '\x1b[37m',
+                       'bright red':     '\x1b[91m',
+                       'bright green':   '\x1b[92m',
+                       'bright yellow':  '\x1b[93m',
+                       # 'bright yellow':  '\x1b[33;1m',
+                       'bright blue':    '\x1b[94m',
+                       'bright magenta': '\x1b[95m',
+                       'bright cyan':    '\x1b[96m',
+                       'black':          '\x1b[97m',
+                       '':               ''}
+    # endregion
+
     if color is None:  color  = config.get('color',  '')
     if effect is None: effect = config.get('effect', '')
 
-    color  = (color.lower()
-                   .replace('_', ' '))
-    effect = (effect.lower()
-                    .replace(' ', '')
-                    .split('|'))
+    color  = (str(color).lower()
+                        .replace('_', ' '))
+    effects = (str(effect).lower()
+                          .replace(' ', '')
+                          .split('|'))
 
     if color not in __color_codes__:
         if not (color.startswith('\x1b') and color.endswith('m')):
             raise KeyError('styled: invalid color: {}'.format(color))
 
-    for e in effect:
+    for e in effects:
         if e not in __effect_codes__:
             if not (e.startswith('\x1b') and e.endswith('m')):
                 raise KeyError('styled: invalid effect: {}'.format(e))
@@ -183,11 +184,11 @@ def styled(message,
     if not is_utf_console:
         return message
 
-    if not color and not effect:
+    if not color and not effects:
         return message
 
     ansi_color  = __color_codes__.get(color, color)
-    ansi_effect = ''.join(__effect_codes__.get(e, e) for e in effect)
+    ansi_effect = ''.join(__effect_codes__.get(e, e) for e in effects)
     __effect_start__  = ansi_color + ansi_effect
 
     # only apply new style to any unstyled parts of message
@@ -231,8 +232,8 @@ def vengeance_warning(message,
                       category=Warning,
                       stacklevel=3,
                       stackframe=None,
-                      color=config.get('color'),
-                      effect=config.get('effect')):
+                      color=None,
+                      effect=None):
     """
     follow icecream's implementation?
         call_frame = inspect.currentframe().f_back
@@ -294,10 +295,11 @@ def vengeance_warning(message,
 
     flush_stdout()
 
-    original_formatwarning = warnings.formatwarning
+    _formatwarning_ = warnings.formatwarning
+
     warnings.formatwarning = vengeance_formatwarning
     warnings.warn(message)
-    warnings.formatwarning = original_formatwarning
+    warnings.formatwarning = _formatwarning_
 
     flush_stdout()
 
@@ -360,7 +362,7 @@ def format_seconds(s):
     elif m >= 1:
         f_ms = '{:.0f}m {:.0f}s'.format(m, s)
     elif s >= 1:
-        f_ms = '{:.1f} sec'.format(s)
+        f_ms = '{:.1f} s'.format(s)
     elif ms >= 1:
         f_ms = '{:.1f} ms'.format(ms)
     elif us >= 1:
@@ -455,22 +457,25 @@ def snake_case(s):
     """ eg:
         'some_value' = snake_case('someValue')
     """
-    s: str
-
     camel_re = re.compile('''
         (?<=[a-z])[A-Z](?=[a-z])
     ''', re.VERBOSE)
 
     s = s.strip()
-    if s[0].isupper():
-        s = s[0].lower() + s[1:]
 
-    for i, match in enumerate(camel_re.finditer(s)):
-        c = match.span()[0] + i
-        p = '_' + s[c].lower()
-        s = '{}{}{}'.format(s[:c], p, s[c + 1:])
+    matches = camel_re.finditer(s)
+    matches = list(matches)
 
-    return s.lower()
+    _s_ = list(s)
+
+    for match in reversed(matches):
+        i_1 = match.span()[0]
+        i_2 = i_1 + 1
+        c = match.group().lower()
+
+        _s_[i_1:i_2] = ['_', c]
+
+    return ''.join(_s_).lower()
 
 
 

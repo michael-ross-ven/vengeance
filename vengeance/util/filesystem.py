@@ -122,6 +122,11 @@ def __validate_io_arguments(path,
                             kwargs,
                             read_or_write,
                             is_data_bytes=False):
+    """
+    check for invalid chars in path?
+        if os.path.exists()
+        if os.access(path, os.R_OK)
+    """
 
     path          = __validate_path(path)
     filetype      = __validate_filetype(path, filetype)
@@ -132,6 +137,7 @@ def __validate_io_arguments(path,
                                                  filetype,
                                                  kwargs,
                                                  read_or_write)
+
     return (path,
             encoding,
             filetype,
@@ -229,6 +235,14 @@ def __validate_read_or_write(path, mode, read_or_write):
     is_write_mode  = ('w' in mode)
     is_append_mode = ('a' in mode)
     is_url         = is_path_a_url(path)
+    read_or_write = str(read_or_write).lower()
+
+    if read_or_write.startswith('r'):
+        read_or_write = 'read'
+    elif read_or_write.startswith('w'):
+        read_or_write = 'write'
+    else:
+        raise ValueError("read or write parameter should be in ('read', 'write')")
 
     if read_or_write.startswith('r'):
         if (not is_read_mode) or is_append_mode:

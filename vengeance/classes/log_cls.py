@@ -415,6 +415,7 @@ class colored_streamhandler_cls(StreamHandler):
     def __init__(self, stream=None):
         super().__init__(stream)
 
+    # noinspection PyTypeChecker
     def emit(self, record):
         color  = self.level_colors.get(record.levelno)
         effect = self.level_effects.get(record.levelno)

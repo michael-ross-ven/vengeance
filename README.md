@@ -41,16 +41,15 @@ advantages as well as drawbacks.
          'attribute_c': array([3.,   3.,  3.], dtype=float64)}
 
 
-In column-major order, values in a single column are usually all of the same datatype, so can be packed into consecutive 
-addresses in memory as an actual array. These contiguous elements along a single column can be iterated very quickly. 
-But in a DataFrame, the ability to organize data where each row is some entity, and each column is a property of that row, 
-is mind-numbingly slow. (DataFrame.iterrows() incurs a *huge* performance penalty, and can be 1,000x times slower to iterate 
-than a built-in list)
+In column-major order, values in a single column are usually all of the same datatype, and can be packed into consecutive 
+addresses in memory as an actual array, which can be iterated extremely quickly. But in a DataFrame, the ability to organize 
+data more intuitively, *where each row is some entity, and each column is a property of that row*, is mind-numbingly slow. 
+(DataFrame.iterrows() and DataFrame.apply() incur a huge performance penalty, and can be 1,000x times slower than a built-in list)
 
-DataFrames also take advantage of vectorization, where operations can be applied to an entire set of values at once. 
-But removal of explicit loops requires specialized methods for almost every operation and modification, which often makes 
-the syntax convoluted. The restricted ability to iterate a DataFrame makes its transformations counter-inituitive to write and 
-effortful to read, especially when method-chaining is overused.
+DataFrames are intended to make heavy use of vectorization, where operations can be applied to an entire set of values at once, 
+performed as instructions at the microprocessor level. But removal of explicit loops requires specialized methods for almost 
+every operation and modification, which often makes the syntax convoluted. The restricted ability to iterate a DataFrame makes 
+its transformations counter-inituitive to write and more effortful to read, especially when method-chaining is overused.
 
     # wait, what exactly does this do again?
     df['column'] = np.sign(df.column.diff().fillna(0)).shift(-1).fillna(0) \
@@ -60,14 +59,18 @@ effortful to read, especially when method-chaining is overused.
 
 
 ##### DataFrame Advantages:
-* vectorized operations on contiguous arrays are *very* fast
+* vectorized operations on contiguous arrays are very fast
 
 ##### DataFrame Disadvantages:
 * syntax doesnt always drive intuition
 * iteration by rows is almost completely out of the question \
   (& working with json files is notoriously difficult)
-* managing datatypes can sometimes be problematic
 * harder to debug / inspect when vectorized operations return an error
+
+##### But I mean, why are we working in Python to begin with?
+* emphasis on code readability
+* less concerned about hyper-optimized execution times
+* datatypes are abstracted away
 
 ##### [So does the DataFrame really reinforce what makes Python so great?](https://en.wikipedia.org/wiki/Zen_of_Python)
 >"Explicit is better than implicit" \
@@ -76,10 +79,6 @@ effortful to read, especially when method-chaining is overused.
 "There should be one– and preferably only one –obvious way to do it"
 >
 
-##### I mean, why are we working in Python to begin with?
-* emphasis on code readability
-* less concerned about hyper-optimized execution times
-* datatypes and array allocations are abstracted away
 <br/>
 
 ### vengeance.flux_cls
@@ -90,7 +89,7 @@ effortful to read, especially when method-chaining is overused.
 * provides convenience aggregate operations (sort, filter, groupby, etc)
 * excellent for prototyping and data-wrangling
 
-###### row-major iteration
+###### Row-Major Iteration
     
     # organized like csv data, attribute names are provided in first row
     matrix = [['attribute_a', 'attribute_b', 'attribute_c'],
@@ -119,7 +118,7 @@ effortful to read, especially when method-chaining is overused.
     matrix = list(flux.values())
 
 
-###### columns
+###### Columns
     column = flux['attribute_a']
 
     flux.rename_columns({'attribute_a': 'renamed_a',
@@ -130,7 +129,7 @@ effortful to read, especially when method-chaining is overused.
                         'inserted_b')
 
 
-###### rows
+###### Rows
     rows = [['c', 'd', 4.0],
             ['c', 'd', 4.0],
             ['c', 'd', 4.0]]
@@ -141,7 +140,7 @@ effortful to read, especially when method-chaining is overused.
     flux_c = flux_a + flux_b
 
 
-###### sort / filter / apply
+###### Sort / Filter / Apply
     flux.sort('attribute_c')
     flux.filter(lambda row: row.attribute_b != 'c')
     u = flux.unique('attribute_a', 'attribute_b')
@@ -150,7 +149,7 @@ effortful to read, especially when method-chaining is overused.
     flux['attribute_new'] = [some_function(v) for v in flux['attribute_a']]
 
 
-###### groupby
+###### Groupby
     matrix = [['year', 'month', 'random_float'],
               ['2000', '01',     random.uniform(0, 9)],
               ['2000', '02',     random.uniform(0, 9)],
@@ -170,7 +169,7 @@ effortful to read, especially when method-chaining is overused.
     rows_2 = dict_2['2001']['01']
 
 
-###### read / write files
+###### Read / Write Files
     flux.to_csv('file.csv')
     flux = flux_cls.from_csv('file.csv')
 

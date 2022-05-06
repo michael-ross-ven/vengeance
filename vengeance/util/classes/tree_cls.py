@@ -6,7 +6,7 @@ from ... conditional import ordereddict
 re-map flat dictionary keys to a nested dictionary structure
 
 eg:
-    # "flat" dict
+    "flat" dict keys
     d = {('a₁', 'b₁', 'c₁', 'd₁'): 'v_1',
          ('a₁', 'b₂', 'c₁', 'd₂'): 'v_2',
          ('a₂', 'b₁', 'c₁', 'd₁'): 'v_4',
@@ -27,15 +27,20 @@ class node_cls:
 
 class tree_cls:
     def __init__(self, flat_dict: Dict):
+        self.root = node_cls()
+
+        if flat_dict:
+            self.build(flat_dict)
+
+    def build(self, flat_dict):
         if not isinstance(flat_dict, dict):
             raise TypeError('flat_dict must be a dictionary')
 
-        self.children = ordereddict()
         for flat_keys, value in flat_dict.items():
-            self.add(flat_keys, value)
+            self.insert(flat_keys, value)
 
-    def add(self, flat_keys, value):
-        node = self
+    def insert(self, flat_keys, value):
+        node = self.root
 
         for e_key in flat_keys:
             if e_key not in node.children:
@@ -46,15 +51,15 @@ class tree_cls:
             else:
                 node = node.children[e_key]
 
-    def traverse(self, node=None):
-        node = node or self
+    def traverse_nested(self, node=None):
+        node = node or self.root
 
         d = ordereddict()
         for k, node in node.children.items():
             if not node.children:
                 d[k] = node.value
             else:
-                d[k] = self.traverse(node)
+                d[k] = self.traverse_nested(node)
 
         return d
 
