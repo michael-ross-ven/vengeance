@@ -1,12 +1,11 @@
 Metadata-Version: 2.1
 Name: vengeance
-Version: 1.1.28
+Version: 1.1.29
 Summary: Library focusing on row-major organization of tabular data and control over the Excel application
 Home-page: https://github.com/michael-ross-ven/vengeance
 Author: Michael Ross
 Author-email: 
 License: MIT
-Platform: UNKNOWN
 Classifier: Programming Language :: Python :: 3
 Classifier: License :: OSI Approved :: MIT License
 Description-Content-Type: text/markdown
@@ -41,50 +40,59 @@ such as when pulling data from a sql table or csv file.
 In a DataFrame, data is taken out of its native nested list format and is organized in column-major order, which comes with some 
 advantages as well as drawbacks.
 
-##### Row-major order:
+##### eg Row-Major Order:
         
         [['attribute_a', 'attribute_b', 'attribute_c'],
          ['a',           'b',           3.0],
          ['a',           'b',           3.0],
          ['a',           'b',           3.0]]
 
-##### Column-major order:
+##### eg Column-Major Order:
         
         {'attribute_a': array(['a', 'a', 'a'], dtype='<U1'),
          'attribute_b': array(['b', 'b', 'b'], dtype='<U1'),
          'attribute_c': array([3.,   3.,  3.], dtype=float64)}
 
 
-In column-major order, values in a single column are usually all of the same datatype, and can be packed into consecutive 
-addresses in memory as an actual array, which can be iterated extremely quickly. But in a DataFrame, the ability to organize 
-data more intuitively, *where each row is some entity, and each column is a property of that row*, is mind-numbingly slow. 
-(DataFrame.iterrows() and DataFrame.apply() incur a huge performance penalty, and can be 1,000x times slower than a built-in list)
+In column-major order, values in a single column are usually all of the same datatype, which means they can be packed into 
+consecutive addresses in memory as an actual array and iterated extremely quickly. But this comes at a cost: re-organizing the
+data as it's intuitively understood by humans, **where each row is some entity, and each column is a property of that row**, 
+is agonizingly slow. (DataFrame.iterrows() and DataFrame.apply() incur a huge performance penalty, and can be 1_000x times 
+slower to iterate than Python's built-in list.)
 
-DataFrames are intended to make heavy use of vectorization, where operations can be applied to an entire set of values at once, 
-performed as instructions at the microprocessor level. But removal of explicit loops requires specialized methods for almost 
-every operation and modification, which often makes the syntax convoluted. The restricted ability to iterate a DataFrame makes 
-its transformations counter-inituitive to write and more effortful to read, especially when method-chaining is overused.
+DataFrames are also intended to make heavy use of 'vectorization', where operations can be broadcast and applied to an entire set 
+of values in parallel, performed as SIMD instructions at the microprocessor level. But the restricted use of explicit loops over 
+a DataFrame requires memorizing specialized methods for almost every operation and modification, which often makes the syntax 
+convoluted. 
+
+This can lead to code that is counter-inituitive to write and effortful to read, especially when method-chaining is overused.
 
     # wait, what exactly does this do again?
     df['column'] = np.sign(df.column.diff().fillna(0)).shift(-1).fillna(0) \
-                   .apply(lambda x: (x['column'].head(1),
-                                     x.shape[0],
-                                     x['start'].iloc[-1] - x['start'].iloc[0]))
+                     .apply(lambda x: (x['column'].head(1),
+                                       x.shape[0],
+                                       x['start'].iloc[-1] - x['start'].iloc[0]))
+
+###### (see also [youtube: 'So You Wanna Be a Pandas Expert? - James Powell'](https://youtu.be/pjq3QOxl9Ok) for how bad this can really get)
+
+<br/>
 
 
 ##### DataFrame Advantages:
-* vectorized operations on contiguous arrays are very fast
+* vectorized operations on contiguous arrays are memory-efficient and *very* fast
 
 ##### DataFrame Disadvantages:
-* syntax doesnt always drive intuition
-* iteration by rows is almost completely out of the question \
-  (& working with json files is notoriously difficult)
-* harder to debug / inspect when vectorized operations return an error
+* syntax doesnt always drive intuition or conceptual understanding
+* iteration by rows is effectively out of the question \
+  (and makes working with JSON format notoriously difficult)
+* vectorized operations are harder to debug / inspect when they encounter an error
+* unexpected loss of precision on numerical data
 
 ##### But I mean, why are we working in Python to begin with?
-* emphasis on code readability
-* less concerned about hyper-optimized execution times
+* extreme emphasis on code readability
 * datatypes are abstracted away
+* are less concerned about hyper-optimized execution times \
+  (but Numba, pyjion, and PyPy JIT compilers can make a big difference for almost no effort)
 
 ##### [So does the DataFrame really reinforce what makes Python so great?](https://en.wikipedia.org/wiki/Zen_of_Python)
 >"Explicit is better than implicit" \
@@ -95,13 +103,14 @@ its transformations counter-inituitive to write and more effortful to read, espe
 
 <br/>
 
-### vengeance.flux_cls
+
+## vengeance.flux_cls
 * similar idea behind a pandas DataFrame, but is more closely aligned with Python's design philosophy
 * when you're willing to trade for a little bit of speed for a lot simplicity
 * a lightweight, pure-python wrapper class around list of lists
 * applies named attributes to rows; attribute values are mutable during iteration
 * provides convenience aggregate operations (sort, filter, groupby, etc)
-* excellent for prototyping and data-wrangling
+* excellent for extremely fast prototyping and data subjugation
 
 ###### Row-Major Iteration
     
@@ -171,9 +180,9 @@ its transformations counter-inituitive to write and more effortful to read, espe
               ['2001', '01',     random.uniform(0, 9)],
               ['2001', '01',     random.uniform(0, 9)],
               ['2002', '01',     random.uniform(0, 9)]]
-    flux = flux_cls(matrix)
+    flux = vengeance.flux_cls(matrix)
 
-    dict_1 = flux.map_rows_append('year', 'month')
+    dict_1   = flux.map_rows_append('year', 'month')
     countifs = {k: len(rows) for k, rows in dict_1.items()}
     sumifs   = {k: sum(row.random_float for row in rows)
                                         for k, rows in dict_1.items()}
@@ -191,4 +200,6 @@ its transformations counter-inituitive to write and more effortful to read, espe
     flux = flux_cls.from_json('file.json')
 
 
+## vengeance.lev_cls
+* (description coming soon...)
 
