@@ -6,7 +6,6 @@ import functools
 import re
 import sys
 
-# from functools import wraps as
 from timeit import default_timer
 from time import sleep
 
@@ -96,10 +95,11 @@ def print_performance(f=None, repeat=5):
 
             average = total / repeat
 
-            num_trials = surround_single_brackets(format_integer(repeat, comma_sep='_'))
-            num_trials = '{} trials'.format(num_trials)
+            num_trials = format_integer(repeat, comma_sep='_')
             if repeat == 1:
-                num_trials = num_trials[:-1]
+                num_trials = '{} trial'.format(num_trials)
+            else:
+                num_trials = '{} trials'.format(num_trials)
 
             s = ('@{}() over {}:'
                  '\n        ★ best:     {}'
@@ -111,8 +111,8 @@ def print_performance(f=None, repeat=5):
                          format_seconds(average),
                          format_seconds(worst))
                  )
-            s = vengeance_message(s)
 
+            s = vengeance_message(s)
             flush_stdout()
             print_unicode(s)
 
@@ -210,10 +210,7 @@ def deprecated(f=None, message='deprecated'):
 
             _message_ = "'{}'".format(message)
             _message_ = '@{}: {}'.format(function_name(_f_), _message_)
-
-            vengeance_warning(_message_,
-                              DeprecationWarning,
-                              stacklevel=4)
+            print(vengeance_message(_message_))
 
             return _f_(*args, **kwargs)
 
@@ -226,82 +223,6 @@ def deprecated(f=None, message='deprecated'):
         return deprecated_wrapper(f)
     else:
         return deprecated_wrapper
-
-
-def vengeance_warning(message,
-                      category=Warning,
-                      stacklevel=3,
-                      stackframe=None,
-                      color=None,
-                      effect=None):
-    """
-    follow icecream's implementation?
-        call_frame = inspect.currentframe().f_back
-    """
-    import traceback
-    import warnings
-
-    # region {closure functions}
-    stacklevel_min = 3
-    aligned_indent = ' ' * len(__vengeance_prefix__)
-
-    def first_non_vengeance_frame():
-        nonlocal stackframe
-
-        is_found = False
-        tb_stack = reversed(traceback.extract_stack())
-
-        for i, stackframe in enumerate(tb_stack):
-            if '\\vengeance\\' not in stackframe.filename:
-                is_found = True
-                break
-
-        if not is_found:
-            stackframe = traceback.extract_stack(inspect.currentframe(), limit=stacklevel_min)[0]
-
-    def extract_frame():
-        nonlocal stackframe
-
-        sl = max(stacklevel, stacklevel_min)
-        stackframe = traceback.extract_stack(inspect.currentframe(), limit=sl)[0]
-
-    def vengeance_formatwarning(*_, **__):
-        line_1 = ' '.join(message.split()).lstrip()
-
-        line_1 = '<{}> {}'.format(object_name(category), line_1)
-        line_1 = vengeance_message(line_1)
-        line_1 = styled(line_1, color, effect)
-
-        line_2 = 'File "{}", line {}'.format(filename, lineno)
-        line_2 = styled(line_2, color, effect)
-        line_2 = aligned_indent + line_2
-
-        _message_ = '{}\n{}\n'.format(line_1, line_2)
-
-        return _message_
-    # endregion
-
-    if stacklevel is None and stackframe is None:
-        first_non_vengeance_frame()
-    elif isinstance(stacklevel, int) and stackframe is None:
-        extract_frame()
-
-    if stackframe is not None:
-        filename = stackframe.filename
-        lineno   = stackframe.lineno
-    else:
-        filename = '{unknown}'
-        lineno   = '{unknown}'
-
-    flush_stdout()
-
-    _formatwarning_ = warnings.formatwarning
-
-    warnings.formatwarning = vengeance_formatwarning
-    warnings.warn(message)
-    warnings.formatwarning = _formatwarning_
-
-    flush_stdout()
 
 
 def flush_stdout(sleep_ms=None):
@@ -332,7 +253,7 @@ def surround_single_brackets(h):
     return '⟨{}⟩'.format(h)
 
 
-def surround_square_brackets(h):
+def surround_double_square_brackets(h):
     return '⟦{}⟧'.format(h)
 
 

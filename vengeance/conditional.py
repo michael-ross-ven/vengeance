@@ -7,12 +7,10 @@ config:
     default settings for vengeance.util functions
     eg, vengeance/config.ini:
         [console]
+        color  = grey
         effect = bold
         enable_ansi_escape = True
         
-        [filesystem]
-        encoding = utf-8-sig
-
 loads_excel_module: 
     determines if excel_com module should be loaded in vengeance.__init__ 
     if environment is expected to support Windows COM interface, load vengeance.excel_com module
@@ -34,7 +32,7 @@ python_version      = sys.version_info
 is_windows_os       = (os.name == 'nt' or sys.platform == 'win32')
 is_utf_console      = ('utf' in sys.stdout.encoding.lower())
 is_pypy_interpreter = ('__pypy__' in set(sys.builtin_module_names))
-loads_excel_module  = (not is_pypy_interpreter and is_windows_os)
+loads_excel_module  = (is_windows_os and not is_pypy_interpreter)
 
 ordereddict             = dict
 dateutil_installed      = False
@@ -93,11 +91,11 @@ def load_vengeance_configuration_file():
 
     if vcf.has_section('console'):
         cp_section = vcf['console']
-
         config.update({'color':              cp_section.get('color'),
                        'effect':             cp_section.get('effect'),
                        'formatter':          cp_section.get('formatter'),
                        'enable_ansi_escape': cp_section.getboolean('enable_ansi_escape')})
+
         if config['enable_ansi_escape']:
             __enable_ansi_escape_in_windows_console()
 
@@ -105,20 +103,15 @@ def load_vengeance_configuration_file():
 def __load_vengeance_configuration_file():
     import site
 
-    config_paths = [site.getsitepackages()[1]  + '\\vengeance\\config.ini']
+    config_path = site.getsitepackages()[1]  + '\\vengeance\\config.ini'
 
-    if is_windows_os:
-        try:    config_paths.append(os.environ['localappdata'] + '\\Temp\\vengeance\\config.ini')
-        except: pass
+    if os.path.exists(config_path):
+        from configparser import ConfigParser
 
-    for config_path in config_paths:
-        if os.path.exists(config_path):
-            from configparser import ConfigParser
+        vcf = ConfigParser()
+        vcf.read(config_path)
 
-            vcf = ConfigParser()
-            vcf.read(config_path)
-
-            return vcf
+        return vcf
 
     return None
 

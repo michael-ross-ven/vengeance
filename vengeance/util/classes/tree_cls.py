@@ -42,6 +42,9 @@ class tree_cls:
     def insert(self, flat_keys, value):
         node = self.root
 
+        if not isinstance(flat_keys, (list, tuple)):
+            flat_keys = [flat_keys]
+
         for e_key in flat_keys:
             if e_key not in node.children:
                 child = node_cls(value)

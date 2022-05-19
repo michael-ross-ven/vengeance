@@ -10,14 +10,13 @@ https://youtu.be/GIF3LaRqgXo
 https://markdownlivepreview.com/
 https://hynek.me/articles/conditional-python-dependencies/
 https://betterprogramming.pub/a-python-package-developers-cheat-sheet-3efb9e9454c7
+https://itnext.io/beautify-github-repo-7348b1971899
 
 
 install_requires=[
         'enum34 ; python_version<"3.4"',
         'pywin32 >= 1.0 ; platform_system=="Windows"'
     ]
-reapply _move_gencache folder to setup?
-
 
 pip install vengeance[comtypes]
 pip install vengeance[pypiwin32]
@@ -29,10 +28,12 @@ todo:
     publish to conda
 """
 
-is_windows_os = (os.name == 'nt')
+is_windows_os       = (os.name == 'nt' or sys.platform == 'win32')
+is_pypy_interpreter = ('__pypy__' in set(sys.builtin_module_names))
+loads_excel_module  = (is_windows_os and not is_pypy_interpreter)
 
-__version__ = '1.1.28'
-__release__ = '$release 65'
+__version__ = '1.1.29'
+__release__ = '$release 66'
 description = 'Library focusing on row-major organization of tabular data and control over the Excel application'
 
 try:
@@ -44,7 +45,7 @@ except:
     long_description = 'https://github.com/michael-ross-ven/vengeance/blob/master/README.md'
     long_description_content_type = 'text'
 
-if is_windows_os:
+if loads_excel_module:
     install_requires = ['comtypes',
                         'pypiwin32']
 else:

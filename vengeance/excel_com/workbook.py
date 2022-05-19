@@ -30,7 +30,6 @@ from ..util.filesystem import validate_path_exists
 
 from ..util.text import styled
 from ..util.text import vengeance_message
-from ..util.text import vengeance_warning
 
 from .excel_constants import (xlMaximized,
                               xlNormal,
@@ -105,8 +104,8 @@ def get_opened_workbook(path):
         return None
 
     if len(workbooks) > 1:
-        vengeance_warning("multiple workbooks in different Excel instances found: '{}' "
-                          .format([wb.FullName for wb in workbooks]))
+        print(vengeance_message("multiple workbooks in different Excel instances found: '{}' "
+                                .format([wb.FullName for wb in workbooks])))
 
     return workbooks[0]
 
@@ -324,7 +323,7 @@ def reload_all_add_ins(excel_app):
                 add_in.Installed = True
                 print('        * {}'.format(name))
             except (ctypes_error, pythoncom_error, NameError) as e:
-                vengeance_warning('    failed to load Excel add-in: {}, {}'.format(name, e))
+                print('        * error loading Excel add-in: {}, {}'.format(name, e))
 
     print()
 

@@ -374,6 +374,9 @@ def clear_dir(filedir):
     if not os_isdir(filedir):
         raise TypeError('"{}" is not a directory'.format(filedir))
 
+    if os.path.islink(filedir):
+        raise NotImplementedError
+
     for item in os.listdir(filedir):
         path = filedir + item
 
@@ -466,15 +469,27 @@ def parse_file_extension(filename, include_dot=True):
 def standardize_path(path,
                      pathsep='/',
                      abspath=False):
+    """
+    * removes quotes
+    * standardizes pathsep character
+    * adds pathsep character to end of of directories
+    * converts relative paths to absolute paths
+
+    symlinks?
+        # converts symlinks
+        os.path.relpath(_path_)
+
+        # does not convert symlinks
+        os.path.abspath(_path_)
+    """
 
     _path_ = path or ''
-    if not _path_ and (not abspath):
+    if (not _path_) and (not abspath):
         return ''
 
-    if (not abspath) and (not os.path.isabs(_path_)):
-        _path_ = os.path.relpath(_path_)
-    else:
-        _path_ = os.path.realpath(_path_)
+    if abspath:
+        # does not convert symlinks
+        _path_ = os.path.abspath(_path_)
 
     if pathsep == '/':
         _path_ = _path_.replace('\\', '/')

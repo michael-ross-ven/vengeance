@@ -1,4 +1,18 @@
 
+2022-05-19
+$release 66
+    version 1.1.29
+
+    flux_cls:
+        .join method renamed to .joined_rows
+        .label_row_indices method renamed to .label_rows
+
+    removed util.vengeance_warning function
+
+    updated readme.md
+
+
+
 2022-05-06
 $release 65
     version 1.1.28
