@@ -31,7 +31,7 @@ config_file_loaded = False
 python_version      = sys.version_info
 is_windows_os       = (os.name == 'nt' or sys.platform == 'win32')
 is_utf_console      = ('utf' in sys.stdout.encoding.lower())
-is_pypy_interpreter = ('__pypy__' in set(sys.builtin_module_names))
+is_pypy_interpreter = ('__pypy__' in sys.builtin_module_names)
 loads_excel_module  = (is_windows_os and not is_pypy_interpreter)
 
 ordereddict             = dict

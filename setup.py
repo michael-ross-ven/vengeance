@@ -33,9 +33,9 @@ is_windows_os       = (os.name == 'nt' or sys.platform == 'win32')
 is_pypy_interpreter = ('__pypy__' in sys.builtin_module_names)
 loads_excel_module  = (is_windows_os and not is_pypy_interpreter)
 
-__version__ = '1.1.29'
-__release__ = '$release 66'
-description = 'Library focusing on row-major organization of tabular data and control over the Excel application'
+__version__ = '1.1.30'
+__release__ = '$release 67'
+description = 'Data Subjugation library focusing on row-major organization of tabular data and control over the Excel Application'
 
 try:
     with open('README.md', 'r') as f:

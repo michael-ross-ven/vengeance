@@ -69,7 +69,7 @@ class flux_cls:
     * a lightweight, pure-python wrapper class around list of lists
     * applies named attributes to rows; attribute values are mutable during iteration
     * provides convenience aggregate operations (sort, filter, groupby, etc)
-    * excellent for extremely fast prototyping and data manipulation
+    * excellent for extremely fast prototyping and data subjugation
 
     # organized like csv data, attribute names are provided in first row
     matrix = [['attribute_a', 'attribute_b', 'attribute_c'],
@@ -743,70 +743,51 @@ class flux_cls:
 
         return self
 
-    def joined_rows(self, other, *names):
+    def joined_rows(self, other,
+                          names_self,
+                          names_other=None) -> Generator[Tuple[flux_row_cls, flux_row_cls], None, None]:
         """
         other: Union[flux_cls, dict, str, tuple, list]
 
         eg:
-            for row_a, row_b in flux_a.joined_rows(flux_b,
-                                                  {'other_name': 'name'}):
-                row_a.cost   = row_b.cost
-                row_a.weight = row_b.weight
+            for row_self, row_other in flux_a.joined_rows(flux_b,
+                                                         names_self='name',
+                                                         names_other='other_name'}):
+                row_self.cost   = row_other.cost
+                row_self.weight = row_other.weight
 
-            for row_a, row_b in flux_a.joined_rows(flux_b.map_rows('name', rowtype='namedtuple'),
-                                                  'other_name'):
-                row_a.cost   = row_b.cost
-                row_a.weight = row_b.weight
+            for row_self, row_other in flux_a.joined_rows(flux_b.map_rows('name', rowtype='namedtuple'),
+                                                         'name'):
+                row_self.cost   = row_other.cost
+                row_self.weight = row_other.weight
 
-            for row_a, rows_b in flux_a.joined_rows(flux_b.map_rows_append('name'),
-                                                    'other_name'):
-                for row_b in rows_b:
-                    row_a.cost   = row_b.cost
-                    row_a.weight = row_b.weight
-
-        hmmmmm, convert names to names_self and names_other keywords?
-            .joined_rows(self, other, names_self='', names_other='')
-
-        # names_orig = names
+        join with multiple rows
+            for row_self, rows_other in flux_a.joined_rows(flux_b.map_rows_append('name'),
+                                                          'name'):
+                row_self.cost   = sum(row_other.cost   for row_other in rows_other)
+                row_self.weight = sum(row_other.weight for row_other in rows_other)
         """
-        names = self.__validate_names_not_empty(names, self.headers, depth=0)
+        names_self = self.__validate_names_not_empty(names_self, self.headers, depth=0)
+        rva        = self.__row_values_accessor(names_self)
 
-        is_other_flux  = isinstance(other, flux_cls)
-        are_names_dict = isinstance(names, dict)
+        if isinstance(other, flux_cls):
+            if names_other is None:
+                names_other = names_self
 
-        if are_names_dict and not is_other_flux:
-            raise TypeError("'other' must be a flux_cls if names submitted as a dict,")
-
-        if are_names_dict:
-            names_a = list(names.keys())[0]
-            names_b = list(names.values())[0]
-        elif isinstance(names, str):
-            names_a = names
-            names_b = names
-        elif isinstance(names, (tuple, list)):
-            names_a = names[0]
-            names_b = names[-1]
-        else:
-            raise TypeError('name types must be in (dict, str, tuple, list)')
-
-        rva = self.__row_values_accessor(names_a)
-
-        if is_other_flux:
-            self.__validate_all_names_intersect_with_headers(names_b, other.headers)
-            other_mapping = other.map_rows(names_b)
+            mapping_other = other.map_rows(names_other)
         elif isinstance(other, dict):
-            other_mapping = other
+            mapping_other = other
         elif is_collection(other):
-            other_mapping = {item: item for item in other}
+            mapping_other = {item: item for item in other}
         else:
             raise TypeError('other types must be in (flux_cls, dict or some iterable)')
 
-        for row_a in self.matrix[1:]:
-            key   = rva(row_a)
-            row_b = other_mapping.get(key)
+        for row_self in self.matrix[1:]:
+            key_both  = rva(row_self)
+            row_other = mapping_other.get(key_both)
 
-            if row_b:
-                yield row_a, row_b
+            if row_other:
+                yield row_self, row_other
 
     def reverse(self):
         self.matrix[1:] = list(reversed(self.matrix[1:]))
@@ -1104,28 +1085,28 @@ class flux_cls:
         """ :return: a function that can be called for each row in self.matrix
         to retrieve column values
         """
-
         # region {closure functions}
         def row_value(row):
-            return row.values[i]
+            return row.values[rva_indices]
 
         def row_values(row):
-            return tuple([row.values[_] for _ in i])
+            return tuple([row.values[_] for _ in rva_indices])
 
         def row_values_slice(row):
-            return tuple(row.values[i])
+            return tuple(row.values[rva_indices])
 
         def row_values_all(row):
             return tuple(row.values)
         # endregion
 
-        i, rva = self.__validate_row_values_accessor(names, self.headers)
+        rva_name, rva_indices = self.__validate_row_values_accessor(names, self.headers)
 
-        rva = {'row_value':        row_value,
-               'row_values':       row_values,
-               'row_values_slice': row_values_slice,
-               'row_values_all':   row_values_all} \
-               .get(rva, rva)
+        rva_mapping = {'row_value':        row_value,
+                       'row_values':       row_values,
+                       'row_values_slice': row_values_slice,
+                       'row_values_all':   row_values_all,
+                       'callable':         rva_indices}
+        rva = rva_mapping[rva_name]
 
         return rva
 
@@ -1353,30 +1334,29 @@ class flux_cls:
         names = flux_cls.__validate_names_not_empty(names, depth_offset=-1)
 
         if callable(names):
-            i = None
-            f = names
+            rva_name    = 'callable'
+            rva_indices = names
         elif isinstance(names, slice):
-            i = names
-            if i.start in (None, 0) and \
-               i.stop  in (None, len(headers)) and \
-               i.step  in (None, 1):
+            rva_indices = names
 
-                f = 'row_values_all'
+            if rva_indices.start in (None, 0) and \
+               rva_indices.stop  in (None, len(headers)) and \
+               rva_indices.step  in (None, 1):
+                rva_name = 'row_values_all'
             else:
-                f = 'row_values_slice'
-
+                rva_name = 'row_values_slice'
         elif iteration_depth(names) == 0:
-            i = flux_cls.__validate_names_as_indices(names, headers)[0]
-            f = 'row_value'
+            rva_name    = 'row_value'
+            rva_indices = flux_cls.__validate_names_as_indices(names, headers)[0]
         else:
-            i = flux_cls.__validate_names_as_indices(names, headers)
-            f = 'row_values'
+            rva_name    = 'row_values'
+            rva_indices = flux_cls.__validate_names_as_indices(names, headers)
 
-            if are_indices_contiguous(i):
-                i = slice(i[0], i[-1] + 1)
-                f = 'row_values_slice'
+            if are_indices_contiguous(rva_indices):
+                rva_name    = 'row_values_slice'
+                rva_indices = slice(rva_indices[0], rva_indices[-1]+1)
 
-        return i, f
+        return rva_name, rva_indices
 
     @staticmethod
     def __validate_mapped_rowtype(rowtype):
@@ -1416,17 +1396,17 @@ class flux_cls:
                                    depth=None,
                                    depth_offset=None):
 
-        names = flux_cls.__validate_names(names, headers, depth, depth_offset)
+        names = flux_cls.__validate_standardize_names(names, headers, depth, depth_offset)
         if is_collection(names) and len(names) == 0:
             raise ColumnNameError('no column names submitted')
 
         return names
 
     @staticmethod
-    def __validate_names(names,
-                         headers=None,
-                         depth=None,
-                         depth_offset=None):
+    def __validate_standardize_names(names,
+                                     headers=None,
+                                     depth=None,
+                                     depth_offset=None):
 
         names = standardize_variable_arity_values(names,
                                                   depth=depth,
@@ -1442,7 +1422,7 @@ class flux_cls:
                            str, 
                            bytes)
 
-        names   = flux_cls.__validate_names(names, headers, depth=1)
+        names   = flux_cls.__validate_standardize_names(names, headers, depth=1)
         invalid = [n for n in names if not isinstance(n, valid_datatypes)]
 
         if invalid:
@@ -1484,7 +1464,7 @@ class flux_cls:
 
     @staticmethod
     def __validate_no_duplicate_names(names):
-        names = flux_cls.__validate_names(names, depth=1)
+        names = flux_cls.__validate_standardize_names(names, depth=1)
 
         duplicates = [n for n, count in Counter(names).items() if count > 1]
         if duplicates:
@@ -1494,7 +1474,7 @@ class flux_cls:
 
     @staticmethod
     def __validate_no_names_intersect_with_headers(names, headers):
-        names = flux_cls.__validate_names(names, headers, depth=1)
+        names = flux_cls.__validate_standardize_names(names, headers, depth=1)
 
         conflicting = headers.keys() & set(names)
         if conflicting:
@@ -1504,7 +1484,7 @@ class flux_cls:
 
     @staticmethod
     def __validate_all_names_intersect_with_headers(names, headers):
-        names = flux_cls.__validate_names(names, headers, depth=1)
+        names = flux_cls.__validate_standardize_names(names, headers, depth=1)
 
         h_names = [*[ i for i in range(len(headers))],
                    *[-i for i in range(len(headers) + 1)]]

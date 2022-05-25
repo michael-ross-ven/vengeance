@@ -384,7 +384,6 @@ def __excel_application_from_window_handle(window_h):
         com_ptr   = comtypes_dispatch(obj_ptr).Application
         excel_app = __iunknown_pointer_to_python_object(com_ptr, comtypes_idispatch)
     except (ctypes_error, pythoncom_error, NameError):
-
         # comtypes Dispatch() call rejected: user may be editing cell
         raise ChildProcessError('Remote Procedure Call to Excel Application rejected. '
                                 '\n'
@@ -394,26 +393,25 @@ def __excel_application_from_window_handle(window_h):
     try:
         return EnsureDispatch(excel_app)
     except AttributeError:
-
         # win32com Dispatch() call rejected: COM files may be corrupted
         __move_win32com_gencache_folder()
 
         raise ChildProcessError('Error dispatching Excel Application from win32com module. '
-                                '\n'
-                                '\n\t(contents of the win32com gen_py folder may be corrupt)') from None
+                                '\n\n\t(contents of the win32com gen_py folder may be corrupt)') from None
 
 
 # noinspection PyTypeChecker, PyProtectedMember
 def __iunknown_pointer_to_python_object(com_ptr, interface):
-    args = (POINTER(IUnknown), c_void_p, BOOL)
+    PyObjectFromIUnknown = PyDLL(pythoncom.__file__).PyCom_PyObjectFromIUnknown
 
-    object_pointer          = PyDLL(pythoncom.__file__).PyCom_PyObjectFromIUnknown
-    object_pointer.restype  = py_object
-    object_pointer.argtypes = args
+    PyObjectFromIUnknown.restype  = py_object
+    PyObjectFromIUnknown.argtypes = (POINTER(IUnknown),
+                                     c_void_p,
+                                     BOOL)
 
-    o = object_pointer(com_ptr._comobj,
-                       byref(interface._iid_),
-                       True)
+    o = PyObjectFromIUnknown(com_ptr._comobj,
+                             byref(interface._iid_),
+                             True)
 
     return o
 
@@ -436,25 +434,26 @@ def __move_win32com_gencache_folder():
         import win32com
         from pathlib import Path
 
-        appdata_gcf = os.environ['userprofile'] + '\\AppData\\Local\\Temp\\gen_py\\'
-        site_gcf    = site.getsitepackages()[1] + '\\win32com\\gen_py\\'
+        gcf_site    = site.getsitepackages()[1] + '\\win32com\\gen_py\\'
+        gcf_corrupt = os.environ['userprofile'] + '\\AppData\\Local\\Temp\\gen_py\\'
 
-        if not os.path.exists(appdata_gcf):
-            appdata_gcf = win32com.__gen_path__
-            if standardize_path(appdata_gcf).lower() == standardize_path(site_gcf).lower():
-                return
+        if not os.path.exists(gcf_corrupt):
+            gcf_corrupt = win32com.__gen_path__
+
+        if standardize_path(gcf_corrupt).lower() == standardize_path(gcf_site).lower():
+            return
 
         s = vengeance_message('Attempting to reset win32com gencache folder ...\n')
         s = styled(s, 'yellow', 'bold')
         print(s)
 
-        if os.path.exists(appdata_gcf):
-            subprocess.call('explorer.exe "{}"'.format(Path(appdata_gcf).parent))
-            shutil.rmtree(appdata_gcf)
+        if os.path.exists(gcf_corrupt):
+            subprocess.call('explorer.exe "{}"'.format(Path(gcf_corrupt).parent))
+            shutil.rmtree(gcf_corrupt)
 
-        if not os.path.exists(site_gcf):
-            subprocess.call('explorer.exe "{}"'.format(Path(site_gcf).parent))
-            os.makedirs(site_gcf)
+        if not os.path.exists(gcf_site):
+            subprocess.call('explorer.exe "{}"'.format(Path(gcf_site).parent))
+            os.makedirs(gcf_site)
 
     except Exception:
         pass
