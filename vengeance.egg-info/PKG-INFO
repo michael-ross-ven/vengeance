@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: vengeance
-Version: 1.1.30
+Version: 1.1.31
 Summary: Data Subjugation library focusing on row-major organization of tabular data and control over the Excel Application
 Home-page: https://github.com/michael-ross-ven/vengeance
 Author: Michael Ross
@@ -37,7 +37,7 @@ such as when pulling data from a sql table or csv file.
 
 
 ### Doesn't the pandas DataFrame already already solve this?
-In a DataFrame, data is taken out of its native nested list format and is organized in column-major order, which comes with some 
+In a DataFrame, data is taken out of its default nested list format and is organized in column-major order, which comes with some 
 advantages as well as drawbacks.
 
 ##### eg Row-Major Order:
@@ -56,16 +56,15 @@ advantages as well as drawbacks.
 
 In column-major order, values in a single column are usually all of the same datatype, which means they can be packed into 
 consecutive addresses in memory as an actual array and iterated extremely quickly. But this comes at a cost: re-organizing the
-data as it's intuitively understood by humans, **where each row is some entity, and each column is a property of that row**, 
+data as it's intuitively understood by humans: **where each row is some entity, and each column is a property of that row**, 
 is agonizingly slow. (DataFrame.iterrows() and DataFrame.apply() incur a huge performance penalty, and can be 1_000x times 
 slower to iterate than Python's built-in list.)
 
 DataFrames are also intended to make heavy use of 'vectorization', where operations can be broadcast and applied to an entire set 
 of values in parallel, performed as SIMD instructions at the microprocessor level. But the restricted use of explicit loops over 
-a DataFrame requires memorizing specialized methods for almost every operation and modification, which often makes the syntax 
-convoluted. 
-
-This can lead to code that is counter-inituitive to write and effortful to read, especially when method-chaining is overused.
+a DataFrame requires pandas provide specialized API methods for almost every operation and modification, which all must be memorized. 
+Also, this can often lead to convoluted syntax that is counter-inituitive to write, and effortful to read, especially when 
+method-chaining is overused.
 
     # wait, what exactly does this do again?
     df['column'] = np.sign(df.column.diff().fillna(0)).shift(-1).fillna(0) \
@@ -73,7 +72,7 @@ This can lead to code that is counter-inituitive to write and effortful to read,
                                        x.shape[0],
                                        x['start'].iloc[-1] - x['start'].iloc[0]))
 
-###### (see also [youtube: 'So You Wanna Be a Pandas Expert? - James Powell'](https://youtu.be/pjq3QOxl9Ok) for how bad this can really get)
+###### (see also ['So You Wanna Be a Pandas Expert? - James Powell'](https://youtu.be/pjq3QOxl9Ok) for how bad this can really get)
 
 <br/>
 
@@ -89,10 +88,9 @@ This can lead to code that is counter-inituitive to write and effortful to read,
 * unexpected loss of precision on numerical data
 
 ##### But I mean, why are we working in Python to begin with?
-* extreme emphasis on code readability
+* emphasis on code readability
 * datatypes are abstracted away
-* are less concerned about hyper-optimized execution times \
-  (but Numba, pyjion, and PyPy JIT compilers can make a big difference for almost no effort)
+* are less concerned about hyper-optimized execution times
 
 ##### [So does the DataFrame really reinforce what makes Python so great?](https://en.wikipedia.org/wiki/Zen_of_Python)
 >"Explicit is better than implicit" \

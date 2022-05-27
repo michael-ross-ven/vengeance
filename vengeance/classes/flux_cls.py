@@ -677,11 +677,8 @@ class flux_cls:
     def execute_commands(self, commands,
                                profiler=False,
                                print_commands=False):
-        """
-        if profiler is not None and print_commands:
-            # formatter = '           {formatted_runtime}'
-        else:
-            # formatter = '           {formatted_elapsed}'
+        """ perform all transformations defined as list of method names in commands
+        usually called by flux subclasses to encapsulate all state transformations
         """
         command_nt = namedtuple('Command', ('name',
                                             'method',
@@ -692,9 +689,7 @@ class flux_cls:
         commands = self.__validate_command_methods(commands, command_nt)
 
         if profiler is not None and print_commands:
-            # len('\t') + len('v: ')
-            indent_align = (' ' * 4) + \
-                           (' ' * 3)
+            indent_align = (' ' * 4) + (' ' * 3)
         else:
             indent_align = (' ' * 4)
 
@@ -714,10 +709,11 @@ class flux_cls:
                 pc = []
                 if args:   pc.append('*{}' .format(args))
                 if kwargs: pc.append('**{}'.format(kwargs))
+                pc = ', '.join(pc)
 
                 s = indent_align + '{}  @{}({})'.format(surround_single_brackets(i),
                                                         function_name(method),
-                                                        ', '.join(pc))
+                                                        pc)
                 print(s)
 
             if profiler:
