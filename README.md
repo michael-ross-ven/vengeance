@@ -49,8 +49,8 @@ slower to iterate than Python's built-in list.)
 
 DataFrames are also intended to make heavy use of 'vectorization', where operations can be broadcast and applied to an entire set 
 of values in parallel, performed as SIMD instructions at the microprocessor level. But the restricted use of explicit loops over 
-a DataFrame requires pandas provide specialized API methods for almost every operation and modification, which all must be memorized. 
-Also, this can often lead to convoluted syntax that is counter-inituitive to write, and effortful to read, especially when 
+a DataFrame requires pandas to provide specialized API methods for almost every operation and modification, which all must be memorized. 
+Also, vectorization can often lead to convoluted syntax that is counter-inituitive to write, and effortful to read, especially when 
 method-chaining is overused.
 
     # wait, what exactly does this do again?
@@ -59,7 +59,7 @@ method-chaining is overused.
                                        x.shape[0],
                                        x['start'].iloc[-1] - x['start'].iloc[0]))
 
-###### (see also ['So You Wanna Be a Pandas Expert? - James Powell'](https://youtu.be/pjq3QOxl9Ok) for how bad this can really get)
+###### (see also ['So You Wanna Be a Pandas Expert? - James Powell'](https://youtu.be/pjq3QOxl9Ok) for how opaque this syntax can really get)
 
 <br/>
 
@@ -72,7 +72,7 @@ method-chaining is overused.
 * iteration by rows is effectively out of the question \
   (and makes working with JSON format notoriously difficult)
 * vectorized operations are harder to debug / inspect when they encounter an error
-* unexpected loss of precision on numerical data
+* unintentional loss of precision on numerical data
 
 ##### But I mean, why are we working in Python to begin with?
 * emphasis on code readability
@@ -93,7 +93,7 @@ method-chaining is overused.
 * similar idea behind a pandas DataFrame, but is more closely aligned with Python's design philosophy
 * when you're willing to trade for a little bit of speed for a lot simplicity
 * a lightweight, pure-python wrapper class around list of lists
-* applies named attributes to rows; attribute values are mutable during iteration
+* applies named attributes to rows -- attribute values are mutable during iteration
 * provides convenience aggregate operations (sort, filter, groupby, etc)
 * excellent for extremely fast prototyping and data subjugation
 
