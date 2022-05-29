@@ -32,7 +32,7 @@ python_version      = sys.version_info
 is_windows_os       = (os.name == 'nt' or sys.platform == 'win32')
 is_utf_console      = ('utf' in sys.stdout.encoding.lower())
 is_pypy_interpreter = ('__pypy__' in sys.builtin_module_names)
-loads_excel_module  = (is_windows_os and not is_pypy_interpreter)
+loads_excel_module  = is_windows_os
 
 ordereddict             = dict
 dateutil_installed      = False
@@ -69,6 +69,14 @@ try:
     line_profiler_installed = True
 except ImportError:
     pass
+
+if is_windows_os:
+    try:
+        import comtypes
+        import pythoncom
+        import win32com
+    except ImportError:
+        loads_excel_module = False
 
 
 def load_vengeance_configuration_file():

@@ -51,7 +51,7 @@ DataFrames are also intended to make heavy use of 'vectorization', where operati
 of values in parallel, performed as SIMD instructions at the microprocessor level. But again, this performance optimization comes
 at a cost: the restricted use of explicit loops over a DataFrame requires pandas to provide specialized API methods for almost 
 every operation and modification, which all must be memorized by the developer. This often leads to convoluted syntax 
-that's counter-inituitive to write, and quite effortful to read, especially when method-chaining is overused.
+that's counter-inituitive to write, and effortful to read, especially when method-chaining is overused.
 
     # wait, what exactly does this do again?
     df['column'] = np.sign(df.column.diff().fillna(0)).shift(-1).fillna(0) \

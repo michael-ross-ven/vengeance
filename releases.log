@@ -1,5 +1,20 @@
 
 2022-05-29
+$release 70
+    version 1.1.33
+
+    conditional:
+        changed loads_excel_module to just check for imports on
+            comtypes
+            pythoncom
+            win32com
+            
+    flux_cls:
+        changed import collections.ItemsView to typing.ItemsView (Python 3.9 recognizes collections.ItemsView, but Python 3.10 doesnt)
+
+
+
+2022-05-29
 $release 69
     version 1.1.32
 

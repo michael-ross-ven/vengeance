@@ -4,9 +4,9 @@ import gc
 from array import array
 from collections import Counter
 from collections import namedtuple
-from collections import ItemsView
 from copy import deepcopy
 
+from typing import ItemsView
 from typing import Generator
 from typing import Iterator
 from typing import List
