@@ -33,8 +33,8 @@ is_windows_os       = (os.name == 'nt' or sys.platform == 'win32')
 is_pypy_interpreter = ('__pypy__' in sys.builtin_module_names)
 loads_excel_module  = (is_windows_os and not is_pypy_interpreter)
 
-__version__ = '1.1.31'
-__release__ = '$release 68'
+__version__ = '1.1.32'
+__release__ = '$release 69'
 description = 'Data Subjugation library focusing on row-major organization of tabular data and control over the Excel Application'
 
 try:

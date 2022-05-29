@@ -342,24 +342,51 @@ def function_parameters(f):
 
 
 def function_name(f):
-    try:
-        name = f.__qualname__
-    except AttributeError:
-        try:
-            if isinstance(f, property): name = str(f.fget).split(' ')[1]
-            else:                       name = str(f)
-        except:
-            name = str(f)
+    """
+    if hasattr(f, '__qualname__'):
+        a = f.__qualname__
+    if hasattr(f, '__class__'):
+        b = f.__class__
+    if hasattr(f, 'fget'):
+        c = str(f.fget).split(' ')[1]
+    if hasattr(f, '__module__'):
+        d = f.__module__
+    if hasattr(f, '__closure__'):
+        ee = f.__closure__
 
-    if '.' in name:         # probably a class method
-        return name
+    closure function names
+        'print_runtime.<locals>.runtime_wrapper'
+        '__read_csv.<locals>.remove_url_from_rows'
+    """
+    if f is None:
+        return 'None'
+
+    f_name = None
+
+    try:                       f_name = f.__qualname__
+    except AttributeError:     pass
+
+    if f_name is None:
+        try:                   f_name = f.__name__
+        except AttributeError: pass
+
+    if f_name is None:
+        try:                   f_name = str(f.fget).split(' ')[1]
+        except Exception:      f_name = str(f)
+
+    is_closure = ('<locals>' in f_name)
+
+    if '.' in f_name and not is_closure:
+        # probably a class method
+        return f_name
 
     try:                   modulename = f.__module__
-    except AttributeError: modulename = str(f)
+    except AttributeError: modulename = f_name
 
-    modulename = modulename.split('.')[-1]
+    if '.' in modulename:
+        modulename = modulename.split('.')[-1]
 
-    return '{}.{}'.format(modulename, name)
+    return '{}.{}'.format(modulename, f_name)
 
 
 def object_name(o):

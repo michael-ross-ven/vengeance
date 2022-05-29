@@ -46,7 +46,6 @@ def read_file(path,
                                        filetype,
                                        kwargs,
                                        'read')
-    is_url = is_path_a_url(path)
 
     gc_enabled   = gc.isenabled()
     if gc_enabled: gc.disable()
@@ -57,7 +56,7 @@ def read_file(path,
     elif filetype == '.json':
         data = __read_json(path, mode, encoding, kwargs)
 
-    elif is_url:
+    elif is_path_a_url(path):
         data = __url_request(path, encoding=encoding)
 
     elif filetype in pickle_extensions:
@@ -96,13 +95,10 @@ def write_file(path,
     if gc_enabled: gc.disable()
 
     if filetype == '.csv':
-        newline = kwargs.pop('newline')
-        with open(path, mode, encoding=encoding, newline=newline) as f:
-            csv.writer(f, **kwargs).writerows(data)
+        __write_csv(path, data, mode, encoding, kwargs)
 
     elif filetype == '.json':
-        with open(path, mode, encoding=encoding) as f:
-            json.dump(data, f, **kwargs)
+        __write_json(path, data, mode, encoding, kwargs)
 
     elif filetype in pickle_extensions:
         with open(path, mode) as f:
@@ -132,11 +128,8 @@ def __validate_io_arguments(path,
     filetype      = __validate_filetype(path, filetype)
     mode          = __validate_mode(mode, filetype, is_data_bytes)
     encoding      = __validate_encoding(mode, encoding)
-    read_or_write = __validate_read_or_write(path, mode, read_or_write)
-    kwargs        = __validate_file_keyword_args(encoding,
-                                                 filetype,
-                                                 kwargs,
-                                                 read_or_write)
+    _             = __validate_read_or_write(path, mode, read_or_write)
+    kwargs        = __validate_file_keyword_args(kwargs)
 
     return (path,
             encoding,
@@ -203,33 +196,15 @@ def __validate_encoding(mode, encoding):
     return encoding
 
 
-def __validate_file_keyword_args(encoding, filetype, kwargs, read_or_write):
+def __validate_file_keyword_args(kwargs):
     kwargs = kwargs or {}
 
     if 'kwargs' in kwargs:
         kwargs.update(kwargs.pop('kwargs'))
 
-    if filetype == '.csv' and read_or_write == 'read':
-        kwargs['newline'] = kwargs.get('newline', '')
-        kwargs['nrows']   = kwargs.get('nrows',   None)
-
-    elif filetype == '.csv' and read_or_write == 'write':
-        kwargs['newline'] = kwargs.get('newline', '')
-
-    elif filetype == '.json' and read_or_write == 'write':
-        kwargs['indent']       = kwargs.get('indent',       4)
-        kwargs['ensure_ascii'] = kwargs.get('ensure_ascii', encoding in (None, 'ascii'))
-
-        if ultrajson_installed:
-            for k in ('default', 'separators'):
-                if k in kwargs: del kwargs[k]
-        else:
-            kwargs['default'] = kwargs.get('default', json_unhandled_conversion)
-
     return kwargs
 
 
-# noinspection PyRedundantParentheses
 def __validate_read_or_write(path, mode, read_or_write):
     is_read_mode   = ('r' in mode)
     is_write_mode  = ('w' in mode)
@@ -249,7 +224,7 @@ def __validate_read_or_write(path, mode, read_or_write):
             raise ValueError('invalid read mode: {}'.format(mode))
 
     elif read_or_write.startswith('w'):
-        if (not is_write_mode):
+        if not is_write_mode:
             raise ValueError('invalid write mode: {}'.format(mode))
         if is_url:
             raise NotImplementedError('can not write to url: {}'.format(path))
@@ -263,21 +238,27 @@ def __read_csv(path, mode, encoding, kwargs):
         fixed by passing lineterminator='\r'
         or newline='\r', newline=''
     """
-    # region {closure}
-    def read_csv_rows():
-        if read_all_rows:
-            return list(csv_reader)
-
+    # region {closures}
+    def nrows_from_csv_reader(n):
         m = []
+
         try:
-            for i in range(nrows):
+            for _ in range(n):
                 m.append(next(csv_reader))
         except StopIteration:
             pass
 
         return m
 
-    # noinspection PyUnusedLocal
+    def read_csv_rows():
+        if exclude_header_row:
+            next(csv_reader)
+
+        if read_all_rows:
+            return list(csv_reader)
+        else:
+            return nrows_from_csv_reader(nrows)
+
     def remove_url_from_rows(m):
         num_deleted = 0
 
@@ -285,46 +266,99 @@ def __read_csv(path, mode, encoding, kwargs):
             while is_path_a_url(m[0][0]):
                 del m[0]
                 num_deleted += 1
-        except Exception as e:
+        except (IndexError, TypeError):
             pass
 
-        # if nrows specified, append rows to make up for deleted rows
-        if not read_all_rows:
-            try:
-                for _ in range(num_deleted):
-                    m.append(next(csv_reader))
-            except StopIteration:
-                pass
+        if read_all_rows:
+            return m
+
+        # if nrows specified, add additional rows to make up for deleted, non-data url rows
+        m.extend(nrows_from_csv_reader(num_deleted))
 
         return m
     # endregion
 
-    newline = kwargs.pop('newline')
-    nrows   = kwargs.pop('nrows')
-    read_all_rows = (nrows is None)
+    kwargs = __validate_csv_keyword_args(kwargs)
+
+    newline            = kwargs.pop('newline')
+    nrows              = kwargs.pop('nrows')
+    exclude_header_row = kwargs.pop('exclude_header_row')
+    read_all_rows      = (nrows is None)
 
     if is_path_a_url(path):
-        with StringIO(__url_request(path, encoding=encoding), newline=newline) as f:
+        s = __url_request(path, encoding)
+
+        if isinstance(s, bytes):
+            s = s.decode()
+
+        with StringIO(s, newline=newline) as f:
             csv_reader = csv.reader(f, **kwargs)
-            csv_m = read_csv_rows()
-            csv_m = remove_url_from_rows(csv_m)
+            csv_m      = read_csv_rows()
+            csv_m      = remove_url_from_rows(csv_m)
+
+            return csv_m
+    else:
+        with open(path, mode, encoding=encoding, newline=newline) as f:
+            csv_reader = csv.reader(f, **kwargs)
+            csv_m      = read_csv_rows()
 
             return csv_m
 
-    with open(path, mode, encoding=encoding, newline=newline) as f:
-        csv_reader = csv.reader(f, **kwargs)
-        csv_m = read_csv_rows()
 
-        return csv_m
+def __write_csv(path, data, mode, encoding, kwargs):
+    for invalid_kw in ('nrows', 'exclude_header_row'):
+        if invalid_kw in kwargs:
+            raise TypeError("'{}' is an invalid keyword argument for csv write".format(invalid_kw))
+
+    kwargs = __validate_csv_keyword_args(kwargs)
+
+    newline = kwargs.pop('newline')
+    del kwargs['nrows']
+    del kwargs['exclude_header_row']
+
+    with open(path, mode, encoding=encoding, newline=newline) as f:
+        csv.writer(f, **kwargs).writerows(data)
+
+
+def __validate_csv_keyword_args(kwargs):
+    kwargs['newline']            = kwargs.get('newline',            '')
+    kwargs['nrows']              = kwargs.get('nrows',              None)
+    kwargs['exclude_header_row'] = kwargs.get('exclude_header_row', False)
+
+    return kwargs
 
 
 def __read_json(path, mode, encoding, kwargs):
+    for invalid_kw in ('default',):
+        if invalid_kw in kwargs:
+            raise TypeError("'{}' is an invalid keyword argument for json read".format(invalid_kw))
+
     if is_path_a_url(path):
         s = __url_request(path, encoding=encoding)
         return json.loads(s, **kwargs)
+    else:
+        with open(path, mode, encoding=encoding) as f:
+            return json.load(f, **kwargs)
+
+
+def __write_json(path, data, mode, encoding, kwargs):
+    kwargs = __validate_json_keyword_args(kwargs, encoding)
 
     with open(path, mode, encoding=encoding) as f:
-        return json.load(f, **kwargs)
+        json.dump(data, f, **kwargs)
+
+
+def __validate_json_keyword_args(kwargs, encoding=None):
+    kwargs['indent']       = kwargs.get('indent',       4)
+    kwargs['ensure_ascii'] = kwargs.get('ensure_ascii', encoding in (None, 'ascii'))
+    kwargs['default']      = kwargs.get('default',      json_unhandled_conversion)
+
+    if ultrajson_installed:
+        for k in ('default', 'separators'):
+            if k in kwargs:
+                del kwargs[k]
+
+    return kwargs
 
 
 def __url_request(url, encoding=None):
@@ -340,15 +374,11 @@ def __url_request(url, encoding=None):
             return byte_string
 
 
-def json_dumps_extended(o, **kwargs):
-    kwargs['ensure_ascii'] = kwargs.get('ensure_ascii', False)
-    kwargs['indent']       = kwargs.get('indent',       4)
-    kwargs['default']      = kwargs.get('default',      json_unhandled_conversion)
+def json_dumps_extended(o, **kwargs) -> str:
+    kwargs      = __validate_json_keyword_args(kwargs)
+    json_string = json.dumps(o, **kwargs)
 
-    if ultrajson_installed:
-        del kwargs['default']
-
-    return json.dumps(o, **kwargs)
+    return json_string
 
 
 def json_unhandled_conversion(v):
@@ -487,8 +517,10 @@ def standardize_path(path,
     if (not _path_) and (not abspath):
         return ''
 
+    if is_path_a_url(_path_):
+        return _path_
+
     if abspath:
-        # does not convert symlinks
         _path_ = os.path.abspath(_path_)
 
     if pathsep == '/':

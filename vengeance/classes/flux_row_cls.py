@@ -58,10 +58,10 @@ class flux_row_cls:
 
         label = self.__dict__['row_label']
         if isinstance(label, int):
-            names.insert(0,  surround_single_brackets('label'))
+            names.insert(0,  '{row_label}')
             values.insert(0, surround_single_brackets(format_integer(label)))
         elif isinstance(label, str):
-            names.insert(0,  surround_single_brackets('label'))
+            names.insert(0,  '{row_label}')
             values.insert(0, surround_single_brackets(label))
 
         m = list(zip(names, values))

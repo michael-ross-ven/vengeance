@@ -299,7 +299,8 @@ class flux_cls:
 
         o = list(self.dicts())
         if path is None:
-            return json_dumps_extended(o, **kwargs)
+            j_str = json_dumps_extended(o, **kwargs)
+            return j_str
 
         write_file(path, o, encoding, filetype='.json', **kwargs)
         return self
@@ -534,7 +535,7 @@ class flux_cls:
 
         return self
 
-    def insert_columns(self, *names):
+    def insert_columns(self, *names, after=False):
         """ eg:
             flux.insert_columns((0,  'inserted'))        insert as first column
             flux.insert_columns((3,  'inserted'))        insert column before 4th column
@@ -572,6 +573,9 @@ class flux_cls:
         for before, header in names:
             if isinstance(before, int): i = before
             else:                       i = header_names.index(before)
+
+            if after:
+                i += 1
 
             header_names.insert(i, header)
 
@@ -679,53 +683,66 @@ class flux_cls:
                                print_commands=False):
         """ perform all transformations defined as list of method names in commands
         usually called by flux subclasses to encapsulate all state transformations
+
+        eg profiler='print_runtime', print_commands=False:
+            ν: flux_cls.execute_commands
+                   @flux_exercise_cls._init_columns: 326 μs
+                   @flux_exercise_cls._aggregate_products: 236 μs
+        eg profiler='print_runtime', print_commands=True:
+            ν: flux_cls.execute_commands
+               ⟨0⟩  @flux_exercise_cls._init_columns()
+                   @flux_exercise_cls._init_columns: 367 μs
+               ⟨1⟩  @flux_exercise_cls._aggregate_products()
+                   @flux_exercise_cls._aggregate_products: 219 μs
         """
-        command_nt = namedtuple('Command', ('name',
-                                            'method',
-                                            'args',
-                                            'kwargs'))
+        # region {closure}
+        def print_command():
+            pc = []
+            if command.args:   pc.append('*{}'.format(command.args))
+            if command.kwargs: pc.append('**{}'.format(command.kwargs))
+
+            sc = '{}{}  @{}({})'.format(indent_align,
+                                        surround_single_brackets(i),
+                                        function_name(command.method),
+                                        ', '.join(pc))
+            print(sc)
+        # endregion
+
+        command_namedtuple = namedtuple('Command', ('name',
+                                                    'attr',
+                                                    'method',
+                                                    'args',
+                                                    'kwargs'))
 
         profiler = self.__validate_profiler_function(profiler)
-        commands = self.__validate_command_methods(commands, command_nt)
+        commands = self.__validate_command_methods(commands, command_namedtuple)
 
-        if profiler is not None and print_commands:
-            indent_align = (' ' * 4) + (' ' * 3)
-        else:
-            indent_align = (' ' * 4)
+        indent_align = (' ' * 4)
+        if print_commands and profiler:
+            indent_align += (' ' * 3)
 
-        if print_commands:
+        if print_commands or 'print_runtime' in function_name(profiler):
             s = function_name(self.execute_commands)
             s = vengeance_message(s)
             print(s)
 
         completed_commands = []
         for i, command in enumerate(commands):
-            name   = command.name
-            method = command.method
-            args   = command.args
-            kwargs = command.kwargs
-
             if print_commands:
-                pc = []
-                if args:   pc.append('*{}' .format(args))
-                if kwargs: pc.append('**{}'.format(kwargs))
-                pc = ', '.join(pc)
+                print_command()
 
-                s = indent_align + '{}  @{}({})'.format(surround_single_brackets(i),
-                                                        function_name(method),
-                                                        pc)
-                print(s)
-
+            method = command.method
             if profiler:
                 method = profiler(method)
 
             method(*command.args, **command.kwargs)
-            completed_commands.append([name,
-                                       args,
-                                       kwargs])
+            completed_commands.append(command)
 
-        if hasattr(profiler, 'print_stats'):
-            profiler.print_stats()
+        if print_commands or profiler:
+            if hasattr(profiler, 'print_stats'):
+                profiler.print_stats()
+
+            print()
 
         return completed_commands
 
@@ -786,7 +803,8 @@ class flux_cls:
                 yield row_self, row_other
 
     def reverse(self):
-        self.matrix[1:] = list(reversed(self.matrix[1:]))
+        self.matrix[1:].reverse()
+
         return self
 
     def reversed(self):
@@ -830,29 +848,27 @@ class flux_cls:
                                            reverse)
         return flux
 
-    def __sort_rows(self, rows, names, reverse):
-        reverse  = [bool(v) for v in standardize_variable_arity_values(reverse, depth=1)]
-        rev_fill = len(names) - len(reverse)
+    def __sort_rows(self, rows, names, reverses):
+        reverses = [bool(v) for v in standardize_variable_arity_values(reverses, depth=1)]
 
-        reverse.extend([False] * rev_fill)
+        n = len(names) - len(reverses)
+        reverses.extend([False] * n)
 
-        all_true  = all((v is True)  for v in reverse)
-        all_false = all((v is False) for v in reverse)
+        all_true  = all((v is True) for v in reverses)
+        all_false = all((v is False) for v in reverses)
 
         if all_true or all_false:
             rva = self.__row_values_accessor(names)
-            rows.sort(key=rva, reverse=reverse[0])
+            rows.sort(key=rva, reverse=reverses[0])
 
             return rows
 
-        # last name is sorted first, first name is sorted last
-        names   = reversed(names)
-        reverse = reversed(reverse)
+        # multiple sorting must be done in reverse order,
+        # with last name sorted first, first name sorted last
+        names    = list(reversed(names))
+        reverses = list(reversed(reverses))
 
-        names   = list(names)
-        reverse = list(reverse)
-
-        for name, rev in zip(names, reverse):
+        for name, rev in zip(names, reverses):
             rva = self.__row_values_accessor(name)
             rows.sort(key=rva, reverse=rev)
 
@@ -897,8 +913,10 @@ class flux_cls:
         else:
             return self.filtered(evaluate_unique)
 
-    def map_rows(self, *names, rowtype=flux_row_cls) -> Dict[Any, flux_row_cls]:
-        """ return dictionary of {column_value: row}
+    def map_rows(self, *names, rowtype=flux_row_cls) -> Dict[Any, Any]:
+        """
+        return dictionary of rows:
+            {'column_value': row}
 
         valid rowtypes = {'flux_row_cls',
                           'namedrow',
@@ -907,14 +925,15 @@ class flux_cls:
                           'list',
                           'dict'}
         """
-
         items = self.__zip_row_items(names, rowtype=rowtype)
         mrows = ordereddict(items)
 
         return mrows
 
     def map_rows_append(self, *names, rowtype=flux_row_cls) -> Dict[Any, List]:
-        """ return dictionary of {column_value: [row, row, row, ...]}
+        """
+        return dictionary of lists of rows:
+            {'column_value': [row, row, row]}
 
         valid rowtypes = {'flux_row_cls',
                           'namedrow',
@@ -924,18 +943,19 @@ class flux_cls:
                           'dict'}
         """
         items = self.__zip_row_items(names, rowtype=rowtype)
-        mrows = ordereddict()
 
-        for k, v in items:
-            if k in mrows: mrows[k].append(v)
-            else:          mrows[k] = [v]
+        mrows = ordereddict()
+        for k, row in items:
+            if k in mrows: mrows[k].append(row)
+            else:          mrows[k] = [row]
 
         return mrows
 
     def map_rows_nested(self, *names, rowtype=flux_row_cls) -> Dict[Any, Dict]:
-        """ aliased to flux_cls.groupby()
+        """ aliased by flux_cls.groupby()
+        return dictionary of dictionaries of lists of rows:
+            {'column_value_a': {'column_value_b': [row, row, row]}}
 
-        return nested dictionary of dictionaries {column_value_a: {column_value_b: [row, row, row, ...]}}
         valid rowtypes = {'flux_row_cls',
                           'namedrow',
                           'namedtuple',
@@ -960,9 +980,9 @@ class flux_cls:
         keys = (rva(row) for row in self.matrix[1:])
 
         if rowtype   == 'flux_row_cls': values = iter(self.matrix[1:])
-        elif rowtype == 'dict':         values = self.dicts(1)
-        elif rowtype == 'namedrow':     values = self.namedrows(1)
-        elif rowtype == 'namedtuple':   values = self.namedtuples(1)
+        elif rowtype == 'dict':         values = self.dicts()
+        elif rowtype == 'namedrow':     values = self.namedrows()
+        elif rowtype == 'namedtuple':   values = self.namedtuples()
         elif rowtype == 'list':         values = (list(row.values)  for row in self.matrix[1:])
         elif rowtype == 'tuple':        values = (tuple(row.values) for row in self.matrix[1:])
         else:
@@ -972,7 +992,7 @@ class flux_cls:
 
     def unique(self, *names):
         """
-        should maintain original order of unique values,
+        maintains original order of unique values as they appear in matrix,
         that's why ordereddict keys are returned instead of a set
         """
         rva   = self.__row_values_accessor(names)
@@ -1014,9 +1034,8 @@ class flux_cls:
                             self.num_rows,
                             self.matrix[i_1:])
 
-    def indices(self, start=1, stop=None, step=1):
-        """ aliased to flux_cls.range()
-
+    def range(self, start=1, stop=None, step=1):
+        """
         integers corresponding to each row's index position in matrix
         eg:
             [1, 2, 3, ..., len(flux.matrix)] = list(flux.indices(start=1))
@@ -1029,9 +1048,8 @@ class flux_cls:
 
         return range(start, stop, step)
 
-    def range(self, start=1, stop=None, step=1):
-        """ aliased to flux_cls.indices() """
-        return self.indices(start, stop, step)
+    def enumerate(self, start=1, stop=None):
+        return enumerate(self.matrix[start:stop], start)
 
     def label_rows(self, start=0, label_function=None):
         """ meant to assist with debugging;
@@ -1539,25 +1557,25 @@ class flux_cls:
             kwargs = {}
 
             if isinstance(command, (list, tuple)):
-                name = command[0]
+                attr = command[0]
 
-                for a in command[1:]:
-                    if isinstance(a, dict):
-                        kwargs.update(a)
-                    elif isinstance(a, (list, tuple)):
-                        args.extend(a)
+                for arg in command[1:]:
+                    if isinstance(arg, dict):
+                        kwargs.update(arg)
+                    elif isinstance(arg, (list, tuple)):
+                        args.extend(arg)
                     else:
-                        args.append(a)
+                        args.append(arg)
             else:
-                name = command
+                attr = command
 
-            if name.startswith('__'):
-                name = '_{}{}'.format(self.__class__.__name__, name)
+            if attr.startswith('__'):
+                attr = '_{}{}'.format(self.__class__.__name__, attr)
 
             args   = tuple(args)
-            method = getattr(self, name)
+            method = getattr(self, attr)
 
-            parsed.append(command_namedtuple(name, method, args, kwargs))
+            parsed.append(command_namedtuple(command, attr, method, args, kwargs))
 
         return parsed
 
@@ -1599,13 +1617,18 @@ class flux_cls:
         option in the debugger which displays values in a special window as a table
         """
         # region {closure functions}
-        def format_row_index(i):
-            if isinstance(i, (int, float)):
-                i = format_integer(i)
+        def format_row_index_label(i, lb):
+            matches_index = (i == lb)
 
-            i = surround_single_brackets(i)
+            i = surround_single_brackets(format_integer(i))
+            if matches_index:
+                return i
 
-            return i
+            if isinstance(lb, int):
+                lb = format_integer(lb)
+
+            return '{} :: {}'.format(i, lb)
+
         # endregion
 
         if preview_indices is not None:
@@ -1626,25 +1649,26 @@ class flux_cls:
 
         rows = [self.matrix[i] for i in indices]
         if rows:
-            c_m = max([len(row.values) for row in rows])
-            c_m = max(c_m, self.num_cols)
+            cols_max = max([len(row.values) for row in rows])
+            cols_max = max(cols_max, self.num_cols)
         else:
-            c_m = 0
+            cols_max = 0
 
         h_v = [surround_double_brackets(n) for n in self.header_names()]
-        h_j = ['🗲missing🗲'] * (c_m - len(h_v))
+        h_j = ['🗲missing🗲'] * (cols_max - len(h_v))
 
         if (not h_v) and (not rows):
             return [[]]
 
-        m = [[surround_single_brackets('label'), *h_v, *h_j]]
+        m = [['{row_index}', *h_v, *h_j]]
 
         for r_i, row in zip(indices, rows):
-            r_i = format_row_index(r_i)
-            r_v = row
-            r_j = ['🗲missing🗲'] * (c_m - len(r_v))
+            # r_i = format_row_index(r_i)
+            r_lb = format_row_index_label(r_i, row.row_label)
+            r_v  = row.values
+            r_j  = ['🗲missing🗲'] * (cols_max - len(r_v))
 
-            m.append([r_i, *r_v, *r_j])
+            m.append([r_lb, *r_v, *r_j])
 
         return m
     # endregion

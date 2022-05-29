@@ -27,14 +27,14 @@ such as when pulling data from a sql table or csv file.
 In a DataFrame, data is taken out of its default nested list format and is organized in column-major order, which comes with some 
 advantages as well as drawbacks.
 
-##### eg Row-Major Order:
+##### Row-Major Order:
         
         [['attribute_a', 'attribute_b', 'attribute_c'],
          ['a',           'b',           3.0],
          ['a',           'b',           3.0],
          ['a',           'b',           3.0]]
 
-##### eg Column-Major Order:
+##### Column-Major Order:
         
         {'attribute_a': array(['a', 'a', 'a'], dtype='<U1'),
          'attribute_b': array(['b', 'b', 'b'], dtype='<U1'),
@@ -42,16 +42,16 @@ advantages as well as drawbacks.
 
 
 In column-major order, values in a single column are usually all of the same datatype, which means they can be packed into 
-consecutive addresses in memory as an actual array and iterated extremely quickly. But this comes at a cost: re-organizing the
-data as it's intuitively understood by humans: **where each row is some entity, and each column is a property of that row**, 
+consecutive addresses in memory as an actual array and iterated extremely quickly. But this speed comes at a cost: re-organizing the
+data as it's intuitively understood by humans, **where each row is some entity, and each column is a property of that row**, 
 is agonizingly slow. (DataFrame.iterrows() and DataFrame.apply() incur a huge performance penalty, and can be 1_000x times 
 slower to iterate than Python's built-in list.)
 
 DataFrames are also intended to make heavy use of 'vectorization', where operations can be broadcast and applied to an entire set 
-of values in parallel, performed as SIMD instructions at the microprocessor level. But the restricted use of explicit loops over 
-a DataFrame requires pandas to provide specialized API methods for almost every operation and modification, which all must be memorized. 
-Also, vectorization can often lead to convoluted syntax that is counter-inituitive to write, and effortful to read, especially when 
-method-chaining is overused.
+of values in parallel, performed as SIMD instructions at the microprocessor level. But again, this performance optimization comes
+at a cost: the restricted use of explicit loops over a DataFrame requires pandas to provide specialized API methods for almost 
+every operation and modification, which all must be memorized by the developer. This often leads to convoluted syntax 
+that's counter-inituitive to write, and quite effortful to read, especially when method-chaining is overused.
 
     # wait, what exactly does this do again?
     df['column'] = np.sign(df.column.diff().fillna(0)).shift(-1).fillna(0) \
@@ -59,7 +59,7 @@ method-chaining is overused.
                                        x.shape[0],
                                        x['start'].iloc[-1] - x['start'].iloc[0]))
 
-###### (see also ['So You Wanna Be a Pandas Expert? - James Powell'](https://youtu.be/pjq3QOxl9Ok) for how opaque this syntax can really get)
+###### (see also ['So You Wanna Be a Pandas Expert? - James Powell'](https://youtu.be/pjq3QOxl9Ok) for how impenetrable this syntax can really get, *espcially* by less experienced developers)
 
 <br/>
 
@@ -70,14 +70,14 @@ method-chaining is overused.
 ##### DataFrame Disadvantages:
 * syntax doesnt always drive intuition or conceptual understanding
 * iteration by rows is effectively out of the question \
-  (and makes working with JSON format notoriously difficult)
+  ([and makes working with JSON format notoriously difficult](https://medium.com/bhavaniravi/whats-wrong-with-python-pandas-32ba5bb2b658))
 * vectorized operations are harder to debug / inspect when they encounter an error
-* unintentional loss of precision on numerical data
+* unexpected loss of precision on numerical data
 
 ##### But I mean, why are we working in Python to begin with?
 * emphasis on code readability
 * datatypes are abstracted away
-* are less concerned about hyper-optimized execution times
+* hyper-optimized execution times are less of a priority
 
 ##### [So does the DataFrame really reinforce what makes Python so great?](https://en.wikipedia.org/wiki/Zen_of_Python)
 >"Explicit is better than implicit" \
@@ -92,12 +92,12 @@ method-chaining is overused.
 ## vengeance.flux_cls
 * similar idea behind a pandas DataFrame, but is more closely aligned with Python's design philosophy
 * when you're willing to trade for a little bit of speed for a lot simplicity
-* a lightweight, pure-python wrapper class around list of lists
-* applies named attributes to rows -- attribute values are mutable during iteration
+* a pure-python, row-major wrapper class for list of list data
+* applies named attributes to rows -- and attribute values are mutable during iteration
 * provides convenience aggregate operations (sort, filter, groupby, etc)
 * excellent for extremely fast prototyping and data subjugation
 
-###### Row-Major Iteration
+###### row-major iteration
     
     # organized like csv data, attribute names are provided in first row
     matrix = [['attribute_a', 'attribute_b', 'attribute_c'],
@@ -126,7 +126,7 @@ method-chaining is overused.
     matrix = list(flux.values())
 
 
-###### Columns
+###### columns
     column = flux['attribute_a']
 
     flux.rename_columns({'attribute_a': 'renamed_a',
@@ -137,7 +137,7 @@ method-chaining is overused.
                         'inserted_b')
 
 
-###### Rows
+###### rows
     rows = [['c', 'd', 4.0],
             ['c', 'd', 4.0],
             ['c', 'd', 4.0]]
@@ -148,7 +148,7 @@ method-chaining is overused.
     flux_c = flux_a + flux_b
 
 
-###### Sort / Filter / Apply
+###### sort / filter / apply
     flux.sort('attribute_c')
     flux.filter(lambda row: row.attribute_b != 'c')
     u = flux.unique('attribute_a', 'attribute_b')
@@ -157,7 +157,7 @@ method-chaining is overused.
     flux['attribute_new'] = [some_function(v) for v in flux['attribute_a']]
 
 
-###### Groupby
+###### group / map rows
     matrix = [['year', 'month', 'random_float'],
               ['2000', '01',     random.uniform(0, 9)],
               ['2000', '02',     random.uniform(0, 9)],
@@ -177,12 +177,15 @@ method-chaining is overused.
     rows_2 = dict_2['2001']['01']
 
 
-###### Read / Write Files
+###### read / write files
     flux.to_csv('file.csv')
     flux = flux_cls.from_csv('file.csv')
 
     flux.to_json('file.json')
     flux = flux_cls.from_json('file.json')
+
+    flux.to_file('file.pickle')
+    flux = flux_cls.from_file('file.pickle')
 
 
 ## vengeance.lev_cls
