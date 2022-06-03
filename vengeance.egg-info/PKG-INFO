@@ -1,7 +1,7 @@
 Metadata-Version: 2.1
 Name: vengeance
-Version: 1.1.33
-Summary: Data Subjugation library focusing on row-major organization of tabular data and control over the Excel Application
+Version: 1.1.34
+Summary: Data Subjugation library for row-major organization of tabular data and control over the Excel Application
 Home-page: https://github.com/michael-ross-ven/vengeance
 Author: Michael Ross
 Author-email: 
@@ -106,7 +106,7 @@ that's counter-inituitive to write, and effortful to read, especially when metho
 * similar idea behind a pandas DataFrame, but is more closely aligned with Python's design philosophy
 * when you're willing to trade for a little bit of speed for a lot simplicity
 * a pure-python, row-major wrapper class for list of list data
-* applies named attributes to rows -- and attribute values are mutable during iteration
+* applies named attributes to rows -- attribute values are mutable during iteration
 * provides convenience aggregate operations (sort, filter, groupby, etc)
 * excellent for extremely fast prototyping and data subjugation
 

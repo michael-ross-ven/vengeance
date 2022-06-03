@@ -93,7 +93,7 @@ that's counter-inituitive to write, and effortful to read, especially when metho
 * similar idea behind a pandas DataFrame, but is more closely aligned with Python's design philosophy
 * when you're willing to trade for a little bit of speed for a lot simplicity
 * a pure-python, row-major wrapper class for list of list data
-* applies named attributes to rows -- and attribute values are mutable during iteration
+* applies named attributes to rows -- attribute values are mutable during iteration
 * provides convenience aggregate operations (sort, filter, groupby, etc)
 * excellent for extremely fast prototyping and data subjugation
 

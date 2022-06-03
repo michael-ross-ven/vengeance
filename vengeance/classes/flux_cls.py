@@ -61,30 +61,30 @@ if numpy_installed:
 
 
 class flux_cls:
-    """ primary data management class
+    """ primary data subjugation class
     https://github.com/michael-ross-ven/vengeance_example/blob/main/vengeance_example/flux_example.py
 
     * similar idea behind a pandas DataFrame, but is more closely aligned with Python's design philosophy
     * when you're willing to trade for a little bit of speed for a lot simplicity
-    * a lightweight, pure-python wrapper class around list of lists
-    * applies named attributes to rows; attribute values are mutable during iteration
+    * a pure-python, row-major wrapper class for list of list data
+    * applies named attributes to rows -- attribute values are mutable during iteration
     * provides convenience aggregate operations (sort, filter, groupby, etc)
     * excellent for extremely fast prototyping and data subjugation
 
-    # organized like csv data, attribute names are provided in first row
-    matrix = [['attribute_a', 'attribute_b', 'attribute_c'],
-              ['a',           'b',           3.0],
-              ['a',           'b',           3.0],
-              ['a',           'b',           3.0]]
-    flux = vengeance.flux_cls(matrix)
-
     """
-
     # indices for ._preview_as_* properties (may be slice or list of integers)
     preview_indices = slice(1, 5 + 1)
 
     def __init__(self, matrix=None):
-        """ """
+        """
+        # organized like csv data, attribute names are provided in first row
+        matrix = [['attribute_a', 'attribute_b', 'attribute_c'],
+                  ['a',           'b',           3.0],
+                  ['a',           'b',           3.0],
+                  ['a',           'b',           3.0]]
+        flux = vengeance.flux_cls(matrix)
+        """
+
         ''' @types '''
         self.headers: Dict[Union[str, bytes], int]
         self.matrix:  List[flux_row_cls]
@@ -385,6 +385,10 @@ class flux_cls:
         """
         rows = iterator_to_collection(rows)
         rows = modify_iteration_depth(rows, depth=2)
+
+        if rows == [[]]:
+            return self
+
         if self.is_empty():
             return self.reset_matrix(rows)
 
@@ -1162,7 +1166,7 @@ class flux_cls:
         for row, v in zip(self.matrix[1:], values):
             row.values[i] = v
 
-    def __iter__(self) -> Iterator[Union[flux_row_cls, Any]]:
+    def __iter__(self) -> Iterator[flux_row_cls]:
         """
         eg:
             for row in flux:
@@ -1182,27 +1186,28 @@ class flux_cls:
     def __iadd__(self, rows):
         return self.append_rows(rows)
 
-    # noinspection PyTypeChecker
     def __getstate__(self):
+        """
+        # noinspection PyTypeChecker
         f = self.__class__.__init__
-
-        params     = function_parameters(f)
-        error_repr = '{}({}):'.format(function_name(f), ', '.join([p.name for p in params]))
-
+        """
         args   = []
         kwargs = ordereddict()
+        params = function_parameters(self.__class__.__init__)
+
         for p in params:
             name = p.name
             kind = p.kind.lower()
 
             if name   == 'self':      continue
             elif name == 'matrix':    p.value = [row.values for row in self.matrix]
-            elif name == 'headers':   p.value = ordereddict(self.headers.items())
+            elif name == 'headers':   p.value = self.headers.copy()
             elif hasattr(self, name): p.value = getattr(self, name)
 
             elif hasattr(p.value, '__name__'):
                 if p.value.__name__ == '_empty':
-                    raise ValueError("{}\nunable to resolve argument '{}'"
+                    error_repr = '__init__({}):'.format(', '.join(p.name for p in params))
+                    raise ValueError("{} unable to resolve argument '{}'"
                                      .format(error_repr, name))
 
             if 'positional' in kind:
@@ -1255,6 +1260,7 @@ class flux_cls:
 
         conflicting = headers.keys() & set(flux_row_cls.reserved_names())
         if conflicting:
+            conflicting = list(sorted(conflicting))
             raise ColumnNameError('column name conflict with existing headers: {}'.format(conflicting))
 
         return headers
@@ -1273,15 +1279,10 @@ class flux_cls:
             _m_.extend(m.values.tolist())
             return _m_
         """
-
-        ''' @types '''
-        row_first: Union[flux_row_cls, namedtuple, dict, object]
-        row:       Union[flux_row_cls, namedtuple, dict, object]
-
         if (m is None) or (m == []) or (m == [[]]):
             return [[]]
 
-        base_cls_names = set(base_class_names(m))
+        base_cls_names     = set(base_class_names(m))
         is_vengeance_class = bool(base_cls_names & util_iter.vengeance_cls_names)
 
         if is_vengeance_class:
@@ -1305,6 +1306,10 @@ class flux_cls:
 
         if not is_subscriptable(m):
             raise IndexError('matrix must be subscriptable')
+
+        ''' @types '''
+        row_first: Union[flux_row_cls, namedtuple, dict, object]
+        row:       Union[flux_row_cls, namedtuple, dict, object]
 
         row_first = m[0]
 
@@ -1617,58 +1622,62 @@ class flux_cls:
         option in the debugger which displays values in a special window as a table
         """
         # region {closure functions}
-        def format_row_index_label(i, lb):
-            matches_index = (i == lb)
+        def format_row_index_label(i_1, i_2):
 
-            i = surround_single_brackets(format_integer(i))
-            if matches_index:
-                return i
+            matches_row_label = (i_1 == i_2)
+            i_1f = surround_single_brackets(format_integer(i_1))
 
-            if isinstance(lb, int):
-                lb = format_integer(lb)
+            if matches_row_label:
+                return i_1f
 
-            return '{} :: {}'.format(i, lb)
+            if isinstance(i_2, int):
+                i_2f = format_integer(i_2)
+            else:
+                i_2f = i_2
+
+            return '{} :: {}'.format(i_1f, i_2f)
 
         # endregion
 
-        if preview_indices is not None:
-            pvi = preview_indices
-        else:
+        if preview_indices is None:
             pvi = self.preview_indices
+        else:
+            pvi = preview_indices
 
-        r_m = len(self.matrix) - 1
+        rows_max = len(self.matrix) - 1
 
         if isinstance(pvi, slice):
-            r_1, r_2, _ = pvi.indices(r_m)
-            indices = list(range(r_1, r_2 + 1))
+            r_1, r_2, _ = pvi.indices(rows_max)
+            indices     = list(range(r_1, r_2 + 1))
         elif isinstance(pvi, (list, tuple)):
             indices = [i for i in pvi
-                         if i <= r_m]
+                         if i <= rows_max]
         else:
             raise TypeError('invalid type for preview_indices, must be (slice, list, tuple)')
 
         rows = [self.matrix[i] for i in indices]
+
         if rows:
             cols_max = max([len(row.values) for row in rows])
-            cols_max = max(cols_max, self.num_cols)
         else:
             cols_max = 0
+
+        cols_max = max(cols_max, self.num_cols)
 
         h_v = [surround_double_brackets(n) for n in self.header_names()]
         h_j = ['🗲missing🗲'] * (cols_max - len(h_v))
 
-        if (not h_v) and (not rows):
+        if (not h_v) and cols_max < 1:
             return [[]]
 
-        m = [['{row_index}', *h_v, *h_j]]
+        m = [['{index_label}', *h_v, *h_j]]
 
-        for r_i, row in zip(indices, rows):
-            # r_i = format_row_index(r_i)
-            r_lb = format_row_index_label(r_i, row.row_label)
-            r_v  = row.values
-            r_j  = ['🗲missing🗲'] * (cols_max - len(r_v))
+        for i, row in zip(indices, rows):
+            r_f = format_row_index_label(i, row.row_label)
+            r_v = row.values
+            r_j = ['🗲missing🗲'] * (cols_max - len(r_v))
 
-            m.append([r_lb, *r_v, *r_j])
+            m.append([r_f, *r_v, *r_j])
 
         return m
     # endregion

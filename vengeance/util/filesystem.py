@@ -416,13 +416,18 @@ def clear_dir(filedir):
             os.remove(path)
 
 
-def copy_dir(s_dir, d_dir, ignore=None, dirs_exist_ok=False):
+def copy_dir(s_dir, d_dir,
+             ignore=None,
+             dirs_exist_ok=False):
     """
     shutil.copytree will fail if shutil.rmtree hasn't finished deleting folder:
         PermissionError: [WinError 5] Access is denied
     """
     s_dir = standardize_path(s_dir)
     d_dir = standardize_path(d_dir)
+
+    if not os.path.exists(s_dir):
+        raise FileExistsError('Source directory does not exist: "{}"'.format(s_dir))
 
     if ignore:
         if isinstance(ignore, str):

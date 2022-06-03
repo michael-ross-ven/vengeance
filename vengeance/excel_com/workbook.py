@@ -15,10 +15,10 @@ from ctypes import POINTER
 from ctypes import PyDLL
 from ctypes.wintypes import BOOL
 
-from comtypes import IUnknown
+from comtypes                 import IUnknown
 from comtypes.client          import CreateObject as comtypes_createobject
 from comtypes.automation      import IDispatch    as comtypes_idispatch
-from comtypes.client.dynamic  import Dispatch     as comtypes_dispatch
+from comtypes.client.dynamic  import Dispatch     as comtypes_dispatch       # late-bound references
 
 from time import sleep
 

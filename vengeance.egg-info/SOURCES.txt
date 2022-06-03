@@ -28,4 +28,5 @@ vengeance/util/iter.py
 vengeance/util/text.py
 vengeance/util/classes/__init__.py
 vengeance/util/classes/namespace_cls.py
+vengeance/util/classes/parsed_time_cls.py
 vengeance/util/classes/tree_cls.py

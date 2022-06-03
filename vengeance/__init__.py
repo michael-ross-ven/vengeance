@@ -2,8 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-import vengeance as ven
-import vengeance as vgc
+But rather give place to wrath, for it is written: 'vengeance is mine, I shall repay'
 """
 from .conditional import loads_excel_module
 

@@ -25,56 +25,62 @@ ordereddict:
     starting at python 3.6, the built-in dict is both insertion-ordered and compact, 
     using about half the memory of collections.OrderedDict 
 '''
-config             = {}
-config_file_loaded = False
 
 python_version      = sys.version_info
 is_windows_os       = (os.name == 'nt' or sys.platform == 'win32')
-is_utf_console      = ('utf' in sys.stdout.encoding.lower())
 is_pypy_interpreter = ('__pypy__' in sys.builtin_module_names)
-loads_excel_module  = is_windows_os
+is_utf_console      = ('utf' in sys.stdout.encoding.lower())
+
+config                  = {}
+config_file_loaded      = False
 
 ordereddict             = dict
 dateutil_installed      = False
 ultrajson_installed     = False
 numpy_installed         = False
 line_profiler_installed = False
+loads_excel_module      = is_windows_os
 
-
-if python_version < (3, 6):
+if python_version >= (3, 6):
+    ordereddict = dict
+else:
     from collections import OrderedDict
     ordereddict = OrderedDict
 
-if python_version < (3, 9):
+# standardlib json is faster than ultrajson in Python 3.9+
+if python_version >= (3, 9):
+    ultrajson_installed = False
+else:
     try:
         import ujson
         ultrajson_installed = True
     except ImportError:
-        pass
+        ultrajson_installed = False
 
 try:
     import dateutil
     dateutil_installed = True
 except ImportError:
-    pass
+    dateutil_installed = False
 
 try:
     import numpy
     numpy_installed = True
 except ImportError:
-    pass
+    numpy_installed = False
 
 try:
     import line_profiler
     line_profiler_installed = True
 except ImportError:
-    pass
+    line_profiler_installed = False
 
 if is_windows_os:
     try:
         import comtypes
-        import pythoncom
         import win32com
+
+        loads_excel_module = True
     except ImportError:
         loads_excel_module = False
 

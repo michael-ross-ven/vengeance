@@ -283,7 +283,7 @@ def format_seconds(s):
     elif m >= 1:
         f_ms = '{:.0f}m {:.0f}s'.format(m, s)
     elif s >= 1:
-        f_ms = '{:.1f} s'.format(s)
+        f_ms = '{:.2f} s'.format(s)
     elif ms >= 1:
         f_ms = '{:.1f} ms'.format(ms)
     elif us >= 1:
@@ -410,6 +410,7 @@ def snake_case(s):
     ''', re.VERBOSE)
 
     s = s.strip()
+    s = '_'.join(s.split())
 
     matches = camel_re.finditer(s)
     matches = list(matches)

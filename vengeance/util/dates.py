@@ -1,18 +1,17 @@
 
-from collections import namedtuple
 from datetime import date
 from datetime import datetime
 from datetime import timedelta
 from functools import lru_cache
-from math import trunc
 
+from .classes.parsed_time_cls import parsed_time_cls
 from ..conditional import dateutil_installed
 
 if dateutil_installed:
     from dateutil.parser import parse as dateutil_parse
 
-# 2**15: cache ~32,800 days, or ~90 years
-dates_cachesize = 2**15
+# 2**17 = 131,072: ~360 years worth of day-by-day data, ~15 years of minute-by-minute data
+dates_cachesize = 2**17
 excel_epoch     = datetime(1900, 1, 1)
 
 
@@ -24,7 +23,7 @@ def to_datetime(v, d_format=None):
     if isinstance(v, str):
         date_time = parse_date_string(v, d_format)
     elif isinstance(v, (int, float)):
-        date_time = (parse_date_timestamp(v) or
+        date_time = (parse_date_unix_timestamp(v) or
                      parse_date_excel_serial(v) or
                      parse_date_numeric_string(v))
 
@@ -44,69 +43,30 @@ def to_datetime(v, d_format=None):
 
 
 def parse_timedelta(td):
-    if not isinstance(td, timedelta):
-        raise TypeError('value must be instance of timedelta')
+    if not hasattr(td, 'total_seconds'):
+        raise AttributeError('timedelta must have a ".total_seconds()" method')
 
     return parse_seconds(td.total_seconds())
 
 
-def parse_seconds(ts):
-    if not isinstance(ts, (float, int)):
-        raise TypeError('value must be instance of (float, int)')
-
-    def truncate(n, precision=1):
-        e = 10**precision
-        return trunc(n * e) / e
-
-    ParsedTime = namedtuple('ParsedTime', ('days',
-                                           'hours',
-                                           'minutes',
-                                           'seconds',
-                                           'microseconds'))
-    s = abs(ts)
-
-    us = (s % 1) * 1e6
-    m, s = divmod(s, 60)
-    h, m = divmod(m, 60)
-    d, h = divmod(h, 24)
-
-    s = int(s)
-    m = int(m)
-    h = int(h)
-    d = int(d)
-
-    if truncate(us % 1, 3) == 0.999:
-        us = round(us, 3)
-    elif truncate(us % 1, 4) == 0.000:
-        us = round(us, 4)
-    elif str(int(us)).endswith('9999'):
-        us = round(us)
-
-    is_negative = (ts < 0)
-
-    if is_negative:
-        us = -us if (us > 0.0) else 0.0
-        s = -s if (s > 0.0) else 0
-        h = -h if (h > 0.0) else 0
-        m = -m if (m > 0.0) else 0
-        d = -d if (d > 0.0) else 0
-
-    return ParsedTime(d, h, m, s, us)
+def parse_seconds(total_seconds):
+    parsed_time = parsed_time_cls(total_seconds)
+    return parsed_time
 
 
 @lru_cache(maxsize=dates_cachesize)
-def is_date(v):
+def is_date(v, d_format=None):
     """ :return: (bool success, converted value) """
     try:
-        return True, to_datetime(v)
+        return True, to_datetime(v, d_format)
     except (ValueError, TypeError):
         return False, v
 
 
 @lru_cache(maxsize=dates_cachesize)
-def parse_date_timestamp(v):
+def parse_date_unix_timestamp(v):
     """ eg:
-        datetime.datetime(2000, 1, 1, 0, 0) = parse_date_timestamp(946702800.0)
+        datetime.datetime(2000, 1, 1, 0, 0) = parse_date_unix_timestamp(946702800)
     """
     try:
         return datetime.fromtimestamp(v)

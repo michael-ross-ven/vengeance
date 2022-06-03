@@ -23,8 +23,9 @@ class flux_row_cls:
 
     @classmethod
     def reserved_names(cls):
-        return sorted(['headers', 'values', 'row_label'] + dir(cls),
-                      reverse=True)
+        n_1 = ['headers', 'values', 'row_label']
+        n_2 = list(sorted(dir(cls), reverse=True))
+        return n_1 + n_2
 
     def __init__(self, headers, values, row_label=None):
         """
@@ -58,10 +59,10 @@ class flux_row_cls:
 
         label = self.__dict__['row_label']
         if isinstance(label, int):
-            names.insert(0,  '{row_label}')
+            names.insert(0,  '{label}')
             values.insert(0, surround_single_brackets(format_integer(label)))
         elif isinstance(label, str):
-            names.insert(0,  '{row_label}')
+            names.insert(0,  '{label}')
             values.insert(0, surround_single_brackets(label))
 
         m = list(zip(names, values))

@@ -408,6 +408,7 @@ def snake_case(s):
     ''', re.VERBOSE)
 
     s = s.strip()
+    s = '_'.join(s.split())
 
     matches = camel_re.finditer(s)
     matches = list(matches)
