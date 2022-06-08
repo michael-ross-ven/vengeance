@@ -2,7 +2,6 @@
 from datetime import date
 from datetime import datetime
 from datetime import timedelta
-from functools import lru_cache
 
 from .classes.parsed_time_cls import parsed_time_cls
 from ..conditional import dateutil_installed
@@ -10,9 +9,7 @@ from ..conditional import dateutil_installed
 if dateutil_installed:
     from dateutil.parser import parse as dateutil_parse
 
-# 2**17 = 131,072: ~360 years worth of day-by-day data, ~15 years of minute-by-minute data
-dates_cachesize = 2**17
-excel_epoch     = datetime(1900, 1, 1)
+excel_epoch = datetime(1900, 1, 1)
 
 
 def to_datetime(v, d_format=None):
@@ -42,6 +39,14 @@ def to_datetime(v, d_format=None):
     return date_time
 
 
+def attempt_to_datetime(v, d_format=None):
+    """ :return: (bool success, converted value) """
+    try:
+        return True, to_datetime(v, d_format)
+    except (ValueError, TypeError):
+        return False, v
+
+
 def parse_timedelta(td):
     if not hasattr(td, 'total_seconds'):
         raise AttributeError('timedelta must have a ".total_seconds()" method')
@@ -54,16 +59,6 @@ def parse_seconds(total_seconds):
     return parsed_time
 
 
-@lru_cache(maxsize=dates_cachesize)
-def is_date(v, d_format=None):
-    """ :return: (bool success, converted value) """
-    try:
-        return True, to_datetime(v, d_format)
-    except (ValueError, TypeError):
-        return False, v
-
-
-@lru_cache(maxsize=dates_cachesize)
 def parse_date_unix_timestamp(v):
     """ eg:
         datetime.datetime(2000, 1, 1, 0, 0) = parse_date_unix_timestamp(946702800)
@@ -74,7 +69,6 @@ def parse_date_unix_timestamp(v):
         return None
 
 
-@lru_cache(maxsize=dates_cachesize)
 def parse_date_excel_serial(v):
     """ number of days since 1900-01-01 """
     try:
@@ -88,7 +82,6 @@ def to_excel_serial(v):
     return (v - excel_epoch).days
 
 
-@lru_cache(maxsize=dates_cachesize)
 def parse_date_numeric_string(v):
     """ eg:
         datetime.datetime(2000, 12, 1, 0, 0) = parse_date_numeric(20001201)
@@ -104,7 +97,6 @@ def parse_date_numeric_string(v):
         return None
 
 
-@lru_cache(maxsize=dates_cachesize)
 def parse_date_string(s, d_format):
     if d_format is not None:
         return datetime.strptime(s, d_format)

@@ -1,4 +1,18 @@
 
+2022-06-08
+$release 72
+    version 1.1.35
+
+    flux_cls:
+        corrected error in .append_rows(), client not allowed to submit 1-dimensional list of rows anymore
+        corrected error in .append_columns(), when values are a list of iterables
+
+    util.dates
+        removed lru_cache caching
+        to_date() renamed to attempt_to_datetime()
+
+
+
 2022-06-03
 $release 71
     version 1.1.34

@@ -466,6 +466,8 @@ def parse_path(path,
                pathsep='/',
                abspath=False) -> namedtuple:
 
+    # 'basename', as filename + extension?
+    # basename  = filename + extension
     ParsedPath = namedtuple('ParsedPath', ('directory',
                                            'filename',
                                            'extension'))

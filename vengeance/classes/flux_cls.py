@@ -379,21 +379,10 @@ class flux_cls:
         return (row_nt(*row.values) for row in self.matrix[r_1:r_2])
 
     def insert_rows(self, i, rows):
-        """
-        overwrite headers?
-            replace_headers = (i == 0)
-        """
-        rows = iterator_to_collection(rows)
-        rows = modify_iteration_depth(rows, depth=2)
-
-        if rows == [[]]:
-            return self
-
         if self.is_empty():
             return self.reset_matrix(rows)
 
-        gc_enabled   = gc.isenabled()
-        if gc_enabled: gc.disable()
+        is_append = (i is None)
 
         h = self.headers
         m = self.__validate_matrix_as_primitive_values(rows)
@@ -401,17 +390,21 @@ class flux_cls:
         if is_header_row(m[0], h):
             del m[0]
 
+        if m == [[]]:
+            return self
+
         if i == 0:
             i = 1
 
-        m = [flux_row_cls(h, row) for row in m]
+        if is_append:
+            m = [flux_row_cls(h, row, _i_) for _i_, row in enumerate(m, len(self.matrix))]
+        else:
+            m = [flux_row_cls(h, row) for row in m]
 
-        if i is None:
+        if is_append:
             self.matrix.extend(m)
         else:
             self.matrix[i:i] = m
-
-        if gc_enabled: gc.enable()
 
         return self
 
@@ -512,15 +505,22 @@ class flux_cls:
         num_rows = len(self.matrix) - 1
         num_cols = len(names)
 
+        is_single_column = (num_cols == 1)
+
         if nd == 0:
-            _values_ = [[_values_] * num_cols
-                        for _ in range(num_rows)]
+            if is_single_column:
+                _values_ = [_values_ for _ in range(num_rows)]
+            else:
+                _values_ = [[_values_] * num_cols
+                            for _ in range(num_rows)]
+
+            v_num_cols = num_cols
         elif nd == 1:
-            _values_ = transpose([_values_], astype=list)
-            _values_ = list(_values_)
+            v_num_cols = 1
+        else:
+            v_num_cols = len(_values_[0])
 
         v_num_rows = len(_values_)
-        v_num_cols = len(_values_[0])
 
         mismatched_dimensions = (v_num_rows != num_rows) or \
                                 (v_num_cols != num_cols and num_cols > 1)
@@ -532,8 +532,12 @@ class flux_cls:
                                                                       v_num_cols, v_num_rows))
 
         header_names = self.header_names() + list(names)
+
         for row, v in zip(self.matrix[1:], _values_):
-            row.values.extend(v)
+            if is_single_column:
+                row.values.append(v)
+            else:
+                row.values.extend(v)
 
         self.reset_headers(header_names)
 
@@ -1305,7 +1309,8 @@ class flux_cls:
             m = list(transpose(m.items(), astype=list))
 
         if not is_subscriptable(m):
-            raise IndexError('matrix must be subscriptable')
+            # raise IndexError('matrix must be subscriptable')
+            raise IndexError('matrix must have at least one iterable dimension (ie, a list)')
 
         ''' @types '''
         row_first: Union[flux_row_cls, namedtuple, dict, object]

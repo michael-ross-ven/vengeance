@@ -12,20 +12,20 @@ class parsed_time_cls:
             raise TypeError('value must be instance of (float, int)')
 
         self._total_seconds = int(total_seconds)
-        self.sign          = None
-        self.days          = None
-        self.hours         = None
-        self.minutes       = None
-        self.seconds       = None
-        self.microseconds  = None
+        self.sign           = None
+        self.days           = None
+        self.hours          = None
+        self.minutes        = None
+        self.seconds        = None
+        self.microseconds   = None
 
-        self.parse()
+        self.parse_time_components()
 
     def total_seconds(self):
         return self._total_seconds
 
-    def parse(self):
-        total_seconds = self.total_seconds()
+    def parse_time_components(self):
+        total_seconds = self._total_seconds
 
         if total_seconds < 0:
             sign = '-'
@@ -34,7 +34,9 @@ class parsed_time_cls:
         else:
             sign = '+'
 
-        s  = abs(total_seconds)
+        s = abs(total_seconds)
+
+        # us = s % 1 tends to give imprecise rounding on decimal portion
         us = str(float(s))
         us = us.split('.')[-1]
         us = int(us)
@@ -52,7 +54,7 @@ class parsed_time_cls:
         self.microseconds = us
 
     def __repr__(self):
-        s = ('vengeance.{}(sign={}, days={}, hours={}, minutes={}, seconds={}, microseconds={})'
+        s = ('{}(sign={}, days={}, hours={}, minutes={}, seconds={}, microseconds={})'
              .format(self.__class__.__name__,
                      self.sign,
                      self.days,

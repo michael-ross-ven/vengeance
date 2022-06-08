@@ -3,8 +3,8 @@ from .text import print_runtime
 from .text import print_performance
 from .text import styled
 
-from .dates import is_date
 from .dates import to_datetime
+from .dates import attempt_to_datetime
 from .dates import parse_timedelta
 from .dates import parse_seconds
 
@@ -20,8 +20,8 @@ __all__ = ['print_runtime',
            'print_performance',
            'styled',
 
-           'is_date',
            'to_datetime',
+           'attempt_to_datetime',
            'parse_timedelta',
            'parse_seconds',
 
