@@ -466,21 +466,19 @@ def parse_path(path,
                pathsep='/',
                abspath=False) -> namedtuple:
 
-    # 'basename', as filename + extension?
-    # basename  = filename + extension
     ParsedPath = namedtuple('ParsedPath', ('directory',
-                                           'filename',
+                                           'basename',
                                            'extension'))
 
-    _path_ = path
-    _path_ = standardize_path(_path_, pathsep, abspath)
+    # _path_ = path
+    path = standardize_path(path, pathsep=pathsep, abspath=abspath)
 
-    directory, filename  = os.path.split(_path_)
-    filename,  extension = os.path.splitext(filename)
+    directory, filename  = os.path.split(path)
+    basename,  extension = os.path.splitext(filename)
 
     directory = standardize_path(directory, pathsep, abspath)
 
-    return ParsedPath(directory, filename, extension)
+    return ParsedPath(directory, basename, extension)
 
 
 def parse_file_name(path):
@@ -597,19 +595,19 @@ def validate_path_exists(path):
         raise FileNotFoundError('directory not found: \n\t{}'.format(p_path.directory))
 
     if not os.path.exists(path):
-        glob_paths = glob(p_path.directory + p_path.filename + '.*')
+        glob_paths = glob(p_path.directory + p_path.basename + '.*')
         if glob_paths:
             extension = parse_file_extension(os.path.split(glob_paths[0])[1], include_dot=True)
             raise FileNotFoundError('file extension not found: '
                                     '\n\t{}'
                                     '\n\t{}'
                                     '\n\tdid you mean: {}?'.format(p_path.directory,
-                                                                   p_path.filename,
+                                                                   p_path.basename,
                                                                    extension))
 
         raise FileNotFoundError('file not found: '
                                 '\n\t{}'
                                 '\n\t{}'.format(p_path.directory,
-                                                p_path.filename + p_path.extension))
+                                                p_path.basename + p_path.extension))
 
     return path

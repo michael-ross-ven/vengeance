@@ -30,7 +30,8 @@ def print_runtime(f=None,
             tic  = default_timer()
             retv = _f_(*args, **kwargs)
             toc  = default_timer()
-            elapsed = -(tic - toc)
+
+            elapsed = abs(tic - toc)
 
             # named variables for .format(**locals())
             formatted_prefix   = __vengeance_prefix__
@@ -73,6 +74,7 @@ def print_performance(f=None, repeat=5):
             best  = None
             worst = None
             total = 0.0
+
             functools_repeat = functools.partial(itertools.repeat, None)
 
             gc_enabled = gc.isenabled()
@@ -101,7 +103,7 @@ def print_performance(f=None, repeat=5):
             else:
                 num_trials = '{} trials'.format(num_trials)
 
-            s = ('@{}() over {}:'
+            s = ('@{}() performance over {}:'
                  '\n        ★ best:     {}'
                  '\n        ☆ average:  {}'
                  '\n        ☆ worst:    {}'
@@ -245,16 +247,16 @@ def vengeance_message(message):
     return __vengeance_prefix__ + str(message)
 
 
-def surround_double_brackets(h):
-    return '⟪{}⟫'.format(h)
+def surround_double_brackets(v):
+    return '⟪{}⟫'.format(v)
 
 
-def surround_single_brackets(h):
-    return '⟨{}⟩'.format(h)
+def surround_single_brackets(v):
+    return '⟨{}⟩'.format(v)
 
 
-def surround_double_square_brackets(h):
-    return '⟦{}⟧'.format(h)
+def surround_double_square_brackets(v):
+    return '⟦{}⟧'.format(v)
 
 
 def format_integer(i, comma_sep='_'):
@@ -262,7 +264,11 @@ def format_integer(i, comma_sep='_'):
     '1_000_000' = format_integer(1000000)
     """
     _i_ = '{:,}'.format(int(i))
-    return _i_.replace(',', comma_sep)
+
+    if comma_sep != ',':
+        _i_ = _i_.replace(',', comma_sep)
+
+    return _i_
 
 
 def format_seconds(s):
@@ -277,22 +283,22 @@ def format_seconds(s):
     d, h = divmod(h, 24)
 
     if d >= 1:
-        f_ms = '{:.0f}d {:.0f}h {:.0f}m'.format(d, h, m)
+        fm = '{:.0f}d {:.0f}h {:.0f}m'.format(d, h, m)
     elif h >= 1:
-        f_ms = '{:.0f}h {:.0f}m {:.0f}s'.format(h, m, s)
+        fm = '{:.0f}h {:.0f}m {:.0f}s'.format(h, m, s)
     elif m >= 1:
-        f_ms = '{:.0f}m {:.0f}s'.format(m, s)
+        fm = '{:.0f}m {:.0f}s'.format(m, s)
     elif s >= 1:
-        f_ms = '{:.2f} s'.format(s)
+        fm = '{:.2f} s'.format(s)
     elif ms >= 1:
-        f_ms = '{:.1f} ms'.format(ms)
+        fm = '{:.1f} ms'.format(ms)
     elif us >= 1:
-        if is_utf_console:  f_ms = '{:.0f} μs'.format(us)
-        else:               f_ms = '{:.0f} us'.format(us)
+        if is_utf_console: fm = '{:.0f} μs'.format(us)
+        else:              fm = '{:.0f} us'.format(us)
     else:
-        f_ms = '{:.0f} ns'.format(ns)
+        fm = '{:.0f} ns'.format(ns)
 
-    return f_ms
+    return fm
 
 
 def function_parameters(f):
@@ -376,8 +382,7 @@ def function_name(f):
 
     is_closure = ('<locals>' in f_name)
 
-    if '.' in f_name and not is_closure:
-        # probably a class method
+    if '.' in f_name and (not is_closure):        # probably a class method
         return f_name
 
     try:                   modulename = f.__module__

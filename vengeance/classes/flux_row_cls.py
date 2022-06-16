@@ -1,12 +1,14 @@
 
 from collections import namedtuple
-
+from copy import copy
+from copy import deepcopy
 from typing import Dict
 from typing import List
 from typing import Union
 
 from ..util.classes.namespace_cls import namespace_cls
 from ..util.iter import is_header_row
+from ..util.iter import values_as_strings
 
 from ..util.text import surround_double_brackets
 from ..util.text import surround_single_brackets
@@ -25,6 +27,7 @@ class flux_row_cls:
     def reserved_names(cls):
         n_1 = ['headers', 'values', 'row_label']
         n_2 = list(sorted(dir(cls), reverse=True))
+
         return n_1 + n_2
 
     def __init__(self, headers, values, row_label=None):
@@ -58,12 +61,18 @@ class flux_row_cls:
         values.extend(['🗲missing🗲'] * (c_m - len(values)))
 
         label = self.__dict__['row_label']
+
         if isinstance(label, int):
             names.insert(0,  '{label}')
-            values.insert(0, surround_single_brackets(format_integer(label)))
+            label = format_integer(label)
+            label = surround_single_brackets(label)
+
+            values.insert(0, label)
         elif isinstance(label, str):
             names.insert(0,  '{label}')
-            values.insert(0, surround_single_brackets(label))
+            label = surround_single_brackets(label)
+
+            values.insert(0, label)
 
         m = list(zip(names, values))
 
@@ -82,8 +91,17 @@ class flux_row_cls:
 
         return m
 
-    def header_names(self):
-        return list(self.headers.keys())
+    def header_names(self, as_strings=True) -> List[Union[str, bytes]]:
+        """
+        self.values and self.headers.keys may not always be identical
+            map_values_to_enum() makes certain modifications to self.headers.keys,
+            such as coercing values to str, modifying duplicate values, etc
+        """
+        names = list(self.headers.keys())
+        if as_strings:
+            names = list(values_as_strings(names))
+
+        return names
 
     def is_jagged(self):
         return len(self.headers) != len(self.values)
@@ -108,7 +126,7 @@ class flux_row_cls:
         return namespace_cls(zip(self.header_names(), self.values))
 
     def namedtuple(self):
-        row_nt = namedtuple('Row', self.header_names())
+        row_nt = namedtuple('Row', self.header_names(as_strings=True))
         return row_nt(*self.values)
 
     def join_values(self, other, names=None):
@@ -123,24 +141,45 @@ class flux_row_cls:
         if not isinstance(other, flux_row_cls):
             raise TypeError('row expected to be flux_row_cls')
 
-        headers_a = self.__dict__['headers']
-        values_a  = self.__dict__['values']
+        headers_self  = self.__dict__['headers']
+        headers_other = other.__dict__['headers']
 
-        headers_b = other.__dict__['headers']
-        values_b  = other.__dict__['values']
-
-        _names_ = names or (headers_a.keys() & headers_b.keys())
-        if not _names_:
+        names_both = names or (headers_self.keys() & headers_other.keys())
+        if not names_both:
             raise ValueError('no intersecting column names')
 
-        if isinstance(_names_, str):
-            _names_ = [_names_]
+        if isinstance(names_both, str):
+            names_both = [names_both]
 
-        for name in _names_:
-            i_a = headers_a[name]
-            i_b = headers_b[name]
+        values_self  = self.__dict__['values']
+        values_other = other.__dict__['values']
 
-            values_a[i_a] = values_b[i_b]
+        for name in names_both:
+            i_s = headers_self[name]
+            i_o = headers_other[name]
+
+            values_self[i_s] = values_other[i_o]
+
+    def copy(self, deep=False):
+        """
+        # other_attributes = {k: v for k, v in self.__dict__.items()
+        #                          if k not in {'headers', 'values', 'row_label'}}
+        # flux_row.__dict__.update(other_attributes)
+        """
+
+        if deep:
+            headers   = deepcopy(self.__dict__['headers'])
+            values    = deepcopy(self.__dict__['values'])
+            row_label = None
+        else:
+            headers   = copy(self.__dict__['headers'])
+            values    = copy(self.__dict__['values'])
+            row_label = self.__dict__['row_label']
+
+        flux_row = self.__class__(headers,
+                                  values,
+                                  row_label)
+        return flux_row
 
     def __getattr__(self, name):
         """  eg:
@@ -160,7 +199,6 @@ class flux_row_cls:
             i = self.headers.get(name, name)
             self.values[i] = value
         except (TypeError, IndexError) as e:
-
             if name in self.__dict__:
                 self.__dict__[name] = value
             elif isinstance(self.values, tuple):
@@ -176,7 +214,6 @@ class flux_row_cls:
             i = self.headers.get(name, name)
             return self.values[i]
         except (TypeError, IndexError):
-
             if isinstance(name, slice):
                 return self.values[name]
             else:
@@ -190,7 +227,6 @@ class flux_row_cls:
             i = self.headers.get(name, name)
             self.values[i] = value
         except (TypeError, IndexError) as e:
-
             if name in self.__dict__:
                 self.__dict__[name] = value
             elif isinstance(name, slice):
@@ -219,45 +255,44 @@ class flux_row_cls:
         return not self.__eq__(other)
 
     def __repr__(self):
-        label = self.__dict__['row_label']
-        if isinstance(label, int):
-            row_label = format_integer(label)
+        row_label    = self.__dict__['row_label']
+        jagged_label = ''
+
+        if isinstance(row_label, int):
+            row_label = format_integer(row_label)
             row_label = surround_single_brackets(row_label)
             row_label = '{} '.format(row_label)
-        elif isinstance(label, str):
-            row_label = surround_single_brackets(label)
+        elif isinstance(row_label, str):
+            row_label = surround_single_brackets(row_label)
             row_label = '{} '.format(row_label)
         else:
             row_label = ''
 
         if self.is_jagged():
             jagged_label = len(self.values) - len(self.headers)
-            jagged_label = surround_single_brackets('{:+}'.format(jagged_label))
+            jagged_label = '{' + '{:+}'.format(jagged_label) + '}'
             jagged_label = '🗲jagged {}🗲  '.format(jagged_label)
-        else:
-            jagged_label = ''
 
         if self.is_header_row():
-            values = ', '.join([str(n) for n in self.header_names()])
+            values = self.header_names(as_strings=True)
+            values = ', '.join(values)
             values = surround_double_brackets(values)
         else:
-            values = (repr(self.values).replace('"', '')
-                                       .replace("'", ''))
+            values = repr(self.values).replace('"', "'")
 
         return '{}{}{}'.format(row_label, jagged_label, values)
 
     @staticmethod
     def __raise_attribute_error(invalid, headers):
         indices = [str(i) for i in headers.values()]
-        _nf_ = max(len(n) for n in indices)
-        _nf_ = '{: <%s}' % str(_nf_)
+        _nf_    = max(len(n) for n in indices)
+        _nf_    = '{: <%i}' % _nf_
         indices = [_nf_.format(n) for n in indices]
 
-        s = ["{}: '{}'".format(i, n) for i, n in zip(indices, headers.keys())]
-        s = '\n\t'.join(s)
+        err_msg = ["{}: '{}'".format(i, n) for i, n in zip(indices, headers.keys())]
+        err_msg = '\n\t'.join(err_msg)
+        err_msg = ("Name, '{}' is not in existing columns: "
+                   "\n\t{}".format(invalid, err_msg))
 
-        s = ("'{}' column name does not exist in columns: "
-             "\n\t{}".format(invalid, s))
-
-        raise AttributeError(s) from None
+        raise AttributeError(err_msg) from None
 

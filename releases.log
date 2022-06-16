@@ -1,4 +1,16 @@
 
+2022-06-16
+$release 73
+    version 1.1.36
+
+    flux_cls:
+        correction to bug in .reset_headers() when self.is_empty()
+
+    flux_row_cls:
+        .copy() method added
+
+
+
 2022-06-08
 $release 72
     version 1.1.35

@@ -12,6 +12,9 @@ class namespace_cls:
 
         self.__dict__ = kwargs
 
+    def astuple(self):
+        return tuple(self.__dict__.values())
+
     def __iter__(self):
         return (v for v in self.__dict__.values())
 

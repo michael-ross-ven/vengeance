@@ -338,6 +338,14 @@ def map_values_to_enum(sequence, start=0, as_snake_case=False) -> Dict[Union[str
     return values_to_indices
 
 
+def values_as_strings(values):
+    for v in values:
+        if isinstance(v, bytes):
+            yield v.decode()
+        else:
+            yield str(v)
+
+
 # noinspection PyProtectedMember
 def to_namespaces(o, as_snake_case=False):
     """ recursively convert values to namespaces """
@@ -367,9 +375,9 @@ def to_namespaces(o, as_snake_case=False):
 
 # noinspection PyArgumentList, PyProtectedMember
 def to_namedtuples(o, as_snake_case=False):
+
     is_namedtuple = (isinstance(o, tuple) and
                      type(o) is not tuple)
-
     if is_namedtuple:
         if as_snake_case:
             fields = [snake_case(k) for k in o._fields]
@@ -385,7 +393,7 @@ def to_namedtuples(o, as_snake_case=False):
         else:
             fields = o.keys()
 
-        nt = namedtuple('NT', fields)
+        nt = namedtuple('NamedTuple', fields)
         return nt(*[to_namedtuples(v) for v in o.values()])
 
     elif is_collection(o):

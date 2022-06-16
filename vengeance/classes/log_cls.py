@@ -109,7 +109,7 @@ class log_cls(Logger):
         if (exception_callback is not None) and not callable(exception_callback):
             raise TypeError('exception_callback must be callable')
 
-        name  = parse_path(name_or_path).filename
+        name  = parse_path(name_or_path).basename
         level = self.levelname(level)
 
         super().__init__(name, level)
@@ -378,7 +378,7 @@ class log_cls(Logger):
         if not os.path.exists(directory):
             raise FileExistsError('log directory does not exist: \n{}'.format(directory))
 
-        path = directory + p_path.filename + p_path.extension
+        path = directory + p_path.basename + p_path.extension
 
         return path
 
