@@ -114,6 +114,7 @@ class log_cls(Logger):
 
         super().__init__(name, level)
 
+        self.parent             = None
         self.write_to_stream    = write_to_stream
         self.write_to_file      = write_to_file
         self.name_or_path       = name_or_path
@@ -297,7 +298,8 @@ class log_cls(Logger):
         flush_stdout(sleep_ms=500)
 
         if self.exception_callback:
-            self.exception_callback()
+            # i need to be goddamn sure the exception_callback can actually take these args
+            self.exception_callback(e_type, e_msg, e_traceback)
 
         return self.exception_message
 

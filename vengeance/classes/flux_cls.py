@@ -447,7 +447,7 @@ class flux_cls:
         has_multiple_columns = isinstance(names, slice) or \
                                (is_collection(names) and len(names) > 1)
         if has_multiple_columns:
-            col = transpose(col, astype=tuple)
+            col = transpose(col, astype=list)
 
         return col
 

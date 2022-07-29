@@ -149,10 +149,10 @@ def __validate_filetype(path, filetype):
                                  '.gzip',
                                  '.bz',
                                  '.tar',
-                                 '.png',
-                                 '.jpg',
-                                 '.jpeg',
-                                 '.gif',
+                                 # '.png',
+                                 # '.jpg',
+                                 # '.jpeg',
+                                 # '.gif',
                                  '.pdf'}
 
     filetype = filetype or parse_file_extension(path, include_dot=True)

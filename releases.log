@@ -1,4 +1,13 @@
 
+2022-07-29
+$release 74
+    version 1.1.37
+
+    log_cls:
+        calls with args: self.exception_callback(e_type, e_msg, e_traceback)
+
+
+
 2022-06-16
 $release 73
     version 1.1.36

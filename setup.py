@@ -19,13 +19,15 @@ install_requires=[
         'pywin32 >= 1.0 ; platform_system=="Windows"'
     ]
 
-pip install vengeance[comtypes]
-pip install vengeance[pypiwin32]
-pip install vengeance[python-dateutil]
-pip install vengeance[numpy]
-pip install vengeance[comtypes,pypiwin32,python-dateutil,numpy]
+
+https://github.com/pydata/xarray/blob/main/setup.cfg
+
+pip install vengeance[flux]
+pip install vengeance[excel]
+pip install vengeance[complete]
 
 todo:
+    add optional install dependencies for the excel_com module or standalone flux module
     publish to conda
 """
 
@@ -42,8 +44,8 @@ if is_windows_os:
     except ImportError:
         loads_excel_module = False
 
-__version__ = '1.1.36'
-__release__ = '$release 73'
+__version__ = '1.1.37'
+__release__ = '$release 74'
 description = 'Data Subjugation library for row-major organization of tabular data and control over the Excel Application'
 
 try:
