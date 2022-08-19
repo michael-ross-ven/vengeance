@@ -124,12 +124,12 @@ def __validate_io_arguments(path,
         if os.access(path, os.R_OK)
     """
 
-    path          = __validate_path(path)
-    filetype      = __validate_filetype(path, filetype)
-    mode          = __validate_mode(mode, filetype, is_data_bytes)
-    encoding      = __validate_encoding(mode, encoding)
-    _             = __validate_read_or_write(path, mode, read_or_write)
-    kwargs        = __validate_file_keyword_args(kwargs)
+    path     = __validate_path(path)
+    filetype = __validate_filetype(path, filetype)
+    mode     = __validate_mode(mode, filetype, is_data_bytes)
+    encoding = __validate_encoding(mode, encoding)
+    _        = __validate_read_or_write(path, mode, read_or_write)
+    kwargs   = __validate_file_keyword_args(kwargs)
 
     return (path,
             encoding,
@@ -149,10 +149,6 @@ def __validate_filetype(path, filetype):
                                  '.gzip',
                                  '.bz',
                                  '.tar',
-                                 # '.png',
-                                 # '.jpg',
-                                 # '.jpeg',
-                                 # '.gif',
                                  '.pdf'}
 
     filetype = filetype or parse_file_extension(path, include_dot=True)
@@ -220,11 +216,13 @@ def __validate_read_or_write(path, mode, read_or_write):
         raise ValueError("read or write parameter should be in ('read', 'write')")
 
     if read_or_write.startswith('r'):
-        if (not is_read_mode) or is_append_mode:
+        if not is_read_mode:
+            raise ValueError('invalid read mode: {}'.format(mode))
+        if is_append_mode:
             raise ValueError('invalid read mode: {}'.format(mode))
 
     elif read_or_write.startswith('w'):
-        if not is_write_mode:
+        if not (is_write_mode or is_append_mode):
             raise ValueError('invalid write mode: {}'.format(mode))
         if is_url:
             raise NotImplementedError('can not write to url: {}'.format(path))

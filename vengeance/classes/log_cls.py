@@ -292,6 +292,9 @@ class log_cls(Logger):
             1 / 0
         except:
             log.exception_handler(*sys.exc_info())
+
+        from .. util.text import function_parameters
+        params = function_parameters(self.exception_callback)
         """
         self.exception_message = self._formatted_exception_message(e_type, e_msg)
         self.critical(self.exception_message, exc_info=(e_type, e_msg, e_traceback))

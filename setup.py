@@ -44,8 +44,8 @@ if is_windows_os:
     except ImportError:
         loads_excel_module = False
 
-__version__ = '1.1.37'
-__release__ = '$release 74'
+__version__ = '1.1.38'
+__release__ = '$release 75'
 description = 'Data Subjugation library for row-major organization of tabular data and control over the Excel Application'
 
 try:

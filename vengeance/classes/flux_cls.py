@@ -1289,9 +1289,6 @@ class flux_cls:
             _m_.extend(m.values.tolist())
             return _m_
         """
-        if (m is None) or (m == []) or (m == [[]]):
-            return [[]]
-
         base_cls_names     = set(base_class_names(m))
         is_vengeance_class = bool(base_cls_names & util_iter.vengeance_cls_names)
 
@@ -1300,10 +1297,13 @@ class flux_cls:
 
         if 'DataFrame' in base_cls_names:
             return [m.columns.values.tolist()] + \
-                   [m.values.tolist()]
+                    m.values.tolist()
 
         if 'ndarray' in base_cls_names:
             return m.tolist()
+
+        if (m is None) or (m == []) or (m == [[]]):
+            return [[]]
 
         if is_exhaustable(m):
             m = list(m)

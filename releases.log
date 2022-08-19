@@ -1,4 +1,13 @@
 
+2022-08-19
+$release 75
+    version 1.1.38
+
+    flux_cls:
+        fixed if 'DataFrame' in base_cls_names: condition in __init__
+
+
+
 2022-07-29
 $release 74
     version 1.1.37
