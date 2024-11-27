@@ -6,6 +6,7 @@ build/*
 .idea
 .idea/*
 .git
+
 vengeance_unittest
 vengeance.egg-info/*
 vengeance/config.ini
