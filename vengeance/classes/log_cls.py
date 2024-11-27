@@ -112,9 +112,9 @@ class log_cls(Logger):
         name  = parse_path(name_or_path).basename
         level = self.levelname(level)
 
+        self.parent = None
         super().__init__(name, level)
 
-        self.parent             = None
         self.write_to_stream    = write_to_stream
         self.write_to_file      = write_to_file
         self.name_or_path       = name_or_path
