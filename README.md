@@ -175,7 +175,7 @@ every operation and modification, which often leads to convoluted syntax, especi
     rows_2 = dict_2['2001']['01']
 
 
-###### read / write files
+###### flux_cls: read / write files
     flux.to_csv('file.csv')
     flux = flux_cls.from_csv('file.csv')
 
