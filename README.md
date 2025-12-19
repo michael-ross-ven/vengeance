@@ -5,6 +5,10 @@ https://github.com/michael-ross-ven/vengeance_example/blob/main/vengeance_exampl
 <br/><br/>
 
 
+## vengeance
+* Python control over live Excel applications
+* similar idea behind a pandas DataFrame, but pure-Python, row-major iteration
+
 ##### DataFrame Advantages:
 * vectorized operations on contiguous arrays are memory-efficient and *very* fast
 
@@ -15,46 +19,11 @@ https://github.com/michael-ross-ven/vengeance_example/blob/main/vengeance_exampl
 
 <br/>
 
-
-##### Row-Major Order:
-        
-        [['attribute_a', 'attribute_b', 'attribute_c'],
-         ['a',           'b',           3.0],
-         ['a',           'b',           3.0],
-         ['a',           'b',           3.0]]
-
-##### Column-Major Order:
-        
-        {'attribute_a': array(['a', 'a', 'a'], dtype='<U1'),
-         'attribute_b': array(['b', 'b', 'b'], dtype='<U1'),
-         'attribute_c': array([3.,   3.,  3.], dtype=float64)}
-
-
-In column-major order, values in a single column are usually all of the same datatype, which means they can be packed into 
-consecutive addresses in memory as an actual array and iterated extremely quickly. But this speed comes at a cost: re-organizing the
-data as it's intuitively understood by humans, **where each row is some entity, and each column is a property of that row**, 
-is agonizingly slow. (DataFrame.iterrows() and DataFrame.apply() incur a huge performance penalty, and can be 1_000x times 
-slower to iterate than Python's built-in list.)
-
-But the restricted use of explicit loops over a DataFrame requires pandas to provide specialized API methods for almost 
-every operation and modification, which often leads to convoluted syntax, especially when method-chaining is overused.
-
-    # wait, what exactly does this do again?
-    df['column'] = np.sign(df.column.diff().fillna(0)).shift(-1).fillna(0) \
-                     .apply(lambda x: (x['column'].head(1),
-                                       x.shape[0],
-                                       x['start'].iloc[-1] - x['start'].iloc[0]))
-
-###### (see also ['So You Wanna Be a Pandas Expert? - James Powell'](https://youtu.be/pjq3QOxl9Ok) for how impenetrable this syntax can really get, *espcially* by less experienced developers)
-
+###### (see also ['So You Wanna Be a Pandas Expert? - James Powell'](https://youtu.be/pjq3QOxl9Ok) for how crazy DataFrame syntax can really get)
 <br/>
 
-
-
-## vengeance
-* Python control over live Excel applications
-* similar idea behind a pandas DataFrame, but pure-Python, row-major iteration
-
+### vengeance usage
+<br/>
 
 ###### Excel interaction:
     def set_project_workbook(path,
@@ -116,7 +85,7 @@ every operation and modification, which often leads to convoluted syntax, especi
         row[-1]            = None
         row.values[:2]     = [None, None]
 
-    # transformations are compositional and self-documenting
+    # transformations
     for row in flux:
         row.hypotenuse = math.sqrt(row.side_a**2 +,
                                    row.side_b**2)
