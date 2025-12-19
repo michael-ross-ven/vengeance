@@ -35,15 +35,6 @@ is_windows_os       = (os.name == 'nt' or sys.platform == 'win32')
 is_pypy_interpreter = ('__pypy__' in sys.builtin_module_names)
 loads_excel_module  = False
 
-if is_windows_os:
-    try:
-        import comtypes
-        import pythoncom
-        import win32com
-        loads_excel_module = True
-    except ImportError:
-        loads_excel_module = False
-
 __version__ = '1.1.38'
 __release__ = '$release 75'
 description = 'Data Subjugation library for row-major organization of tabular data and control over the Excel Application'
@@ -57,7 +48,7 @@ except:
     long_description = 'https://github.com/michael-ross-ven/vengeance/blob/master/README.md'
     long_description_content_type = 'text'
 
-if loads_excel_module:
+if is_windows_os:
     install_requires = ['comtypes',
                         'pypiwin32']
 else:

@@ -47,11 +47,8 @@ data as it's intuitively understood by humans, **where each row is some entity, 
 is agonizingly slow. (DataFrame.iterrows() and DataFrame.apply() incur a huge performance penalty, and can be 1_000x times 
 slower to iterate than Python's built-in list.)
 
-DataFrames are also intended to make heavy use of 'vectorization', where operations can be broadcast and applied to an entire set 
-of values in parallel, performed as SIMD instructions at the microprocessor level. But again, this performance optimization comes
-at a cost: the restricted use of explicit loops over a DataFrame requires pandas to provide specialized API methods for almost 
-every operation and modification, which all must be memorized by the developer. This often leads to convoluted syntax 
-that's counter-inituitive to write, and effortful to read, especially when method-chaining is overused.
+But the restricted use of explicit loops over a DataFrame requires pandas to provide specialized API methods for almost 
+every operation and modification, which often leads to convoluted syntax, especially when method-chaining is overused.
 
     # wait, what exactly does this do again?
     df['column'] = np.sign(df.column.diff().fillna(0)).shift(-1).fillna(0) \
@@ -68,34 +65,21 @@ that's counter-inituitive to write, and effortful to read, especially when metho
 * vectorized operations on contiguous arrays are memory-efficient and *very* fast
 
 ##### DataFrame Disadvantages:
-* syntax doesnt always drive intuition or conceptual understanding
-* iteration by rows is effectively out of the question \
+* syntax doesnt always drive intuition or conceptual understanding of the actual entity represented by a row
+* often fallback to iteration by rows anyway \
   ([and makes working with JSON format notoriously difficult](https://medium.com/bhavaniravi/whats-wrong-with-python-pandas-32ba5bb2b658))
 * vectorized operations are harder to debug / inspect when they encounter an error
-* unexpected loss of precision on numerical data
-
-##### But I mean, why are we working in Python to begin with?
-* emphasis on code readability
-* datatypes are abstracted away
-* hyper-optimized execution times are less of a priority
-
-##### [So does the DataFrame really reinforce what makes Python so great?](https://en.wikipedia.org/wiki/Zen_of_Python)
->"Explicit is better than implicit" \
-"Sparse is better than dense" \
-"Readability counts" \
-"There should be one– and preferably only one –obvious way to do it"
->
+* unexpected loss of precision and 'null' datatypes
 
 <br/>
 
 
 ## vengeance.flux_cls
-* similar idea behind a pandas DataFrame, but is more closely aligned with Python's design philosophy
-* when you're willing to trade for a little bit of speed for a lot simplicity
-* a pure-python, row-major wrapper class for list of list data
+* similar idea behind a pandas DataFrame, but row-major iteration
+* a pure-Python, row-major wrapper class for tabular data
 * applies named attributes to rows -- attribute values are mutable during iteration
 * provides convenience aggregate operations (sort, filter, groupby, etc)
-* excellent for extremely fast prototyping and data subjugation
+* excellent for extremely fast prototyping and data pacification
 
 ###### row-major iteration
     

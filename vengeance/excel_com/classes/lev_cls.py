@@ -64,7 +64,7 @@ class lev_cls:
     lev['*f *h'] = matrix
 
     """
-    allow_focus = False
+    allow_focus = True
 
     def __init__(self, ws, *,
                        first_c=None,

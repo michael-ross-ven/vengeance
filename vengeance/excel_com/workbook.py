@@ -95,10 +95,14 @@ def get_opened_workbook(path):
             wb_path = wb.FullName
             wb_name = wb.Name.lower()
 
-            if (p_path.directory and os.path.samefile(path, wb_path)) or \
-               (name == wb_name):
-
+            if name == wb_name:
                 workbooks.append(wb)
+            else:
+                try:
+                    if p_path.directory and os.path.samefile(path, wb_path):
+                        workbooks.append(wb)
+                except Exception:
+                    pass
 
     if not workbooks:
         return None
@@ -229,7 +233,14 @@ def new_excel_application():
     """
     excel_app = comtypes_createobject('Excel.Application', dynamic=True)
     excel_app = __iunknown_pointer_to_python_object(excel_app, comtypes_idispatch)
-    excel_app = EnsureDispatch(excel_app)
+
+    try:
+        excel_app = EnsureDispatch(excel_app)
+    except AttributeError:
+        # win32com Dispatch() call rejected: COM files may be corrupted
+        __move_win32com_gencache_folder()
+        raise ChildProcessError('Error dispatching Excel Application from win32com module. '
+                                '\n\n\t(contents of the win32com gen_py folder may be corrupt)') from None
 
     return excel_app
 

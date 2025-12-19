@@ -1,4 +1,4 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.4
 Name: vengeance
 Version: 1.1.38
 Summary: Data Subjugation library for row-major organization of tabular data and control over the Excel Application
@@ -10,6 +10,20 @@ Classifier: Programming Language :: Python :: 3
 Classifier: License :: OSI Approved :: MIT License
 Description-Content-Type: text/markdown
 License-File: LICENSE
+Requires-Dist: comtypes
+Requires-Dist: pypiwin32
+Requires-Dist: python-dateutil; python_version >= "3.0"
+Requires-Dist: numpy; python_version >= "3.0"
+Dynamic: author
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license
+Dynamic: license-file
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: summary
 
 ##### For example usage, see:
 https://github.com/michael-ross-ven/vengeance_example/blob/main/vengeance_example/flux_example.py
