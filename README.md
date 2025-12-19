@@ -91,7 +91,7 @@ every operation and modification, which often leads to convoluted syntax, especi
         lev['*f *h'] = flux
 
 
-## vengeance.lev_cls
+###### vengeance.lev_cls
 * (description coming soon...)
 * (actually no, Im never putting in a description for this)
 
