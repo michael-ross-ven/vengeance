@@ -51,7 +51,7 @@ every operation and modification, which often leads to convoluted syntax, especi
 
 
 
-## vengeance.flux_cls
+## vengeance
 * Python control over live Excel applications
 * similar idea behind a pandas DataFrame, but pure-Python, row-major iteration
 
