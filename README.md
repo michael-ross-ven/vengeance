@@ -1,31 +1,20 @@
 ##### For example usage, see:
 https://github.com/michael-ross-ven/vengeance_example/blob/main/vengeance_example/flux_example.py
-<br/>
-<br/>
+<br/><br/>
 https://github.com/michael-ross-ven/vengeance_example/blob/main/vengeance_example/excel_example.py
+<br/><br/>
+
+
+##### DataFrame Advantages:
+* vectorized operations on contiguous arrays are memory-efficient and *very* fast
+
+##### DataFrame Disadvantages:
+* syntax doesnt always drive intuition or conceptual understanding of the actual entity represented by a row
+* often fallback to iteration by rows anyway (df.iterrows())
+* machine types get away from Python's type system and must contend with several 'null' datatypes
+
 <br/>
-<br/>
 
-## Managing data stored as rows and columns shouldn't be complicated.
-
-When given a list of lists in Python, your first instinct is to loop over rows and modify column values, in-place. It's the most 
-natural way to think about the data, because **conceptually, each row is some entity, and each column is a property of that row**, 
-much like a list of objects.
-
-A headache when dealing with list of lists however, is having to keep track of columns by integer elements; it would be nice to 
-replace the indices on each row with named attributes, and have these applied even when the columns are not known ahead of time, 
-such as when pulling data from a sql table or csv file.
-
-    for row in matrix:
-        row[17]            # what's in that 18th column again?
-
-    for row in matrix:
-        row.customer_id    # oh, duh
-
-
-### Doesn't the pandas DataFrame already already solve this?
-In a DataFrame, data is taken out of its default nested list format and is organized in column-major order, which comes with some 
-advantages as well as drawbacks.
 
 ##### Row-Major Order:
         
@@ -61,28 +50,53 @@ every operation and modification, which often leads to convoluted syntax, especi
 <br/>
 
 
-##### DataFrame Advantages:
-* vectorized operations on contiguous arrays are memory-efficient and *very* fast
-
-##### DataFrame Disadvantages:
-* syntax doesnt always drive intuition or conceptual understanding of the actual entity represented by a row
-* often fallback to iteration by rows anyway \
-  ([and makes working with JSON format notoriously difficult](https://medium.com/bhavaniravi/whats-wrong-with-python-pandas-32ba5bb2b658))
-* vectorized operations are harder to debug / inspect when they encounter an error
-* unexpected loss of precision and 'null' datatypes
-
-<br/>
-
 
 ## vengeance.flux_cls
-* similar idea behind a pandas DataFrame, but row-major iteration
-* a pure-Python, row-major wrapper class for tabular data
-* applies named attributes to rows -- attribute values are mutable during iteration
-* provides convenience aggregate operations (sort, filter, groupby, etc)
-* excellent for extremely fast prototyping and data pacification
+* Python control over live Excel applications
+* similar idea behind a pandas DataFrame, but pure-Python, row-major iteration
 
-###### row-major iteration
+
+###### Excel interaction:
+    def set_project_workbook(path,
+                             excel_app='any',
+                             **kwargs):
+        global wb
+
+        excel_app = 'new'
+        # excel_app = 'any'
+        # excel_app = 'empty'
+        wb = vengeance.open_workbook(path,
+                                     excel_app,
+                                     **kwargs)
+        return wb
+
+
+    def worksheet_to_flux():
+        """
+        lev  = share.worksheet_to_lev('Sheet1')
+        flux = flux_cls(lev)
+            or
+        flux = share.worksheet_to_flux('Sheet1')
+        """
+
+        lev  = share.worksheet_to_lev('Sheet1')
+        flux = flux_cls(lev)
+        # or just
+        # flux = share.worksheet_to_flux('Sheet1')
+        
+        flux['new_column'] = 'new'
+        for row in flux:
+            row.col_a = 'from flux'
     
+        lev['*f *h'] = flux
+
+
+## vengeance.lev_cls
+* (description coming soon...)
+* (actually no, Im never putting in a description for this)
+
+
+###### vengeance.flux_cls:
     # organized like csv data, attribute names are provided in first row
     matrix = [['attribute_a', 'attribute_b', 'attribute_c'],
               ['a',           'b',           3.0],
@@ -110,7 +124,7 @@ every operation and modification, which often leads to convoluted syntax, especi
     matrix = list(flux.values())
 
 
-###### columns
+###### flux_cls: columns
     column = flux['attribute_a']
 
     flux.rename_columns({'attribute_a': 'renamed_a',
@@ -121,7 +135,7 @@ every operation and modification, which often leads to convoluted syntax, especi
                         'inserted_b')
 
 
-###### rows
+###### flux_cls: rows
     rows = [['c', 'd', 4.0],
             ['c', 'd', 4.0],
             ['c', 'd', 4.0]]
@@ -132,7 +146,7 @@ every operation and modification, which often leads to convoluted syntax, especi
     flux_c = flux_a + flux_b
 
 
-###### sort / filter / apply
+###### flux_cls: sort / filter / apply
     flux.sort('attribute_c')
     flux.filter(lambda row: row.attribute_b != 'c')
     u = flux.unique('attribute_a', 'attribute_b')
@@ -141,7 +155,7 @@ every operation and modification, which often leads to convoluted syntax, especi
     flux['attribute_new'] = [some_function(v) for v in flux['attribute_a']]
 
 
-###### group / map rows
+###### flux_cls: group / map rows
     matrix = [['year', 'month', 'random_float'],
               ['2000', '01',     random.uniform(0, 9)],
               ['2000', '02',     random.uniform(0, 9)],
@@ -172,6 +186,5 @@ every operation and modification, which often leads to convoluted syntax, especi
     flux = flux_cls.from_file('file.pickle')
 
 
-## vengeance.lev_cls
-* (description coming soon...)
+
 
